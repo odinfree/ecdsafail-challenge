@@ -12,8 +12,18 @@
 //!
 //! This is analysis-only tooling; it does not change the quantum circuit.
 
+use crate::circuit::{Op, OperationType};
 use crate::point_add::{DIALOG_GCD_PA9024_COMPARE_SCHEDULE, N, SECP256K1_P};
+use crate::weierstrass_elliptic_curve::WeierstrassEllipticCurve;
 use alloy_primitives::U256;
+use sha3::{
+    digest::{ExtendableOutput, Update, XofReader},
+    Shake256,
+};
+use std::sync::{
+    atomic::{AtomicBool, AtomicU64, Ordering},
+    Mutex,
+};
 
 const MAX_GCD_ITERS: usize = 402;
 
@@ -224,6 +234,15 @@ fn cmp_gt_truncated(u: U256, v: U256, width: usize, compare_bits: usize) -> bool
     let lo = width.saturating_sub(cb);
     let mask = window_mask(cb);
     ((u >> lo) & mask) > ((v >> lo) & mask)
+}
+
+fn compare_margin(u: U256, v: U256, width: usize, compare_bits: usize) -> U256 {
+    let cb = compare_bits.min(width).max(1);
+    let lo = width.saturating_sub(cb);
+    let mask = window_mask(cb);
+    let a = (u >> lo) & mask;
+    let b = (v >> lo) & mask;
+    if a >= b { a - b } else { b - a }
 }
 
 fn sub_low_window(v: U256, u: U256, width: usize) -> U256 {
@@ -503,6 +522,520 @@ pub fn check_all_shots(
         }
     }
     Ok(())
+}
+
+#[derive(Clone, Debug)]
+pub struct GcdFactorReport {
+    pub reason: Option<HardReason>,
+    pub steps_needed: usize,
+    pub last_nonterminal_step: usize,
+    pub active_width: usize,
+    pub compare_bits: usize,
+    pub compare_margin: U256,
+}
+
+impl GcdFactorReport {
+    fn clean(&self) -> bool {
+        self.reason.is_none()
+    }
+}
+
+pub fn classify_gcd_factor(factor: U256, cfg: &DialogGcdFilterConfig) -> GcdFactorReport {
+    if factor.is_zero() {
+        let active_width = cfg.active_width(0);
+        let compare_bits = cfg.compare_bits_for_step(0, active_width);
+        return GcdFactorReport {
+            reason: Some(HardReason::NonConvergence { steps_needed: 0 }),
+            steps_needed: 0,
+            last_nonterminal_step: 0,
+            active_width,
+            compare_bits,
+            compare_margin: U256::ZERO,
+        };
+    }
+
+    let steps_needed = full_gcd_steps_until_zero(SECP256K1_P, factor, cfg, cfg.active_iterations + 1);
+    if steps_needed > cfg.active_iterations {
+        let step = cfg.active_iterations.saturating_sub(1);
+        let active_width = cfg.active_width(step);
+        let compare_bits = cfg.compare_bits_for_step(step, active_width);
+        return GcdFactorReport {
+            reason: Some(HardReason::NonConvergence { steps_needed }),
+            steps_needed,
+            last_nonterminal_step: step,
+            active_width,
+            compare_bits,
+            compare_margin: U256::ZERO,
+        };
+    }
+
+    let mut u = SECP256K1_P;
+    let mut v = factor;
+    let mut last_report = GcdFactorReport {
+        reason: None,
+        steps_needed,
+        last_nonterminal_step: 0,
+        active_width: cfg.active_width(0),
+        compare_bits: cfg.compare_bits_for_step(0, cfg.active_width(0)),
+        compare_margin: U256::ZERO,
+    };
+
+    for step in 0..cfg.active_iterations {
+        let active_width = cfg.active_width(step);
+        let compare_bits = cfg.compare_bits_for_step(step, active_width);
+        let margin = if bitlen(u) <= active_width && bitlen(v) <= active_width {
+            compare_margin(u, v, active_width, compare_bits)
+        } else {
+            U256::ZERO
+        };
+        last_report = GcdFactorReport {
+            reason: None,
+            steps_needed,
+            last_nonterminal_step: step,
+            active_width,
+            compare_bits,
+            compare_margin: margin,
+        };
+        if let Some(reason) = truncated_gcd_step(&mut u, &mut v, step, cfg) {
+            last_report.reason = Some(reason);
+            return last_report;
+        }
+    }
+
+    last_report.last_nonterminal_step = steps_needed.saturating_sub(1);
+    last_report.reason = None;
+    last_report
+}
+
+fn env_flag(name: &str) -> bool {
+    std::env::var(name).ok().as_deref() == Some("1")
+}
+
+fn env_usize(name: &str, default: usize) -> usize {
+    std::env::var(name).ok().and_then(|s| s.parse().ok()).unwrap_or(default)
+}
+
+fn reason_label(reason: Option<HardReason>) -> &'static str {
+    match reason {
+        None => "clean",
+        Some(HardReason::WidthOverflow { .. }) => "width_overflow",
+        Some(HardReason::ComparatorMismatch { .. }) => "comparator_mismatch",
+        Some(HardReason::NonConvergence { .. }) => "non_convergence",
+    }
+}
+
+fn reason_detail(reason: Option<HardReason>) -> String {
+    match reason {
+        None => "clean".to_string(),
+        Some(HardReason::WidthOverflow { step }) => format!("width_overflow step={step}"),
+        Some(HardReason::ComparatorMismatch { step }) => format!("comparator_mismatch step={step}"),
+        Some(HardReason::NonConvergence { steps_needed }) => {
+            format!("non_convergence steps_needed={steps_needed}")
+        }
+    }
+}
+
+fn secp256k1_curve() -> WeierstrassEllipticCurve {
+    WeierstrassEllipticCurve {
+        modulus: SECP256K1_P,
+        a: U256::from(0),
+        b: U256::from(7),
+        gx: U256::from_str_radix(
+            "79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798",
+            16,
+        )
+        .unwrap(),
+        gy: U256::from_str_radix(
+            "483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8",
+            16,
+        )
+        .unwrap(),
+        order: U256::from_str_radix(
+            "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141",
+            16,
+        )
+        .unwrap(),
+    }
+}
+
+fn update_hasher_with_op(hasher: &mut Shake256, op: &Op) {
+    hasher.update(&[op.kind as u8]);
+    hasher.update(&op.q_control2.0.to_le_bytes());
+    hasher.update(&op.q_control1.0.to_le_bytes());
+    hasher.update(&op.q_target.0.to_le_bytes());
+    hasher.update(&op.c_target.0.to_le_bytes());
+    hasher.update(&op.c_condition.0.to_le_bytes());
+    hasher.update(&op.r_target.0.to_le_bytes());
+}
+
+fn fiat_shamir_seed(ops: &[Op]) -> sha3::Shake256Reader {
+    let mut hasher = Shake256::default();
+    hasher.update(b"quantum_ecc-fiat-shamir-v2");
+    hasher.update(&(ops.len() as u64).to_le_bytes());
+    for op in ops {
+        update_hasher_with_op(&mut hasher, op);
+    }
+    hasher.finalize_xof()
+}
+
+#[derive(Clone, Copy)]
+struct TailLayout {
+    zero_op: Op,
+    one_op: Op,
+    prefix_len: usize,
+}
+
+#[derive(Clone, Debug)]
+struct PrefilterReject {
+    attempt: usize,
+    shot: usize,
+    factor_name: &'static str,
+    report: GcdFactorReport,
+}
+
+fn current_tail_nonce() -> Result<u64, String> {
+    std::env::var("DIALOG_TAIL_NONCE")
+        .map_err(|_| "DIALOG_TAIL_NONCE is not set after route configuration".to_string())?
+        .parse()
+        .map_err(|e| format!("DIALOG_TAIL_NONCE parse error: {e}"))
+}
+
+fn verify_tail_layout(ops: &[Op], current_nonce: u64) -> Result<TailLayout, String> {
+    const NONCE_BITS: usize = 48;
+    const TAIL_OPS: usize = NONCE_BITS * 2;
+    if ops.len() < TAIL_OPS {
+        return Err(format!("op stream has fewer than {TAIL_OPS} tail ops"));
+    }
+    let prefix_len = ops.len() - TAIL_OPS;
+    let tail = &ops[prefix_len..];
+    let mut zero_op: Option<Op> = None;
+    let mut one_op: Option<Op> = None;
+    for i in 0..NONCE_BITS {
+        let a = tail[2 * i];
+        let b = tail[2 * i + 1];
+        if a.kind != OperationType::X || b.kind != OperationType::X {
+            return Err(format!("tail pair {i} is not X;X"));
+        }
+        if a != b {
+            return Err(format!("tail pair {i} targets differ"));
+        }
+        if (current_nonce >> i) & 1 == 0 {
+            if let Some(existing) = zero_op {
+                if existing != a {
+                    return Err(format!("tail bit-0 target changed at bit {i}"));
+                }
+            } else {
+                zero_op = Some(a);
+            }
+        } else if let Some(existing) = one_op {
+            if existing != a {
+                return Err(format!("tail bit-1 target changed at bit {i}"));
+            }
+        } else {
+            one_op = Some(a);
+        }
+    }
+    let zero_op = zero_op.ok_or_else(|| "current nonce has no zero bits".to_string())?;
+    let one_op = one_op.ok_or_else(|| "current nonce has no one bits".to_string())?;
+    if zero_op.q_target == one_op.q_target {
+        return Err("tail zero/one targets are identical".to_string());
+    }
+    Ok(TailLayout { zero_op, one_op, prefix_len })
+}
+
+fn fiat_shamir_seed_with_synthetic_tail(ops: &[Op], layout: TailLayout, nonce: u64) -> sha3::Shake256Reader {
+    const NONCE_BITS: usize = 48;
+    let mut hasher = Shake256::default();
+    hasher.update(b"quantum_ecc-fiat-shamir-v2");
+    hasher.update(&(ops.len() as u64).to_le_bytes());
+    for op in &ops[..layout.prefix_len] {
+        update_hasher_with_op(&mut hasher, op);
+    }
+    for i in 0..NONCE_BITS {
+        let op = if (nonce >> i) & 1 == 1 { layout.one_op } else { layout.zero_op };
+        update_hasher_with_op(&mut hasher, &op);
+        update_hasher_with_op(&mut hasher, &op);
+    }
+    hasher.finalize_xof()
+}
+
+fn verify_synthetic_tail_hash(ops: &[Op], layout: TailLayout, current_nonce: u64) -> bool {
+    let mut direct = fiat_shamir_seed(ops);
+    let mut synthetic = fiat_shamir_seed_with_synthetic_tail(ops, layout, current_nonce);
+    let mut a = [0u8; 64];
+    let mut b = [0u8; 64];
+    direct.read(&mut a);
+    synthetic.read(&mut b);
+    a == b
+}
+
+fn print_factor_report(
+    label: &str,
+    attempt: usize,
+    shot: usize,
+    factor_name: &str,
+    active: usize,
+    report: &GcdFactorReport,
+) {
+    println!(
+        "{label} attempt={attempt} shot={shot} factor={factor_name} active={active} status={} reason=\"{}\" steps_needed={} last_nonterminal_step={} active_width={} compare_bits={} compare_margin={:#x}",
+        if report.clean() { "clean" } else { "fail" },
+        reason_detail(report.reason),
+        report.steps_needed,
+        report.last_nonterminal_step,
+        report.active_width,
+        report.compare_bits,
+        report.compare_margin,
+    );
+}
+
+fn bump_reason_counts(reason: Option<HardReason>, counts: &mut [usize; 3]) {
+    match reason {
+        Some(HardReason::WidthOverflow { .. }) => counts[0] += 1,
+        Some(HardReason::ComparatorMismatch { .. }) => counts[1] += 1,
+        Some(HardReason::NonConvergence { .. }) => counts[2] += 1,
+        None => {}
+    }
+}
+
+fn scan_nonce_with_cfg(
+    ops: &[Op],
+    layout: TailLayout,
+    nonce: u64,
+    cfg: &DialogGcdFilterConfig,
+    curve: &WeierstrassEllipticCurve,
+) -> Result<(), PrefilterReject> {
+    let mut xof = fiat_shamir_seed_with_synthetic_tail(ops, layout, nonce);
+    let mut accepted = 0usize;
+    for attempt in 0..9024 {
+        let mut rb = [[0u8; 32]; 2];
+        xof.read(&mut rb[0]);
+        xof.read(&mut rb[1]);
+        let k1 = U256::from_le_bytes(rb[0]);
+        let k2 = U256::from_le_bytes(rb[1]);
+        let t = curve.mul(curve.gx, curve.gy, k1);
+        let o = curve.mul(curve.gx, curve.gy, k2);
+        if t.0 == o.0 {
+            continue;
+        }
+        if (t.0.is_zero() && t.1.is_zero()) || (o.0.is_zero() && o.1.is_zero()) {
+            continue;
+        }
+        let expected = curve.add(t.0, t.1, o.0, o.1);
+        let (dx, c) = point_add_gcd_factors(t.0, o.0, expected.0);
+        for (factor_name, factor) in [("dx", dx), ("c", c)] {
+            let report = classify_gcd_factor(factor, cfg);
+            if !report.clean() {
+                return Err(PrefilterReject { attempt, shot: accepted, factor_name, report });
+            }
+        }
+        accepted += 1;
+    }
+    Ok(())
+}
+
+fn run_prefilter_scan(ops: &[Op]) -> i32 {
+    let current_nonce = match current_tail_nonce() {
+        Ok(nonce) => nonce,
+        Err(e) => {
+            eprintln!("PREFILTER_ERROR {e}");
+            return 2;
+        }
+    };
+    let layout = match verify_tail_layout(ops, current_nonce) {
+        Ok(layout) => layout,
+        Err(e) => {
+            eprintln!("PREFILTER_TAIL_ERROR {e}");
+            return 2;
+        }
+    };
+    if !verify_synthetic_tail_hash(ops, layout, current_nonce) {
+        eprintln!("PREFILTER_HASH_ERROR synthetic current nonce does not match full op stream");
+        return 2;
+    }
+    let start = std::env::var("DIALOG_GCD_PREFILTER_START").ok().and_then(|s| s.parse::<u64>().ok()).unwrap_or(current_nonce);
+    let count = std::env::var("DIALOG_GCD_PREFILTER_COUNT").ok().and_then(|s| s.parse::<u64>().ok()).unwrap_or(1);
+    let step = std::env::var("DIALOG_GCD_PREFILTER_STEP").ok().and_then(|s| s.parse::<u64>().ok()).filter(|&s| s > 0).unwrap_or(1);
+    let default_threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1);
+    let threads = env_usize("DIALOG_GCD_PREFILTER_THREADS", default_threads).max(1).min(count.max(1) as usize);
+    let find_all = env_flag("DIALOG_GCD_PREFILTER_FIND_ALL");
+    let verbose = env_flag("DIALOG_GCD_PREFILTER_VERBOSE");
+    let cfg = DialogGcdFilterConfig::from_env();
+    println!(
+        "PREFILTER_CONFIG start={} count={} step={} threads={} find_all={} verbose={} active_iterations={} compare_bits={} strict_compare={} width_slope_x1000={:.0} width_margin={:.3}",
+        start, count, step, threads, find_all as u8, verbose as u8, cfg.active_iterations, cfg.compare_bits, cfg.strict_compare as u8, cfg.width_slope * 1000.0, cfg.width_margin,
+    );
+    let next = AtomicU64::new(0);
+    let found_any = AtomicBool::new(false);
+    let clean = Mutex::new(Vec::<u64>::new());
+    let first_reject = Mutex::new(None::<(u64, PrefilterReject)>);
+    std::thread::scope(|scope| {
+        for _ in 0..threads {
+            let next = &next;
+            let found_any = &found_any;
+            let clean = &clean;
+            let first_reject = &first_reject;
+            let cfg = &cfg;
+            scope.spawn(move || {
+                let curve = secp256k1_curve();
+                loop {
+                    if !find_all && found_any.load(Ordering::Relaxed) {
+                        break;
+                    }
+                    let idx = next.fetch_add(1, Ordering::Relaxed);
+                    if idx >= count {
+                        break;
+                    }
+                    let Some(nonce) = start.checked_add(idx.saturating_mul(step)) else {
+                        break;
+                    };
+                    match scan_nonce_with_cfg(ops, layout, nonce, cfg, &curve) {
+                        Ok(()) => {
+                            println!("CLEAN nonce={nonce}");
+                            clean.lock().unwrap().push(nonce);
+                            found_any.store(true, Ordering::Relaxed);
+                        }
+                        Err(reject) => {
+                            if verbose {
+                                print_factor_report("PREFILTER_REJECT", reject.attempt, reject.shot, reject.factor_name, cfg.active_iterations, &reject.report);
+                            }
+                            let mut first = first_reject.lock().unwrap();
+                            if first.is_none() {
+                                *first = Some((nonce, reject));
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    });
+    let clean = clean.lock().unwrap();
+    if !clean.is_empty() {
+        println!("PREFILTER_SUMMARY clean_count={} first_clean={}", clean.len(), clean[0]);
+        0
+    } else {
+        if let Some((nonce, reject)) = first_reject.lock().unwrap().as_ref() {
+            println!(
+                "PREFILTER_SUMMARY clean_count=0 first_reject_nonce={} first_reject_factor={} first_reject_reason={}",
+                nonce, reject.factor_name, reason_label(reject.report.reason),
+            );
+        } else {
+            println!("PREFILTER_SUMMARY clean_count=0");
+        }
+        1
+    }
+}
+
+pub fn maybe_run_prefilter_scan(ops: &[Op]) {
+    if !env_flag("DIALOG_GCD_PREFILTER_SCAN") {
+        return;
+    }
+    let code = run_prefilter_scan(ops);
+    std::process::exit(code);
+}
+
+fn run_active_row_classifier(ops: &[Op]) -> i32 {
+    if ops.is_empty() {
+        eprintln!("ACTIVE_ROW_ERROR empty op stream; run without POINT_ADD_COUNT_ONLY");
+        return 2;
+    }
+    let env_cfg = DialogGcdFilterConfig::from_env();
+    let base_active = env_usize("DIALOG_GCD_ACTIVE_ROW_BASE", env_cfg.active_iterations);
+    let candidate_active = env_usize("DIALOG_GCD_ACTIVE_ROW_CANDIDATE", base_active.saturating_sub(1).max(1));
+    if !(1..=MAX_GCD_ITERS).contains(&base_active) || !(1..=MAX_GCD_ITERS).contains(&candidate_active) {
+        eprintln!("ACTIVE_ROW_ERROR active rows must be in 1..={MAX_GCD_ITERS}: base={base_active} candidate={candidate_active}");
+        return 2;
+    }
+    let attempt_limit = env_usize("DIALOG_GCD_ACTIVE_ROW_LIMIT", 9024).min(9024);
+    let verbose = env_flag("DIALOG_GCD_ACTIVE_ROW_VERBOSE");
+    let mut base_cfg = env_cfg.clone();
+    base_cfg.active_iterations = base_active;
+    let mut candidate_cfg = env_cfg;
+    candidate_cfg.active_iterations = candidate_active;
+    let check_base = base_active != candidate_active;
+    println!(
+        "ACTIVE_ROW_CONFIG base={} candidate={} attempts={} verbose={} compare_bits={} strict_compare={} width_slope_x1000={:.0} width_margin={:.3} pa9024_schedule={}",
+        base_active, candidate_active, attempt_limit, verbose as u8, candidate_cfg.compare_bits, candidate_cfg.strict_compare as u8, candidate_cfg.width_slope * 1000.0, candidate_cfg.width_margin, candidate_cfg.pa9024_compare_schedule as u8,
+    );
+    let curve = secp256k1_curve();
+    let mut xof = fiat_shamir_seed(ops);
+    let mut accepted = 0usize;
+    let mut skipped_equal_x = 0usize;
+    let mut skipped_identity = 0usize;
+    let mut base_failures = 0usize;
+    let mut candidate_failures = 0usize;
+    let mut candidate_dx_failures = 0usize;
+    let mut candidate_c_failures = 0usize;
+    let mut candidate_reason_counts = [0usize; 3];
+    let mut first_candidate_failure_printed = false;
+    let mut first_candidate_reason = "clean";
+    for attempt in 0..attempt_limit {
+        let mut rb = [[0u8; 32]; 2];
+        xof.read(&mut rb[0]);
+        xof.read(&mut rb[1]);
+        let k1 = U256::from_le_bytes(rb[0]);
+        let k2 = U256::from_le_bytes(rb[1]);
+        let t = curve.mul(curve.gx, curve.gy, k1);
+        let o = curve.mul(curve.gx, curve.gy, k2);
+        if t.0 == o.0 {
+            skipped_equal_x += 1;
+            continue;
+        }
+        if (t.0.is_zero() && t.1.is_zero()) || (o.0.is_zero() && o.1.is_zero()) {
+            skipped_identity += 1;
+            continue;
+        }
+        let expected = curve.add(t.0, t.1, o.0, o.1);
+        let (dx, c) = point_add_gcd_factors(t.0, o.0, expected.0);
+        let shot = accepted;
+        accepted += 1;
+        for (factor_name, factor) in [("dx", dx), ("c", c)] {
+            if check_base {
+                let base_report = classify_gcd_factor(factor, &base_cfg);
+                if !base_report.clean() {
+                    base_failures += 1;
+                    print_factor_report("BASE_FAIL", attempt, shot, factor_name, base_active, &base_report);
+                }
+            }
+            let candidate_report = classify_gcd_factor(factor, &candidate_cfg);
+            if !candidate_report.clean() {
+                candidate_failures += 1;
+                if factor_name == "dx" { candidate_dx_failures += 1; } else { candidate_c_failures += 1; }
+                bump_reason_counts(candidate_report.reason, &mut candidate_reason_counts);
+                if !first_candidate_failure_printed {
+                    first_candidate_reason = reason_label(candidate_report.reason);
+                }
+                if verbose {
+                    print_factor_report("CANDIDATE_FAIL", attempt, shot, factor_name, candidate_active, &candidate_report);
+                } else if !first_candidate_failure_printed {
+                    print_factor_report("FIRST_CANDIDATE_FAIL", attempt, shot, factor_name, candidate_active, &candidate_report);
+                }
+                first_candidate_failure_printed = true;
+            }
+        }
+    }
+    println!(
+        "ACTIVE_ROW_SUMMARY attempts={} accepted={} skipped_equal_x={} skipped_identity={} base_failures={} candidate_failures={} candidate_dx_failures={} candidate_c_failures={} width_overflow={} comparator_mismatch={} non_convergence={}",
+        attempt_limit, accepted, skipped_equal_x, skipped_identity, base_failures, candidate_failures, candidate_dx_failures, candidate_c_failures, candidate_reason_counts[0], candidate_reason_counts[1], candidate_reason_counts[2],
+    );
+    if check_base && base_failures > 0 {
+        println!("ACTIVE_ROW_BASE_FAIL active={base_active}");
+        2
+    } else if candidate_failures == 0 {
+        println!("ACTIVE_ROW_CLEAN active={candidate_active}");
+        0
+    } else {
+        println!("ACTIVE_ROW_REJECT active={candidate_active} first_reason={first_candidate_reason}");
+        1
+    }
+}
+
+pub fn maybe_run_active_row_classifier(ops: &[Op]) {
+    if !env_flag("DIALOG_GCD_ACTIVE_ROW_CLASSIFY") {
+        return;
+    }
+    let code = run_active_row_classifier(ops);
+    std::process::exit(code);
 }
 
 #[cfg(test)]

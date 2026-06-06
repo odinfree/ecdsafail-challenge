@@ -1544,6 +1544,9 @@ fn build_builder() -> B {
         }
     }
 
+    dialog_gcd_classical_filter::maybe_run_prefilter_scan(&b.ops);
+    dialog_gcd_classical_filter::maybe_run_active_row_classifier(&b.ops);
+
     builder
 }
 
