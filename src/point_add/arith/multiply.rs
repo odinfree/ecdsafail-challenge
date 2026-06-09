@@ -758,6 +758,9 @@ fn round84_inplace_solinas_fold_enabled() -> bool {
 fn round84_fold_fast_add_enabled() -> bool {
     std::env::var("ROUND84_FOLD_FAST_ADD").ok().as_deref() == Some("1")
 }
+fn round84_qprod_naf_enabled() -> bool {
+    std::env::var("R84_QPROD_NAF").ok().as_deref() == Some("1")
+}
 #[inline]
 fn round84_add_small(b: &mut B, a: &[QubitId], acc: &[QubitId]) {
     if round84_fold_fast_add_enabled() {
@@ -917,6 +920,25 @@ fn round84_update_fold_quotient(
     }
 }
 
+fn round84_apply_quotient_product_term(
+    b: &mut B,
+    q: &[QubitId],
+    product: &[QubitId],
+    shift: usize,
+    add: bool,
+) {
+    let target = &product[shift..];
+    let pad = b.alloc_qubits(target.len() - q.len());
+    let mut source = q.to_vec();
+    source.extend_from_slice(&pad);
+    if add {
+        round84_add_small(b, &source, target);
+    } else {
+        round84_sub_small(b, &source, target);
+    }
+    b.free_vec(&pad);
+}
+
 fn round84_compute_quotient_c_product(b: &mut B, quotient: &[QubitId]) -> Vec<QubitId> {
     // quotient <= c, so its low 33 bits suffice and quotient*c fits in 66 bits.
     let q = &quotient[..33];
@@ -924,26 +946,32 @@ fn round84_compute_quotient_c_product(b: &mut B, quotient: &[QubitId]) -> Vec<Qu
     for i in 0..q.len() {
         b.cx(q[i], product[i]);
     }
-    for shift in [4usize, 6, 7, 8, 9, 32] {
-        let target = &product[shift..];
-        let pad = b.alloc_qubits(target.len() - q.len());
-        let mut source = q.to_vec();
-        source.extend_from_slice(&pad);
-        round84_add_small(b, &source, target);
-        b.free_vec(&pad);
+    if round84_qprod_naf_enabled() {
+        // c = 2^32 + 977 = 2^32 + 2^10 - 2^5 - 2^4 + 1.
+        for (shift, add) in [(4usize, false), (5, false), (10, true), (32, true)] {
+            round84_apply_quotient_product_term(b, q, &product, shift, add);
+        }
+    } else {
+        for shift in [4usize, 6, 7, 8, 9, 32] {
+            round84_apply_quotient_product_term(b, q, &product, shift, true);
+        }
     }
     product
 }
 
 fn round84_uncompute_quotient_c_product(b: &mut B, quotient: &[QubitId], product: &[QubitId]) {
     let q = &quotient[..33];
-    for shift in [4usize, 6, 7, 8, 9, 32].into_iter().rev() {
-        let target = &product[shift..];
-        let pad = b.alloc_qubits(target.len() - q.len());
-        let mut source = q.to_vec();
-        source.extend_from_slice(&pad);
-        round84_sub_small(b, &source, target);
-        b.free_vec(&pad);
+    if round84_qprod_naf_enabled() {
+        for (shift, add) in [(4usize, false), (5, false), (10, true), (32, true)]
+            .into_iter()
+            .rev()
+        {
+            round84_apply_quotient_product_term(b, q, product, shift, !add);
+        }
+    } else {
+        for shift in [4usize, 6, 7, 8, 9, 32].into_iter().rev() {
+            round84_apply_quotient_product_term(b, q, product, shift, false);
+        }
     }
     for i in 0..q.len() {
         b.cx(q[i], product[i]);
