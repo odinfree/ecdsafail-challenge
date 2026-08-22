@@ -91,7 +91,19 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
         Some(q)
     };
 
-    let tape = value_walk(b, &mut u, &mut v);
+    let mut tape = value_walk(b, &mut u, &mut v);
+
+    // Teddy tape falsifier: price the smallest exact full-history Bennett
+    // cycle without changing the public construction.  Walking back clears
+    // every sign qubit and restores the input layout; walking forward again
+    // recreates the byte-for-byte logical state consumed below.  This does not
+    // claim a width win (the tape is rebuilt before replay).  It isolates the
+    // minimum gate tax paid by any proposal that erases the complete tape and
+    // later needs it again.  The switch is research-only and defaults off.
+    if std::env::var_os("SUB4_PP_TEDDY_TAPE_RECOMPUTE_CYCLE").is_some() {
+        value_walk_back(b, &mut u, &mut v, std::mem::take(&mut tape));
+        tape = value_walk(b, &mut u, &mut v);
+    }
     let coefficient = b.alloc_qubits(N);
 
     // A converged fixed-depth walk ends with u,v in {+1,-1}.  Replay and the
