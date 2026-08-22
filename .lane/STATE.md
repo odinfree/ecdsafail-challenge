@@ -51,11 +51,13 @@ envelope margin on slow-converging shots (width violations).
 - WHAT IT IS: a sound, correctly-priced, classically-screenable width-schedule
   CUT worth **−4,369,482 score** (ΔT −3,419 avg-Toffoli at Q1278 unchanged),
   costing **+3.2 λ_cls, phase ~0** vs base. Strictly dominates census
-  greedy_m452 (3× score, lower λ). Vs greedy_m1000: a genuine tradeoff —
-  rescale has decisively lower CLASSICAL λ (n=500 oracle: 14.6 vs 19.5,
-  Δ+4.88) but greedy_m1000 leads on CERTAIN score by +490k; the phase
-  channel (binding under a screen) is being powered (E8b). Earlier "rescale
-  is the BEST" was an overclaim on a null n=5 combined-λ gap — retracted.
+  greedy_m452 (3× score, lower λ). Vs greedy_m1000 (powered, E8b n=24):
+  rescale has DECISIVELY lower combined λ (Δ+6.75, t=4.04) — classical Δ+4.6
+  decisive (oracle n=500 Δ+4.88), phase Δ+2.2 marginal (t=1.79, p≈0.09).
+  greedy_m1000 leads on CERTAIN score by +490k (0.04%). Net: rescale is the
+  better operating point — greedy1000's tiny score edge costs 9–850× hunt by
+  pipeline. Direction matches the earlier "rescale better" read, but that was
+  only JUSTIFIED once powered to n=24; n=5 combined (t=0.99) was underpowered.
 - SOUND, not a trap: E4 (faults are width-channel, nonce-varying 13–25),
   E3 (model predicts every count exactly — a deleted-arithmetic trap would
   not be predictable), E9 (dose-response: rescale sits far from the bias −1

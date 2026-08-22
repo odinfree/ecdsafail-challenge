@@ -185,6 +185,34 @@ label: rescale dominates greedy452; rescale vs greedy1000 is a genuine
 tradeoff — rescale much lower CLASSICAL λ (screenable), greedy1000 higher
 certain score; phase pending. Retracted to peer c9.
 
+## E8b — powered phase + combined (24 paired trusted draws)
+
+Nonces 6.2e9+k*7919, k=0..23, rescale vs greedy_m1000, all trusted evalall:
+
+| channel | rescale | greedy1000 | diff (g−r) | t | verdict |
+|---|---|---|---|---|---|
+| classical λ | 14.96 | 19.54 | +4.58 | (n=500 oracle: +4.88, t≈19) | decisive |
+| phase λ | 11.25 | 13.42 | +2.17 | 1.79 (p≈0.09) | marginal |
+| combined λ | 26.21 | 32.96 | **+6.75** | **4.04** | **decisive** |
+
+SETTLED: greedy_m1000 has decisively HIGHER combined λ than rescale
+(Δ+6.75, t=4.04) for a CERTAIN +490k more score. So rescale IS the better
+operating point of the two — the n=5 combined gap (t=0.99) was underpowered,
+not absent; at n=24 it is real and sizable. The economic read splits by
+pipeline (E10):
+- Un-screened full-eval: rescale wins big (Δ6.75 combined ≈ e^6.75 ≈ 850×
+  cheaper hunt) for −490k score. Clear rescale win.
+- Classical-prescreen (phase-limited): classical absorbed; binding channel
+  is phase, where rescale's edge is only MARGINAL (Δ2.2, p≈0.09 ≈ 9×). vs
+  greedy_m1000's +490k certain score, this is a closer call that hinges on a
+  p≈0.09 phase advantage. Honest: lean rescale, but not locked under this
+  pipeline.
+
+Mechanism (per Einstein): width→phase coupling is via
+`allowance = plan.peak − (tape_len + 2N + 2·walk_width)` feeding the replay
+chunk ladder (phase-only repairs) — measured per table, NOT inferred from
+"smoothness". rescale's lower phase is empirical (marginal), not structural.
+
 ## E9 — dose-response soundness (Einstein cross-lane, adopted)
 
 The SCHED_BIAS cliff discriminator (my local run was starved by machine
