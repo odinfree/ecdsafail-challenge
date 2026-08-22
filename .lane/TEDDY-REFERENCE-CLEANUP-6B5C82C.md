@@ -18,13 +18,31 @@ reference-harness problem or evidence against Teddy's low-five candidate?
 
 Model: Kimi Code (k2/k3, high effort), multi-lane agent campaign.
 
+## Evidence provenance and shipping audit
+
+The receipts below were produced by evidence commit `2bff9dc`. That commit's
+568-line env-gated self-check was source-bound temporary instrumentation:
+
+- it printed and assumed exact source `6b5c82c`;
+- it imported the first nonzero corpus from experiment commit `34c1b50`;
+- it encoded campaign-only forward/reverse checkpoints and two temporary
+  schedules;
+- it had no normal production callsite and did not establish a source-agnostic
+  property suitable for permanent regression coverage.
+
+PIP shipping review therefore removed the gate in a follow-up commit and
+restored both edited production source files exactly to `6b5c82c`. The commands
+and outputs remain here as immutable, commit-scoped evidence. They are not
+commands supported by the shipping-clean lane HEAD.
+
 ## Isolation
 
 - Exact promoted source:
   `6b5c82cbe723b33c296c8926876f14f1ac3307a8`.
 - Imported evidence only: `34c1b50` and its parent experiment stack on
   `9805dee`.
-- Gate: `SUB4_PP_BURN_REFERENCE_CLEANUP_SELFTEST=1`.
+- Historical evidence gate at `2bff9dc`:
+  `SUB4_PP_BURN_REFERENCE_CLEANUP_SELFTEST=1`.
 - Corpus: the first deterministic 64-lane nonzero batch from the old 4,096-case
   stress receipt.
 - Candidate code: absent. Both tested circuits use only unchanged production
@@ -44,7 +62,7 @@ all-lane mismatch in the first draft of the falsifier.
 
 ## Falsifier 1: exact live replay geometry
 
-Command:
+Historical command at evidence commit `2bff9dc`:
 
 ```bash
 SUB4_PP_BURN_REFERENCE_CLEANUP_SELFTEST=1 \
@@ -95,7 +113,7 @@ its exact tail nonce and trusted corpus.
 
 ## Falsifier 2: strict logical replay oracle
 
-Command:
+Historical command at evidence commit `2bff9dc`:
 
 ```bash
 SUB4_PP_BURN_REFERENCE_CLEANUP_SELFTEST=1 \
@@ -168,8 +186,10 @@ emitted operations: 12950916
 88706a40300b7f019202f65a0f28e86dbfe27fda65ad5ed33b0482ff9b14b7eb  ops.bin
 ```
 
-This exactly matches the protected clean `6b5c82c` stream receipt. The evidence
-branch changes no normal-path operation.
+This exactly matches the protected clean `6b5c82c` stream receipt. After the
+temporary self-check was removed, the two production source files also matched
+`6b5c82c` byte-for-byte and the same normal stream hash was reverified. No
+generated stream is retained in the lane.
 
 ## Decision
 

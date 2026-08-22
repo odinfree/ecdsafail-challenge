@@ -1,13 +1,15 @@
 # Teddy Pender reference-cleanup re-descent on `6b5c82c`
 
-Updated: 2026-08-22T20:39:31Z
+Updated: 2026-08-22T20:44:36Z
 Priority: Burn-the-House-Down campaign top priority
-Status: `OVERTURN_PREVIOUS_LIVE_NUMERATOR_ABI_KILL`
+Status: `OVERTURN_PREVIOUS_LIVE_NUMERATOR_ABI_KILL`; shipping tree clean
 
 ## Frozen source and model
 
 - Exact source: `6b5c82cbe723b33c296c8926876f14f1ac3307a8`.
 - Branch: `research/burn-reference-cleanup-6b5c82c`.
+- Production source at lane HEAD matches `6b5c82c` exactly; the source-bound
+  diagnostic from evidence commit `2bff9dc` was removed in a follow-up commit.
 - Protected normal-path stream: 12,950,916 operations, SHA-256
   `88706a40300b7f019202f65a0f28e86dbfe27fda65ad5ed33b0482ff9b14b7eb`.
 - Model: Kimi Code (k2/k3, high effort), multi-lane agent campaign.
@@ -18,6 +20,18 @@ Teddy Pender supplied the tape-removal architecture, the low-five sufficient
 statistic, and the Burn-the-House-Down discipline that required us to falsify
 the unchanged reference before blaming his representation. This lane is only
 the bookkeeping and instrumentation needed to follow Teddy's advice honestly.
+
+## PIP shipping audit
+
+The 568-line env-gated self-check in `2bff9dc` was a temporary diagnostic, not
+a permanent regression test. It hard-coded source `6b5c82c`, imported one
+corpus from `34c1b50`, named campaign-only stages, and had no production
+callsite. Future source changes would invalidate its geometry and conclusions.
+
+The follow-up shipping commit restores `src/point_add/mod.rs` and
+`src/point_add/pingpong_div.rs` byte-for-byte to `6b5c82c`. The exact commands
+and receipts remain in the evidence note as historical evidence tied to
+`2bff9dc`; the gate is deliberately absent from the current source.
 
 ## Result
 
