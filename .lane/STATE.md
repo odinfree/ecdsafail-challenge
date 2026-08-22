@@ -1,6 +1,6 @@
 # Re-descent lane state
 
-Updated: 2026-08-22T14:16:27Z
+Updated: 2026-08-22T14:28:16Z
 
 ## Identity
 
@@ -48,19 +48,19 @@ The current universal gate is `Q * T < 1175495454`. Exact strict T ceilings are 
 
 ## Current phase
 
-`GLOBAL_TAPE_REPRESENTATION_REDESCENT`
+`CLEANUP_CONTRACT_REDESCENT`
 
 ## Current hypothesis
 
-`H6`: the one-sign-per-round tape is the dominant persistent state, but neither current-walk recomputation, local tagged blocks, terminal-tail grinding, nor coefficient absorption can remove it under the existing cleanup semantics. A viable representation must preserve the whole transcript without retaining predecessor state, and it must compose with Teddy's measured square co-binder cut.
+`H7`: the one-sign-per-round tape persists because `value_walk_back` requires every branch decision. Materializing decoders reintroduce about262 live walk qubits and erase the Q gain. The next overturn is therefore the cleanup contract itself: remove the reverse walk through a terminal canonicalization or global invariant, so the tape is unnecessary rather than encoded. Any surviving route must compose with Teddy's measured sparse-square cut.
 
 ## Current falsifier
 
-H6 fails for a proposed representation if its decoder key contains state no longer live at walkback, if modular carry/high-word dependencies are omitted, or if a reachable slice contains more accepted transcripts than decoder-visible states. Context-specific checkpoint, radix, coefficient-absorption, and alternate-inversion negatives remain closed unless a changed premise is named.
+H7 fails for a proposed cleanup invariant on the first reachable collision with identical reverse-live terminal state but different required cleanup actions. `PASS` requires exact uncomputation of both reverse walk and sign tape without a new per-round carrier, with deterministic classical/phase/ancilla `0/0/0`. Context-specific checkpoint, radix, coefficient-absorption, materializing-decoder, and alternate-inversion negatives remain closed unless a changed premise is named.
 
 ## Next action
 
-Hold the exact prefix-code and terminal-tail lanes at their measured boundaries. The prefix family needs at least257 covered decisions before it reaches the current ping-pong binder. The terminal-tail circuit has real same-Q T economics, but394240 exact non-overlapping scans produced two classical-clean predictions, both with proven phase residuals, and zero K0 candidates. Teddy's sparse square overturn is exact at standalone Q1148 and removes the independent square co-binder for future composition, but replay still owns global Q1278. The carry-aware coefficient census now reproduces k4 and k8 maximum sign fibers of8 and128, so coefficient absorption under current cleanup semantics is KILL. The live leader's 696-round multiply depth is protected. Run one bounded 695-round falsifier for immediate score while Fable audits the smallest global square/replay composition. Next deep build only a genuinely global transcript representation or changed coefficient/cleanup semantics. Grind stays last.
+Hold the exact prefix-code and terminal-tail lanes at their measured boundaries. Teddy's sparse square overturn is exact at standalone Q1148, but replay still owns global Q1278. The carry-aware coefficient census kills absorption under current cleanup semantics, and Fable's architecture audit kills every concrete decoder that materializes the predecessor walk: the known family needs about262 resident qubits against an ancestral Q1148 budget of120. The one-round MUL695 stream is economically live but trusted dirty12/7/0 and remains HOLD pending independent nonce-selectability evidence. Next, on exact live commit `36f6ca0`, list every post-replay sign consumer and build only the reduced-round collision falsifier for a terminal cleanup invariant. A reachable collision kills the proposed invariant immediately. Grind stays last.
 
 ## Last verified result
 
@@ -72,6 +72,8 @@ Hold the exact prefix-code and terminal-tail lanes at their measured boundaries.
 - Coefficient-absorption audit commit `ad206c9`: current local one-tag claim KILL; a new global codec/cleanup architecture remains open.
 - Carry-aware coefficient census commit `3650a13`: complete k2/k4/k8 domains reproduce SHA prefixes `740015c4f83142d2`, `8a939e3689283000`, and `a7d7f58ed2818da5`; k4/k8 maximum fibers8/128 confirm KILL.
 - Live protected commit `36f6ca0`: Q1278/T919793/full9024 `0/0/0`; exact accepted diff is multiply depth696 plus nonce48000070891.
+- MUL695 falsifier commit `dff3f66`: Q1278/T919434.045/full9024 `12/7/0`; exact stream KILL, architecture HOLD.
+- Fable Q1148 visibility audit: sparse square HOLD, materializing decoder KILL, cleanup-contract overturn is next; live-rebased memo `.lane/FABLE-Q1148-VISIBILITY.md`.
 
 ## Credit and shipping note
 
