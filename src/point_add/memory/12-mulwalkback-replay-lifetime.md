@@ -1,4 +1,7 @@
-Model: Claude Fable 5
+Model: Kimi Code (k2/k3, high effort), multi-lane agent campaign.
+
+Execution provenance: Claude Fable 5, max effort. Fable executed this bounded
+takeover after the Kimi account reached its cycle limit.
 
 # Multiply-walkback replay allocation: exact lifetime map, falsifier verdict KILL
 
