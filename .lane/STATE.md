@@ -2,10 +2,15 @@
 
 Created: 2026-08-22
 Source: `6b5c82c`
-Branch: `research/kimi-burn-6b5c-mulwalkback`
-Status: structurally free descent; protected leader untouched
+Branch: `research/fable-burn-6b5c-mulwalkback`
+Status: Claude Fable takeover active; protected leader untouched
 
 Model: Kimi Code (k2/k3, high effort), multi-lane agent campaign.
+
+Execution provenance: Claude Fable 5, max effort, took over this unfinished
+objective after the Kimi account reached its cycle limit. The campaign model
+declaration above is preserved verbatim; this lane does not conceal who ran the
+actual experiment.
 
 ## Protected leader
 
