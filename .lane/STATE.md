@@ -53,19 +53,19 @@ The current universal gate is `Q * T < 1175485230`. Exact strict T ceilings are 
 
 ## Current phase
 
-`SIGN5_ORACLE_FALSIFIER`
+`SIGN6_ORACLE_FALSIFIER`
 
 ## Current hypothesis
 
-`H9`: retaining one exact 256-bit original denominator word makes the bounded component map injective without a persistent per-round carrier. The exact bounded extension now reconstructs signs1..4, including nonlinear sign4, consumes/uncomputes one sign at a time, preserves the retained word, and clears phase/ancilla with max_live_sign_bits1 and persistent_carrier_bits0. Sign5's degree-four oracle is the next falsifier. The first complete slice may carry substantial Q/T debt; success means semantic correctness and clean workspace, followed by re-descent to compose with Teddy's sparse square.
+`H9`: retaining one exact 256-bit original denominator word makes the bounded component map injective without a persistent per-round carrier. The live-bound extension now reconstructs signs1..5, including sign5's 25-term degree-four ANF, consumes/uncomputes one sign at a time, preserves the retained word, and clears a fixed two-qubit scratch after each sign. Max_live_sign_bits remains1 and persistent_carrier_bits0. Sign6's 57-term degree-six low8 oracle is the next falsifier. The first complete slice may carry substantial Q/T debt; success means semantic correctness and clean workspace, followed by re-descent to compose with Teddy's sparse square.
 
 ## Current falsifier
 
-H9 fails if sign5 assumes unavailable predecessor state, retains an O(R) sign carrier, cannot clear multi-control scratch, or cannot return the retained denominator through the component ABI. Extra scratch, Q above1278, and T regression are explicit prototype debt rather than automatic KILL. The signs1..4 slice upgrades the exact-source route to HOLD but does not yet prove a full replay replacement. Context-specific free-outer-key, local-terminal, checkpoint, radix, coefficient-absorption, and materializing-decoder negatives remain closed unless a changed premise is named.
+H9 fails if sign6 assumes unavailable predecessor state, retains an O(R) sign carrier, widens beyond the named fixed scratch, cannot clear multi-control scratch, or cannot return the retained denominator through the component ABI. Extra scratch, Q above1278, and T regression are explicit prototype debt rather than automatic KILL. The signs1..5 slice is HOLD but does not yet prove a full replay replacement. Context-specific free-outer-key, local-terminal, checkpoint, radix, coefficient-absorption, and materializing-decoder negatives remain closed unless a changed premise is named.
 
 ## Next action
 
-Hold the exact prefix-code and terminal-tail lanes at their measured boundaries. Teddy's sparse square overturn is exact at standalone Q1148, but replay still owns global Q1278. Commit `16c91fb` proves signs1..4 from one retained denominator with Q517/T12 in the candidate oracle, max_live_sign_bits1, persistent_carrier_bits0, phase0, and ancilla0. Extend the live-bound prototype through sign5's 25-term degree-four ANF over low7 bits; exhaust all128 residues across high-prefix witnesses and demand scratch cleanup. Record all temporary Q/T/retained-state debt. Do not optimize or grind before semantic correctness and cleanup. The MUL695 lane localized non-convergence and proved that an unconditional exact tail merely reconstructs MUL696; its next changed-premise falsifier is a reversible state-selective8-bit tail. Grind stays last.
+Hold the exact prefix-code and terminal-tail lanes at their measured boundaries. Teddy's sparse square overturn is exact at standalone Q1148, but replay still owns global Q1278. Commit `deb94de` proves signs1..5 from one retained denominator; sign5 uses a 25-term degree-four low7 ANF, fixed two-qubit scratch, and cleans after every sign. Extend through sign6's 57-term degree-six low8 ANF and exhaust all256 residues across four high-prefix witnesses. Record all temporary Q/T/retained-state debt. Do not optimize or grind before semantic correctness and cleanup. The MUL695 lane localized non-convergence and proved that an unconditional exact tail merely reconstructs MUL696; its next changed-premise falsifier is a reversible state-selective8-bit tail. Grind stays last.
 
 ## Last verified result
 
@@ -83,6 +83,7 @@ Hold the exact prefix-code and terminal-tail lanes at their measured boundaries.
 - Outer-key census commit `f990424`: zero-increment classical offset key KILL; one retained denominator word is bounded injective through p31/20 rounds in both directions, with explicit +256Q and recomputation debt. Exact sign-oracle skeleton is next.
 - Retained-sign1 skeleton commit `e57dfb4`: exact source-gated prototype Q1033, ABI Q257, extra peak Q776, 15,634 ops, 3,040 emitted/executed T, phase0, ancilla0, carrier bits0. It retains one denominator word, computes/uses/uncomputes one sign, and returns the word cleanly; bounded multi-sign composition is next.
 - Retained-signs1..4 commit `16c91fb`: exact bounded candidate Q517 on ABI260, 816 ops, emitted/executed T12, max_live_sign_bits1, persistent_carrier_bits0; independent production-walk reference Q1038/T3560 matches256 target-width denominators covering all64 low-six-bit residues under four high prefixes, with denominator preserved, phase0, ancilla0. Source parent `def24be` differs from current `a9af194` only at the default nonce. Verdict HOLD; sign5 is next.
+- Retained-sign5 commit `deb94de`: exact `a9af194` candidate Q520 on ABI261, extra peak259, 930 ops, emitted/executed T118; production reference Q1040/T4070. All512 target-width inputs covering128 low residues under four high prefixes match signs1..5; denominator preserved, shared sign and two scratch cleared after each sign, phase0, ancilla0, carrier0, max_live_sign_bits1. Verdict HOLD; sign6 is next.
 - Protected-leader cache HOLD commit `a05cca3`: exact `a9af194` cycle has21 clean rows and no average below919784.5; promoted nonce57002259501 at919785.268 remains best. Do not rebuild until a newer read-only cache cycle contains a necessarily new strict beat.
 
 ## Credit and shipping note
