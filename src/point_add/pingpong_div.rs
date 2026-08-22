@@ -66,6 +66,22 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
     assert_eq!(denominator.len(), N);
     assert_eq!(numerator.len(), N);
 
+    // Teddy tape representation lower bound: keep an exact 256-bit code for
+    // the denominator across the walk/replay.  This deliberately leaves the
+    // raw tape unchanged; it measures the resident width of the information
+    // code separately from any future decoder workspace.  The copy is
+    // uncomputed only after `restore_wire_layout` has restored the caller's
+    // exact denominator value and wire identities.
+    let denominator_code = if std::env::var_os("SUB4_PP_TEDDY_DENOMINATOR_CODE").is_some() {
+        let code = b.alloc_qubits(N);
+        for i in 0..N {
+            b.cx(denominator[i], code[i]);
+        }
+        Some(code)
+    } else {
+        None
+    };
+
     let mut u = load_const(b, N, SECP256K1_P);
     u.extend(b.alloc_qubits(VALUE_WIDTH - N));
     let wanted_u = u.clone();
@@ -182,6 +198,13 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
         b.free(even_lift);
     }
     restore_wire_layout(b, &mut u, &mut v, &wanted_u, &wanted_v);
+
+    if let Some(code) = denominator_code {
+        for i in 0..N {
+            b.cx(denominator[i], code[i]);
+        }
+        b.free_vec(&code);
+    }
 
     b.free_vec(&v[N..]);
     for i in 0..N {
