@@ -5,3 +5,4 @@ score.*
 **/.DS_Store
 ops.bin
 .lane/probe-*/
+.lane/evidence/
