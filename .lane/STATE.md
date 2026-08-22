@@ -1,6 +1,6 @@
 # Re-descent lane state
 
-Updated: 2026-08-22T14:41:32Z
+Updated: 2026-08-22T14:44:52Z
 
 ## Identity
 
@@ -35,6 +35,7 @@ The current universal gate is `Q * T < 1175495454`. Exact strict T ceilings are 
 - Preserve the benchmark ABI and trusted correctness contract.
 - Treat later accepted descendants as evidence and comparison points, not axioms or patches to cherry-pick wholesale.
 - Permit an intermediate score regression only when a named peak-owner invariant improves inside the saddle budget.
+- A first exact architecture prototype may exceed Q1148, use extra scratch, or regress T when it proves the new invariant and clears all added state. Record the Q/T/retained-state debt explicitly, then re-descend for score compliance. Do not confuse prototype tolerance with promotion authority.
 - No nonce or fleet hunt until the source is frozen, the measured or conservative Q/T economics clear the live gate, and a target-bound filter is calibrated.
 - Any eventual candidate requires a clean rebuild and full 9024-shot classical/phase/ancilla result of `0/0/0`.
 - This side lane has research authority only; submission remains outside its scope.
@@ -56,11 +57,11 @@ The current universal gate is `Q * T < 1175495454`. Exact strict T ceilings are 
 
 ## Current falsifier
 
-H8 fails for a proposed global key on the first reachable collision with identical decoder-visible terminal plus outer state but different required cleanup actions. `PASS` requires the distinguishing outer state to be already resident or explicitly priced, then reversibly cleared without a new per-round carrier. Bounded small-field injectivity is only HOLD to the next scale. Context-specific local-terminal, checkpoint, radix, coefficient-absorption, materializing-decoder, and alternate-inversion negatives remain closed unless a changed premise is named.
+H8 fails for a proposed global key on the first reachable collision with identical decoder-visible terminal plus outer state but different required cleanup actions. A first prototype may retain or recompute extra distinguishing state if it is explicitly priced and reversibly cleared; exceeding the final Q/T gate is HOLD debt, not an automatic KILL. Bounded small-field injectivity is only HOLD to the next scale. Context-specific local-terminal, checkpoint, radix, coefficient-absorption, materializing-decoder, and alternate-inversion negatives remain closed unless a changed premise is named.
 
 ## Next action
 
-Hold the exact prefix-code and terminal-tail lanes at their measured boundaries. Teddy's sparse square overturn is exact at standalone Q1148, but replay still owns global Q1278. The carry-aware coefficient census kills absorption, Fable kills materializing decoders, and the exact p=7 cleanup census now kills the component-local terminal invariant at round6 for both divide and multiply. The one-round MUL695 stream is economically live but trusted dirty12/7/0 and remains HOLD pending independent nonce-selectability evidence. Next, trace outer point-add registers already live across the exact `36f6ca0` ping-pong call, price their incremental peak width, and extend the collision key with the smallest zero-increment global invariant. First collision kills; bounded injectivity remains HOLD. Grind stays last.
+Hold the exact prefix-code and terminal-tail lanes at their measured boundaries. Teddy's sparse square overturn is exact at standalone Q1148, but replay still owns global Q1278. The carry-aware coefficient census kills absorption, Fable kills materializing decoders, and the exact p=7 cleanup census now kills the component-local terminal invariant at round6 for both divide and multiply. The one-round MUL695 stream is economically live but trusted dirty12/7/0 and remains HOLD pending independent nonce-selectability evidence. Next, trace outer point-add registers already live across the exact `36f6ca0` ping-pong call and extend the collision key with the smallest faithful global invariant. Prefer zero-increment state, but allow a bounded over-width semantic prototype with explicit debt. First collision kills the key; bounded injectivity remains HOLD. Grind stays last.
 
 ## Last verified result
 
