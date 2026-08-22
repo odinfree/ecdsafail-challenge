@@ -1,25 +1,29 @@
 # Hunt packet — q1275 co-binder cut on 940e34a
 
-Status: DRAFT until all FN gates recorded below are green. This packet is
-target-bound: any screener/hunter consuming it MUST refuse to run on a stream
-whose digest differs.
+Status: **FINAL** (all FN gates green; target re-cut to R2=625 after E7
+multi-draw). This packet is target-bound: any screener/hunter consuming it
+MUST refuse to run on a stream whose digest differs.
 
 ## 1. Target identity
 
 | Field | Value |
 |---|---|
 | Base source | `940e34a` + lane commit (branch `research/fable-peak-q1275-940e34a`) |
-| Config (baked defaults) | `SUB4_PP_PEAK=1275 SUB4_PP_R1=342 SUB4_PP_R2=620`, `SQUARE_LADDER=245` |
-| Op count | 12,954,520 |
-| ops.bin SHA-256 (at inherited nonce 176078461220) | `ac5f5a80caec1e4b789cf904069cd5056ecc9bd678e3101b77cd0847a7f5d7fd` |
+| Config (baked defaults) | `SUB4_PP_PEAK=1275 SUB4_PP_R1=342 SUB4_PP_R2=625`, `SQUARE_LADDER=245` |
+| Op count | 12,953,930 |
+| ops.bin SHA-256 (at inherited nonce 176078461220) | `83b66b7ef8e5080924f96faa0970a625044eb9d1e58fa2f6a75d162a3bb850d8` |
 | Qubits (peak) | **1275** |
-| avg executed Toffoli (dirty draw @176078461220) | 918,996.816 |
-| Current gate (live best 38563a2) | 1,172,540,718 = 1278 x 917,481 |
+| avg executed Toffoli (4 dirty draws) | 918,963-918,974, mean ≈ 918,967.5 |
+| Projected clean score | ≈ 1275 x 918,967 = **1,171,682,925** (−857,793 vs gate) |
+| Current gate (live best 38563a2, rechecked 2026-08-23) | 1,172,540,718 = 1278 x 917,481 |
 
 Regeneration: build `build_circuit` from the lane commit with no env overrides;
-the produced ops.bin must hash to `ac5f5a80…` or the packet is void
+the produced ops.bin must hash to `83b66b7e…` or the packet is void
 (digest guard). Env-only equivalent on clean 940e34a:
-`SUB4_PP_PEAK=1275 SUB4_PP_R1=342 SUB4_PP_R2=620 SUB4_SQUARE_LADDER=245`.
+`SUB4_PP_PEAK=1275 SUB4_PP_R1=342 SUB4_PP_R2=625 SUB4_SQUARE_LADDER=245`.
+(An earlier draft targeted R2=620, stream `ac5f5a80…`, avg ≈918,997 — E7
+measured 625 structurally 30 avg-T better at ~7σ on 4-draw means; 630 is flat
+vs 625. Do not hunt the 620 stream.)
 
 ## 2. Objective (what a WIN is)
 
@@ -81,7 +85,7 @@ with digest guard, tail patching, early abort (`--full` disables), TSV output:
 ```
 target/release/screen_nonces \
   --ops ops.bin \
-  --expect-sha ac5f5a80caec1e4b789cf904069cd5056ecc9bd678e3101b77cd0847a7f5d7fd \
+  --expect-sha 83b66b7ef8e5080924f96faa0970a625044eb9d1e58fa2f6a75d162a3bb850d8 \
   --best-score 1172540718 \
   --start 0 --count 1000
 ```
@@ -93,8 +97,10 @@ Columns: `nonce status cls phase anc batches tot_tof avg_round score verdict`.
 | Gate | Input | Expected | Measured (2026-08-23) |
 |---|---|---|---|
 | A: positive control | baseline stream `38e4d98d…` @ 176078461220 | CLEAN, tot_tof 8,279,347,797, avg 917,481, score 1,172,540,718, verdict no-win (strict-< check) | **EXACT match** |
-| B: negative control (full) | cut stream @ 176078461220 `--full` | DIRTY 9/7/0, 141/141 batches | **EXACT match** |
-| C: early-abort consistency | cut stream @ 176078461220 | DIRTY, aborts at batch 9/141 (first cls fault shot 536 ∈ batch 8, 0-indexed) | **DIRTY 1/0/0 at 9/141** ✓ |
+| B: negative control (full), 620 stream | `ac5f5a80…` @ 176078461220 `--full` | DIRTY 9/7/0, 141/141 batches (trusted eval E2) | **EXACT match** |
+| B': negative control, FINAL 625 stream | `83b66b7e…` @ 176078461220 | trusted eval (E5): 14 cls / 11 phase / 0 anc, avg 918,965.780 | **screener --full: 14/11/0, tot 8,292,747,196 = avg 918,965.780 — EXACT** |
+| C: early-abort consistency | `ac5f5a80…` @ 176078461220 | DIRTY, abort at batch 9/141 (first cls fault shot 536 ∈ batch 8, 0-indexed) | **DIRTY 1/0/0 at 9/141** ✓ |
+| C': early-abort, FINAL stream | `83b66b7e…` @ 176078461220 | DIRTY, abort at first dirty batch | **DIRTY 1/1/0 at 27/141** ✓ |
 | D: digest guard | wrong `--expect-sha` | refuses, exit 1 | **refused** ✓ |
 
 ALL GATES GREEN. Screener is trusted for screening as of lane commit; re-run
@@ -106,12 +112,16 @@ abort can't change a verdict, only truncate work.
 
 ## 7. Hunt sizing
 
-- E2 fault sum 16 (9 cls / 7 phase-batches / 0 anc) at one draw. Poisson
-  estimate: island density ≈ e^-16 ≈ 1.1e-7 → geometric-mean cost ≈ 8.9M
-  candidates to first island. (Single-draw λ estimate — wide error bars;
-  a few hundred screened nonces give a much better λ and per-channel split.)
-- Local single-core cost ≈ 20-30 s per DIRTY candidate (test-gen + ~9 batches)
-  → this is a fleet-scale hunt. NOT to be run to completion locally; local
+- Fault sums on the FINAL 625 stream over 4 full draws: 25 / 12 / 15 / 23
+  (cls+phase-batches; anc always 0). Mean λ ≈ 18.75. Poisson estimate:
+  island density ≈ e^-18.75 ≈ 7.2e-9 → geometric-mean cost ≈ **1.4e8
+  candidates** to first island (wide error bars; the 100-nonce local scan in
+  `.lane/scan_4000_4099.tsv` refines λ and the dirty-abort cost profile).
+- 12-draw pooled λ across the three R2 streams ≈ 22.7 — consistent with the
+  inherited "fault sum ≈ 22" probe claim.
+- Nonce space: 48-bit (2.8e14) — density is the constraint, not the space.
+- Local single-core cost ≈ 20-30 s per DIRTY candidate (test-gen + early
+  abort) → fleet-scale hunt. NOT to be run to completion locally; local
   screening is for λ estimation and packet validation only.
 - Every fleet survivor MUST be re-certified by the unchanged `./benchmark.sh`
   full run (0/0/0 + score) on the lane commit before any submission decision.
@@ -122,8 +132,8 @@ abort can't change a verdict, only truncate work.
   plan (1275) and the square ladder (1030+245=1275). Any future lever that
   adds +1 anywhere at the peak instant un-lands Q1275 (P3/P4 evidence:
   LADDER 246→Q1276, 247→Q1277).
-- R1/R2 axis sweep around (342,620) at PEAK=1275/LADDER=245: see EXPERIMENTS
-  E5. If a lower-T neighbor exists, re-cut the packet (new digest) before
-  hunting.
+- R1/R2 tuning is settled: R1=342 is the axis minimum (E5, steep penalty
+  above 346); R2=625 beats 620 by 30 avg-T at ~7σ on 4-draw means and 630 is
+  flat vs 625 (E7). Any further re-cut voids this packet's digest.
 - No submission, provider creation/mutation, fleet deployment, or spend from
   this lane. The packet is a hand-off artifact.

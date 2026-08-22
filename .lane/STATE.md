@@ -51,25 +51,35 @@ rejected draws (k1==k2/infinity) would shift the denominator.
 
 ## Status
 
-- [x] Live anchor verified via CLI (score 1,172,540,718 @ 940e34a).
-- [x] Knobs + defaults located.
-- [x] Local baseline verified: Q1278, avg 917,480.917, tot_tof 8,279,347,797,
-      0/0/0, ops SHA `38e4d98d…` (E1).
-- [x] Cut measured env-only at inherited nonce: **Q1275, avg 918,996.816**,
-      faults 9/7/0 (E2). ops SHA `ac5f5a80…`.
-- [x] Co-binder cut baked as source defaults; digest guard passed (E3):
-      baked stream byte-identical to E2.
-- [ ] Conflict-surface probes P1-P4 (E4, running).
-- [ ] Screening/hunt packet (digest-guarded, FN-gated).
+- [x] Live anchor verified via CLI (score 1,172,540,718 @ 940e34a; rechecked
+      after E7 — unchanged).
+- [x] Local baseline verified: Q1278, avg 917,480.917, 0/0/0 (E1).
+- [x] Cut measured + baked; digest guards passed (E2/E3).
+- [x] Conflict surface mapped (E4): square peak = 1030+LADDER; co-binder cut
+      mandatory (PEAK alone → Q stays 1278); R1/R2 retune −1,449.5 avg-T.
+- [x] R1/R2 swept (E5) + multi-draw (E7): **final default R2=625** (30 avg-T
+      better than mandated 620 at ~7σ on means; 630 flat). R1=342 confirmed.
+- [x] screen_nonces screener: FN gates A/B/B'/C/C'/D ALL GREEN (E6).
+- [x] PACKET.md FINAL on the 625 stream.
+- [ ] 100-nonce λ-refinement scan (running).
+- [ ] Cross-lane reconciliation with Einstein_Claude advisory packet
+      (~/ecdsa-ops/HUNT-PACKET-20260823-peakcut.md): their 10 fixtures being
+      verified on the 620 stream; their stream hash + ceiling INDEPENDENTLY
+      MATCH ours; delta = they recommend 620, we measured 625 better.
 
-## Key working numbers
+## FINAL target identity (what the fleet should hunt)
 
-- Cut stream: 12,954,520 ops, SHA256 `ac5f5a80caec1e4b789cf904069cd5056ecc9bd678e3101b77cd0847a7f5d7fd`.
+- Config: PEAK=1275 R1=342 **R2=625** LADDER=245 (baked defaults, lane branch).
+- Stream: 12,953,930 ops, SHA256
+  `83b66b7ef8e5080924f96faa0970a625044eb9d1e58fa2f6a75d162a3bb850d8`.
+- 4-draw avg_round 918,963-918,974 (mean 918,967.5); fault sums 25/12/15/23
+  (λ ≈ 18.75, n=4).
 - Strict beat at Q1275: round(avg_tof) <= 919,639 ⟺ tot_tof <= 8,298,826,847
-  (n=9024). Dirty-draw measurement sits ~5.8M tot-T below the bound.
-- Island density estimate from E2 fault sum 16: P(0/0/0) ~ e^-16 ≈ 1.1e-7 per
-  nonce if faults ~ Poisson — a fleet-scale hunt, NOT local. Local work stops
-  at the validated packet.
+  (n=9024). ~64σ headroom: ANY clean island wins.
+- Projected winning score ≈ 1,171,682,925 (−857,793 vs gate).
+- Einstein's negative (do not re-test): endpoint-fold widening does NOT
+  transfer to this base (their EF 24/26/28 read fault 30/35/30 vs 22 at
+  EF=20). Their q1274 alt (PEAK=1274/LADDER=244) exists but q1275 preferred.
 
 ## Hard rules
 
