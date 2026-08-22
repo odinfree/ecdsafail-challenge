@@ -21,7 +21,7 @@ conceal who ran the actual experiment.
   `88706a40300b7f019202f65a0f28e86dbfe27fda65ad5ed33b0482ff9b14b7eb`.
 - No nonce hunt, provider work, spend, push, publication, or submission.
 
-## Teddy Pender overturn
+## Overturn
 
 The stale `9805dee` Kimi audit proved that four tempting modular call sites
 were unreachable from the production ping-pong path. It also proved the live
@@ -43,6 +43,12 @@ Q, and deterministic classical/phase/ancilla `0/0/0`.
 ## Budget and next action
 
 One source-indexed census plus at most two bounded probes. Stop on the first
-binding counterexample. Record exact arithmetic either way, credit Teddy
-Pender for the overturn/falsifier discipline, restore temporary instrumentation,
-commit durable evidence or narrow source only, and leave the worktree clean.
+binding counterexample. Record exact arithmetic either way, restore temporary
+instrumentation, commit durable evidence or narrow source only, and leave the
+worktree clean.
+
+## Credit policy
+
+Do not add individual credit to ordinary evidence, commits, or experiment
+notes. If this lane produces a genuine winning result, add one concise
+attribution in the final winning commit or submission only.
