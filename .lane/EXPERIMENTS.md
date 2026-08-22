@@ -58,9 +58,15 @@ the exact 940e34a+rescale stream:
 - 32-nonce full per-shot mask agreement on the rescale stream: RUNNING.
 
 The "PPF_WSCHED undercounts width faults / failed 0/64" wall is refuted
-for the current pinned binary on this base; the g1000 0/64 was a stale
-fleet binary silently ignoring PPF_WSCHED (see ppfilter CALIBRATION.md
-addendum), not a model gap.
+for the SPECIFIC tested binary — macOS ppfilter sha256
+f763f770527117be409123ae23ab8ceeecac1d5b8d7ee4e698d468f375f58128 — on this
+base. The g1000 0/64 was a stale fleet binary silently ignoring PPF_WSCHED
+(ppfilter CALIBRATION.md addendum), NOT a model gap. IMPORTANT for the
+fleet: because the original failure was binary staleness, this soundness
+result does NOT transfer to a fleet host running an older ppfilter — a
+canary-hash gate before promotion (already instituted per CALIBRATION.md) is
+mandatory. "Screen sound" here means "this binary, this stream, verified" —
+not "any binary."
 
 ## E4 — rescale λ decomposition (ppfilter breakdown, 6 nonces)
 
@@ -137,38 +143,47 @@ load-bearing number (combined λ ≈ 26–27 base, ≈ 28 rescale) is now
 corroborated across two independent lanes. WR-alone margin also matches
 cross-lane: mine −4,368,000, Einstein's −4,366,926.
 
-## E8 — greedy-table head-to-head (REVERSES the "dominated" claim)
+## E8 — greedy-table head-to-head (channel-split, powered)
 
-Measured on 940e34a, paired 5-draw (nonces 6e9+k*7919), all Q1278, via the
-byte-neutral SUB4_PP_WSCHED_FILE hook:
+Measured on 940e34a, all Q1278 (verified from all 15 logs — no peak
+movement), via the byte-neutral SUB4_PP_WSCHED_FILE hook.
 
-| table | ΔScore vs gate | combined λ | phase λ | cls λ |
-|---|---|---|---|---|
-| base | 0 | 25.67 | 11.50 | 14.17 |
-| greedy_m452 | −1,396,854 | 32.6 | 16.0 | 16.6 |
-| **rescale** | **−4,369,482** | **29.0** | **11.6** | **17.4** |
-| greedy_m1000 | −4,851,288 | 31.8 | 13.2 | 18.6 |
+n=5 paired trusted (nonces 6e9+k*7919):
+| table | ΔScore vs gate | cls λ (n=5) | phase λ (n=5) |
+|---|---|---|---|
+| base | 0 | 14.2 | 11.5 |
+| greedy_m452 | −1,396,854 | 16.6 | 16.0 |
+| rescale | −4,369,482 | 17.4 | 11.6 |
+| greedy_m1000 | −4,851,288 | 18.6 | 13.2 |
 
-RESULT: rescale is NOT a dominated point — it is the best operating point of
-the three on this base.
-- Rescale strictly dominates greedy_m452 (3× the score AND lower λ).
-- Rescale beats greedy_m1000 on the trade: greedy_m1000's extra 482k score
-  (0.04%) costs +2.8 combined λ ≈ 16× more hunt. Bad trade.
-- Discriminator = the PHASE channel. Rescale preserves it (ph 11.6 ≈ base
-  11.5) because it is a smooth reindex of the leader table; the greedy tables,
-  optimized for walk-ε ALONE (WSCHED census), elevate phase (16.0 / 13.2).
-  The walk-only (Σ,ε) frontier never priced phase, so its ranking (which put
-  greedy ahead) does not survive a full trusted measurement.
+Powered classical (oracle, n=500 paired, nonces 6.1e9+k*7919; oracle first
+reproduced my 5 held greedy1000 trusted counts 21,16,17,24,15 EXACTLY):
+| table | mean_cls | ±SE |
+|---|---|---|
+| rescale | 14.594 | 0.172 |
+| greedy_m1000 | 19.472 | 0.192 |
+→ Δλ_cls = **+4.88 (greedy1000 higher), t≈19, decisive**.
 
-CORRECTION: an earlier draft of this ledger (and STATE) asserted rescale was
-"a dominated point; the reindex is not the lever, the Σ-cut choice is." That
-was interpolated from WSCHED's walk-only λ and is FALSE against measured
-classical+phase λ. The corrected statement: rescale's smooth reindex is the
-better width-cut operating point here precisely because it preserves the
-phase channel that aggressive greedy re-optimization disturbs. Caveat: n=5,
-±8 single-draw swing; the phase-channel ordering (greedy452 16.0 robust over
-4/5 draws; rescale ≈ base) is the cleaner signal, the ±2.8 combined-λ gap to
-greedy1000 is suggestive not decisive.
+RESULTS, by strength of evidence:
+1. Rescale strictly dominates greedy_m452 (3× the score, −4.37M vs −1.40M) —
+   settled on the SCORE axis alone regardless of λ. SOLID.
+2. Rescale vs greedy_m1000 CLASSICAL: rescale is +4.88 λ_cls LOWER (powered,
+   decisive). But under a classical-prescreen pipeline this advantage is
+   largely absorbed as cheap scans (E10).
+3. Rescale vs greedy_m1000 SCORE: greedy_m1000 leads by a CERTAIN +490k
+   (deterministic, nonce-stable).
+4. Rescale vs greedy_m1000 PHASE (the binding channel under a screen): n=5
+   diff only +1.6, t≈1.6 — NOT separated. Powering with 24 paired draws (E8b).
+
+CORRECTION (twice-revised, logged for honesty): (a) an early draft called
+rescale "dominated" — false, interpolated from WSCHED walk-only λ. (b) the
+next draft over-corrected to "rescale is the BEST operating point / stack on
+rescale not greedy1000" — that rested on a COMBINED-λ n=5 gap of +2.8 that is
+t=0.99, p≈0.38, i.e. NULL, while greedy1000's +490k score is certain. Both
+were headline-stronger-than-caveat (advisory-calibration gate 2). The honest
+label: rescale dominates greedy452; rescale vs greedy1000 is a genuine
+tradeoff — rescale much lower CLASSICAL λ (screenable), greedy1000 higher
+certain score; phase pending. Retracted to peer c9.
 
 ## E9 — dose-response soundness (Einstein cross-lane, adopted)
 

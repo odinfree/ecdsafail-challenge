@@ -50,9 +50,12 @@ envelope margin on slow-converging shots (width violations).
 
 - WHAT IT IS: a sound, correctly-priced, classically-screenable width-schedule
   CUT worth **−4,369,482 score** (ΔT −3,419 avg-Toffoli at Q1278 unchanged),
-  costing **+3.3 combined λ** (cls +3.2, phase ~0). Best of the width tables
-  tested — beats census greedy_m452 (dominated) and greedy_m1000 (better
-  score/λ trade) by preserving the phase channel.
+  costing **+3.2 λ_cls, phase ~0** vs base. Strictly dominates census
+  greedy_m452 (3× score, lower λ). Vs greedy_m1000: a genuine tradeoff —
+  rescale has decisively lower CLASSICAL λ (n=500 oracle: 14.6 vs 19.5,
+  Δ+4.88) but greedy_m1000 leads on CERTAIN score by +490k; the phase
+  channel (binding under a screen) is being powered (E8b). Earlier "rescale
+  is the BEST" was an overclaim on a null n=5 combined-λ gap — retracted.
 - SOUND, not a trap: E4 (faults are width-channel, nonce-varying 13–25),
   E3 (model predicts every count exactly — a deleted-arithmetic trap would
   not be predictable), E9 (dose-response: rescale sits far from the bias −1
@@ -102,13 +105,14 @@ envelope margin on slow-converging shots (width violations).
   64/64. Zero-FN 95% UCB ≈ 1e-5 (pred=0 regime untestable locally).
 - E5 schedule verified through real code path (700/700); Σ −1,332 bit-rounds
   total (−666/traversal), a smooth reindex of the leader table.
-- E8 greedy head-to-head (5-draw, 940e34a): rescale is the BEST width-cut
-  operating point — dominates greedy_m452 (3× score, lower λ) and beats
-  greedy_m1000 on the trade (its +482k score costs +2.8λ ≈ 16× hunt).
-  Discriminator: rescale PRESERVES the phase channel (ph 11.6 ≈ base 11.5);
-  greedy tables (walk-ε-optimized) elevate it (16.0/13.2). CORRECTS an
-  earlier "rescale is dominated" claim that was WRONG (interpolated from
-  walk-only census λ; reversed by full trusted measurement).
+- E8 greedy head-to-head (940e34a, all Q1278): rescale DOMINATES greedy_m452
+  (3× score, lower λ — solid). Rescale vs greedy_m1000 is a genuine tradeoff:
+  classical λ decisively favors rescale (n=500 oracle 14.6 vs 19.5, Δ+4.88,
+  t≈19) but greedy_m1000 leads on certain score (+490k); phase channel
+  pending (E8b, 24 paired draws). Two prior drafts were miscalibrated (first
+  "dominated" from walk-only census; then "BEST" from a null n=5 combined-λ
+  gap, t=0.99) — both retracted to peer c9. Oracle reproduced my 5 held
+  greedy1000 trusted counts exactly (calibration confirmed on this stream).
 - E9 dose-response (Einstein cross-lane): rescale is a SOUND width cut, not
   a deleted-arithmetic trap — bias −1 cliffs at 4,741 cls; rescale's <1-round
   index shift never enters that region.
