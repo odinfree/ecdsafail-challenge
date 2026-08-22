@@ -65,7 +65,7 @@ fn replay_chunk() -> usize {
 
 fn replay_chunk_compare() -> usize {
     static SLOT: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
-    tuned_window("SUB4_PP_REPLAY_CHUNK_COMPARE", &SLOT, 22)
+    tuned_window("SUB4_PP_REPLAY_CHUNK_COMPARE", &SLOT, 20)
 }
 
 fn replay_fold_window() -> usize {
