@@ -1,6 +1,6 @@
 # Re-descent lane state
 
-Updated: 2026-08-22T11:43:00Z
+Updated: 2026-08-22T14:00:00Z
 
 ## Identity
 
@@ -9,9 +9,9 @@ Updated: 2026-08-22T11:43:00Z
 - Branch: `research/redescent-teddy-1270`
 - Clean ancestor: `897dda2b0cf267151ecd973252d2a5078cbf1b63`
 - Ancestor meaning: Teddy Pender's first promoted ping-pong submission, `3616dbf2`
-- Protected live leader: `b5796ce` (`0xrlawrence`, submission `7b6ad5c`)
+- Protected live leader: `7ca0559` (`0xrlawrence`, submission `2b8d6ce`)
 - Live receipt at lane creation: Q=1278, T=924651, score=1181703978 (`70d64f5`)
-- Current live receipt refreshed 2026-08-22T11:43Z: Q=1278, T=923463, score=1180185714
+- Current live receipt refreshed 2026-08-22T12:16Z: Q=1278, T=921558, score=1177751124
 
 The protected leader is outside this worktree. This lane may regress temporarily and may not overwrite, submit, or claim promotion from exploratory evidence.
 
@@ -22,11 +22,11 @@ Primary direction:
 ```text
 Q <= 1270
 original architectural charter: T < 930475 at Q=1270
-current strict live gate: T <= 929280 at Q=1270
-trusted score < 1180185714
+current strict live gate: T <= 927363 at Q=1270
+trusted score < 1177751124
 ```
 
-The current universal gate is `Q * T < 1180185714`. At lower Q, recompute the exact T ceiling rather than carrying the Q=1270 threshold forward.
+The current universal gate is `Q * T < 1177751124`. At lower Q, recompute the exact T ceiling rather than carrying the Q=1270 threshold forward. A 637-qubit construction may spend up to T=1,848,902; Teddy's reported 637Q / 1.5M-T component shape would score 955,500,000 if it composed and passed the trusted contract.
 
 ## Research contract
 
@@ -46,24 +46,29 @@ The current universal gate is `Q * T < 1180185714`. At lower Q, recompute the ex
 
 ## Current phase
 
-`T_RECOVERY_AFTER_Q_CROSS`
+`GLOBAL_TAPE_REPRESENTATION_REDESCENT`
 
 ## Current hypothesis
 
-`H4`: `clankerFARM` proved that the ancestor can run at Q=1266, but measured-boundary reconstruction costs too much T. A genuine replay-cell fusion, cheaper boundary erasure, or a new lifetime cut that permits fewer replay plots must recover at least about 104,119 executed T at Q=1266 while preserving Q<=1270.
+`H6`: the one-sign-per-round tape is the dominant persistent state, but neither current-walk recomputation, local tagged blocks, terminal-tail grinding, nor coefficient absorption can remove it under the existing cleanup semantics. A viable representation must preserve the whole transcript without retaining predecessor state, and it must compose with Teddy's measured square co-binder cut.
 
 ## Current falsifier
 
-H4 fails if two bounded structural attempts neither remove a measured boundary-repair family nor expose enough additional dead live wires to use fewer plots. Compare-width truncation, round reduction, and nonce calibration do not count as evidence for H4.
+H6 fails for a proposed representation if its decoder key contains state no longer live at walkback, if modular carry/high-word dependencies are omitted, or if a reachable slice contains more accepted transcripts than decoder-visible states. Context-specific checkpoint, radix, coefficient-absorption, and alternate-inversion negatives remain closed unless a changed premise is named.
 
 ## Next action
 
-Start X005 from the retained three-fold/six-replay `clankerFARM` source. First derive a local measured-boundary erasure that retains one small generate/propagate witness, or prove its T/Q cost is dominated. If that fails, map at least sixteen additional replay-co-resident wires whose release would permit four replay plots. No compare/depth/nonce tuning.
+Hold the exact prefix-code and terminal-tail lanes at their measured boundaries. The prefix family needs at least257 covered decisions before it reaches the current ping-pong binder. The terminal-tail circuit has real same-Q T economics, but394240 exact non-overlapping scans produced two classical-clean predictions, both with proven phase residuals, and zero K0 candidates. Teddy's sparse square overturn is exact at standalone Q1148 and removes the independent square co-binder for future composition, but replay still owns global Q1278. The memo-specified tagged coefficient-absorption census is killed because it retains unavailable predecessor residuals and ignores modular high-word dependencies; the reachable zero-numerator slice also exceeds its decoder capacity. Next build only a genuinely global transcript representation or changed coefficient/cleanup semantics. Grind stays last.
 
 ## Last verified result
 
-- Source: current isolated X004 worktree; clean ancestor remains `897dda2b0cf267151ecd973252d2a5078cbf1b63`.
-- Forced production build: 15,730,117 operations; `ops.bin` SHA-256 `843558da6f504e3f8f2f41cae1edeccdf0cfed9e0dc216f8e880ebc1752e7b75`.
-- Peak and affine diagnostic: Q=1266, average executed T=1,036,334.453 across 64 deterministic lanes; classical/phase/ancilla clean.
-- Trusted fixed-nonce evaluation: 9024 shots; classical/phase/ancilla = 1/1/0. This is a retained research saddle, not a candidate.
-- Architecture verdict: Q target crossed. T target and trusted cleanliness remain open; no hunt or submission is authorized.
+- Square explorer: commit `e004e5f` on `research/7ca-teddy-square-dilated`.
+- Exact sparse square: standalone Q1278 -> Q1148, executed T58678.203 ->59597.625, deterministic64 value/phase/ancilla `0/0/0`; default stream remains byte-identical.
+- Whole circuit with exact sparse square: global Q1278, T922501.06, deterministic64 `0/0/0`; replay is the sole remaining Q1278 binder, so the component is HOLD rather than a candidate.
+- Terminal-tail explorer: cutoff697 Q1278/T921214.444 reached trusted classical/phase/ancilla `0/2/0` on nonce4300192188. Exact B-E coverage394240 produced another classical-clean nonce4300390193 with K1 and no K0 candidate. Lane CLOSED HOLD.
+- Phase autopsy commit `96aa36e`: four residuals localize to old22-bit HMR carry repairs. A +8.896T local widening overfit one draw and failed reseeds, so source repair KILL.
+- Coefficient-absorption audit commit `ad206c9`: current local one-tag claim KILL; a new global codec/cleanup architecture remains open.
+
+## Credit and shipping note
+
+Fresh human advice from Teddy Pender on 2026-08-22 explicitly directed attention to the tape and mentioned a non-composing 637Q / 1.5M-T component. If a tape architecture becomes a real candidate, the research commit and Stop-Slop-reviewed public note must credit Teddy prominently while keeping model attribution exactly `kimi`. No victory note exists before a clean full 9024-shot `0/0/0` receipt.
