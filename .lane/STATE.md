@@ -1,6 +1,6 @@
 # Re-descent lane state
 
-Updated: 2026-08-22T14:55:18Z
+Updated: 2026-08-22T15:14:42Z
 
 ## Identity
 
@@ -9,11 +9,13 @@ Updated: 2026-08-22T14:55:18Z
 - Branch: `research/redescent-teddy-1270`
 - Clean ancestor: `897dda2b0cf267151ecd973252d2a5078cbf1b63`
 - Ancestor meaning: Teddy Pender's first promoted ping-pong submission, `3616dbf2`
-- Protected live leader: `36f6ca0` (`welttowelt`, submission `e9d1e00`)
+- Protected live leader: `def24be` (`welttowelt`, submission `4269cf6`)
 - Live receipt at lane creation: Q=1278, T=924651, score=1181703978 (`70d64f5`)
 - Prior live receipt refreshed 2026-08-22T12:16Z: Q=1278, T=921558, score=1177751124 (`7ca0559`)
 - Current live receipt refreshed 2026-08-22T14:16Z: Q=1278, T=919793, score=1175495454 (`36f6ca0`)
 - Accepted diff from `7ca0559`: multiply replay depth 700 -> 696 plus clean nonce48000070891; no other source change.
+- Current live receipt refreshed 2026-08-22T15:14Z: Q=1278, T=919788, score=1175489064 (`def24be`), full 9024-shot `0/0/0`.
+- Accepted diff from `36f6ca0`: only default nonce48000070891 ->68001243769. The official promoted source matches the validated one-line candidate.
 
 The protected leader is outside this worktree. This lane may regress temporarily and may not overwrite, submit, or claim promotion from exploratory evidence.
 
@@ -24,11 +26,11 @@ Primary direction:
 ```text
 Q <= 1270
 original architectural charter: T < 930475 at Q=1270
-current strict live gate: T <= 925586 at Q=1270
-trusted score < 1175495454
+current strict live gate: T <= 925581 at Q=1270
+trusted score < 1175489064
 ```
 
-The current universal gate is `Q * T < 1175495454`. Exact strict T ceilings are Q1278=919792, Q1277=920513, Q1270=925586, Q1266=928511, Q1148=1023950, Q1000=1175495, Q800=1469369, Q700=1679279, and Q637=1845361. At lower Q, recompute the ceiling from a freshly reopened board rather than carrying these values forward. Teddy's reported 637Q / 1.5M-T component shape would score 955,500,000 if it composed and passed the trusted contract.
+The current universal gate is `Q * T < 1175489064`. Exact strict T ceilings are Q1278=919787, Q1277=920508, Q1270=925581, Q1266=928506, Q1148=1023945, Q1033=1137937, Q1000=1175489, Q800=1469361, Q700=1679270, and Q637=1845351. At lower Q, recompute the ceiling from a freshly reopened board rather than carrying these values forward. Teddy's reported 637Q / 1.5M-T component shape would score 955,500,000 if it composed and passed the trusted contract.
 
 ## Research contract
 
@@ -53,15 +55,15 @@ The current universal gate is `Q * T < 1175495454`. Exact strict T ceilings are 
 
 ## Current hypothesis
 
-`H9`: retaining one exact 256-bit original denominator word makes the bounded component map injective without a persistent per-round carrier. An exact `36f6ca0` prototype can recompute, use, and uncompute one sign at a time, then return the retained word through the ABI. The first version may carry substantial Q/T debt; success means semantic correctness and clean workspace, followed by re-descent to compose with Teddy's sparse square.
+`H9`: retaining one exact 256-bit original denominator word makes the bounded component map injective without a persistent per-round carrier. The exact one-sign skeleton has now recomputed, used, and uncomputed sign1, returned the retained word through the ABI, and cleared phase/ancilla. The next falsifier is a bounded multi-sign or replay slice. The first complete slice may carry substantial Q/T debt; success means semantic correctness and clean workspace, followed by re-descent to compose with Teddy's sparse square.
 
 ## Current falsifier
 
-H9 fails if the exact prototype assumes unavailable predecessor state, retains an O(R) sign carrier, cannot clear oracle/terminal workspace, or cannot return the retained denominator through the component ABI. Extra scratch, Q above1278, and T regression are explicit prototype debt rather than automatic KILL. Bounded small-field injectivity remains only HOLD until the exact source skeleton validates. Context-specific free-outer-key, local-terminal, checkpoint, radix, coefficient-absorption, and materializing-decoder negatives remain closed unless a changed premise is named.
+H9 fails if the bounded multi-sign slice assumes unavailable predecessor state, retains an O(R) sign carrier, cannot clear oracle/terminal workspace, or cannot return the retained denominator through the component ABI. Extra scratch, Q above1278, and T regression are explicit prototype debt rather than automatic KILL. The one-sign skeleton upgrades the exact-source route to HOLD but does not yet prove a full replay replacement. Context-specific free-outer-key, local-terminal, checkpoint, radix, coefficient-absorption, and materializing-decoder negatives remain closed unless a changed premise is named.
 
 ## Next action
 
-Hold the exact prefix-code and terminal-tail lanes at their measured boundaries. Teddy's sparse square overturn is exact at standalone Q1148, but replay still owns global Q1278. The free outer offset key collides for divide and multiply, so that route is KILL. Retaining one original denominator word is injective through p31/20 rounds in both directions, adds no persistent per-round carrier, and is HOLD to exact source. Build the smallest env-gated `36f6ca0` semantic skeleton that recomputes one sign at a time, clears oracle state, and returns the retained denominator. Record the temporary +256Q overlay and recomputation debt; do not optimize or grind before correctness. The one-round MUL695 stream remains a separate economic HOLD at trusted dirty12/7/0. Grind stays last.
+Hold the exact prefix-code and terminal-tail lanes at their measured boundaries. Teddy's sparse square overturn is exact at standalone Q1148, but replay still owns global Q1278. The free outer offset key collides for divide and multiply, so that route is KILL. Commit `e57dfb4` proves an env-gated one-sign retained-denominator skeleton at Q1033 with phase/ancilla clean and no O(R) carrier. Extend it to the smallest bounded multi-sign or replay slice, one sign at a time, and record all temporary Q/T/retained-state debt. Do not optimize or grind before semantic correctness and cleanup. The one-round MUL695 stream remains a separate economic HOLD at trusted dirty12/7/0. Grind stays last.
 
 ## Last verified result
 
@@ -72,12 +74,13 @@ Hold the exact prefix-code and terminal-tail lanes at their measured boundaries.
 - Phase autopsy commit `96aa36e`: four residuals localize to old22-bit HMR carry repairs. A +8.896T local widening overfit one draw and failed reseeds, so source repair KILL.
 - Coefficient-absorption audit commit `ad206c9`: current local one-tag claim KILL; a new global codec/cleanup architecture remains open.
 - Carry-aware coefficient census commit `3650a13`: complete k2/k4/k8 domains reproduce SHA prefixes `740015c4f83142d2`, `8a939e3689283000`, and `a7d7f58ed2818da5`; k4/k8 maximum fibers8/128 confirm KILL.
-- Live protected commit `36f6ca0`: Q1278/T919793/full9024 `0/0/0`; exact accepted diff is multiply depth696 plus nonce48000070891.
+- Live protected commit `def24be`: Q1278/T919788/score1175489064/full9024 `0/0/0`; exact accepted diff from `36f6ca0` is nonce48000070891 ->68001243769.
 - MUL695 falsifier commit `dff3f66`: Q1278/T919434.045/full9024 `12/7/0`; exact stream KILL, architecture HOLD.
 - Fable Q1148 visibility audit: sparse square HOLD, materializing decoder KILL, cleanup-contract overturn is next; live-rebased memo `.lane/FABLE-Q1148-VISIBILITY.md`.
 - Cleanup collision commit `e06d95d`: exact p=7 fixed-width census finds the first component-local collision at round6 for both divide and multiply; local terminal canonicalization KILL, global/deferred cleanup HOLD behind an enlarged-key gate.
 - Outer-key census commit `f990424`: zero-increment classical offset key KILL; one retained denominator word is bounded injective through p31/20 rounds in both directions, with explicit +256Q and recomputation debt. Exact sign-oracle skeleton is next.
+- Retained-sign1 skeleton commit `e57dfb4`: exact source-gated prototype Q1033, ABI Q257, extra peak Q776, 15,634 ops, 3,040 emitted/executed T, phase0, ancilla0, carrier bits0. It retains one denominator word, computes/uses/uncomputes one sign, and returns the word cleanly; bounded multi-sign composition is next.
 
 ## Credit and shipping note
 
-Fresh human advice from Teddy Pender on 2026-08-22 explicitly directed attention to the tape and mentioned a non-composing 637Q / 1.5M-T component. If a tape architecture becomes a real candidate, the research commit and Stop-Slop-reviewed public note must credit Teddy prominently. The public model sentence is exactly `Model: Kimi Code (k2/k3, high effort), multi-lane agent campaign.` The submission API attribution remains exactly `kimi`. No victory note exists before a clean full 9024-shot `0/0/0` receipt.
+Fresh human advice from Teddy Pender on 2026-08-22 explicitly directed attention to the tape and mentioned a non-composing 637Q / 1.5M-T component. The promoted `def24be` note credits Teddy prominently for the Burn the House Down experimental discipline without misattributing the nonce-only delta. If a tape architecture becomes a real candidate, its research commit and Stop-Slop-reviewed public note must credit Teddy even more directly. The public model sentence is exactly `Model: Kimi Code (k2/k3, high effort), multi-lane agent campaign.` The submission API attribution remains exactly `kimi`.
