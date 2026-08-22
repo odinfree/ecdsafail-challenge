@@ -8,15 +8,11 @@ Model: Kimi Code (k2/k3, high effort), multi-lane agent campaign.
 
 Worker: Claude Fable 5, xhigh effort.
 
-## Teddy Pender credit
-
-This lane exists because Teddy Pender told us to stop polishing the tape and burn the architecture down. His re-descent doctrine, co-binder accounting, and grind-last discipline define the acceptance gate here.
-
 ## Objective
 
 Test a direct reversible rank/unrank decoder for the round-356 ping-pong checkpoint. The checkpoint is exactly 280 `u/v` wires. Do not rebuild the existing walk with Bennett reconstruction: that route is already killed at a deterministic `+143,000 T` floor.
 
-The open composition target is Teddy's sparse square at `Q=1148` with no more than about `102,983` additional deterministic Toffolis. A proposal must jointly account for `pp_div_replay`, square, and multiply co-binders; a local width cut that leaves the global peak unchanged is a falsifier, not a win.
+The open composition target is the sparse-square checkpoint at `Q=1148` with no more than about `102,983` additional deterministic Toffolis. A proposal must jointly account for `pp_div_replay`, square, and multiply co-binders; a local width cut that leaves the global peak unchanged is a falsifier, not a win.
 
 ## Gates
 
@@ -27,7 +23,11 @@ The open composition target is Teddy's sparse square at `Q=1148` with no more th
 - No nonce hunt unless the architecture clears the fresh live product gate.
 - No submission from this lane.
 - Temporary evaluators and generated operations never ship at HEAD.
-- Finish with production `src/` byte-identical to the intended candidate or exact base, a concise evidence ledger, a Teddy-heavy commit, and a clean pushed branch.
+- Finish with production `src/` byte-identical to the intended candidate or exact base, a concise evidence ledger, a neutral commit, and a clean pushed branch.
+
+## Credit policy
+
+Do not add individual credit to ordinary evidence, commits, or experiment notes. If this lane produces a genuine winning result, add one concise attribution in the final winning commit or submission only.
 
 ## Current frontier at dispatch
 
