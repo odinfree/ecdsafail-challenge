@@ -1,6 +1,13 @@
 # Claude Fable takeover: direct rank/unrank Burn lane
 
-Status: ACTIVE
+Status: `KILL_DIRECT_DECODER` — closed 2026-08-22. The direct reversible
+rank/unrank decoder for the 280-wire round-356 checkpoint is killed in every
+constructive class: backward sign recovery carries exactly zero local
+information (both predecessors are always self-consistent, verified on 71,000
+of 71,000 backward steps), the wrapped registers make width violations locally
+unobservable, and refuting a wrong sign is an unpruned `2^r` search terminated
+only by the round-0 boundary. Full evidence: `.lane/DIRECT-DECODER-KILL-6B5C82C.md`.
+Production `src/` remains byte-identical to `6b5c82c`. No hunt, no submission.
 
 Base: exact live source `6b5c82c`
 
