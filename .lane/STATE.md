@@ -3,7 +3,9 @@
 Created: 2026-08-22
 Source: `6b5c82c`
 Branch: `research/fable-burn-6b5c-stream`
-Status: structurally free descent; protected leader untouched
+Status: descent run to a measured KILL; protected leader untouched
+Result: O(1)-retained streaming representation KILLED on `6b5c82c`. See
+`.lane/EVIDENCE-BURN-SLICE-6B5C82C.md`.
 
 Model: Kimi Code (k2/k3, high effort), multi-lane agent campaign.
 Worker: Claude Fable 5, xhigh effort.
@@ -44,10 +46,42 @@ needs O(rounds) new state or a full 256-bit checkpoint at the replay peak.
 - Budget: three different representation falsifiers or four hours. A failed
   low-five/full-word encoding does not kill other state representations.
 
-## Next action
+## Outcome (2026-08-22)
 
-Read the canonical Burn-the-House-Down doctrine and existing exact negatives as
-evidence, not axioms. Start from a fresh nonzero-numerator reference slice on
-`6b5c82c`; localize the minimal decoder-visible state before writing a full
-builder. Do not tune rounds, carry windows, or nonces. Update this file and make
-a clean durable commit for every measured hold or kill.
+Built an exact bounded slice on `6b5c82c` (walk round-trip verified EXACT at
+K=4,6,8; full walk→replay→inv-replay→walkback measured) and ran a
+reachability-aware collision search on the real walk. Findings:
+
+- **Retained state is O(rounds)** — tape grows exactly 1 sign/round, live
+  continuously from `value_walk` through `value_walk_back` (measured). This is
+  the STATE kill trigger directly.
+- **Minimum decoder-visible state = `(u_{r+1}, v_{r+1})`** at the walkback
+  instant (divide frees the coefficient before walkback). `sign_r` is NOT a
+  function of it: the walk step is two-to-one, and the un-add needs `sign_r`
+  before it can be recomputed (circular).
+- **Collision search:** wide bulk (rounds 0–~550) shows no local collision
+  (birthday floor; ambiguity is global, not local); transition zone shows
+  **22 reachable sign-disagreements at round 600 (width 46), 8 at round 650** —
+  a bounded state-keyed decoder demonstrably cannot regenerate `sign_r`;
+  converged tail (rounds ≥680) is locally decodable (Teddy's shared-sign,
+  same-Q Toffoli lever only).
+- **Free-oracle / co-binder wall:** promoted peak = `pp_div_replay`@Q1278
+  (PP_PROFILE, on-`6b5c82c`); the three-way Q1278 co-binder tie (prior,
+  `a9af194`) means a divide-only streaming oracle cannot cut peak Q even at
+  zero cost.
+
+**KILL** the O(1)-retained streaming representation. Sub-linear retained state
+requires a ≥254-bit global reachable-set decoder = the Q1376 checkpoint route
+already killed on width (`9805dee`), not the O(1) scratch the overturn demands.
+
+## Reopen gate
+
+A decoder that regenerates `sign_r` without a resident predecessor register,
+simultaneously across all three Q1278 co-binders. The transition-zone
+sign-disagreements (round 600, width 46) are the precise obstruction such a
+construction must defeat. No such construction is exhibited here.
+
+Harness (research-only, gated by `SUB4_PP_BURN_SLICE`; promoted circuit
+byte-identical when unset): `src/point_add/pingpong_div.rs::burn_slice_report`
++ read-only gate atop `point_add::build`. Reproduce:
+`SUB4_PP_BURN_SLICE=1 ./target/release/build_circuit`.

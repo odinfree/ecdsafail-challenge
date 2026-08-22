@@ -2353,6 +2353,334 @@ pub(crate) fn pingpong_simulator_selfcheck() {
     }
 }
 
+// ===========================================================================
+// Burn-the-House-Down: streaming ping-pong history descent (research harness).
+//
+// Gated by `SUB4_PP_BURN_SLICE`; never reached in a normal `build()`.  Nothing
+// here mutates the promoted circuit.  It builds an exact bounded reference
+// slice on the real modulus/width schedule and settles the overturn question
+// "is the resident sign tape avoidable by a bounded streaming decoder?" with a
+// reachability-aware collision search on the real walk semantics.
+//
+// Methodology (overturn-ledger discipline, cheapest-falsifier-first,
+// grant-the-hypothesis-impossible-advantages, grind-last, attack-or-replace
+// the sign tape) follows Teddy Pender's Burn-the-House-Down doctrine.
+// ===========================================================================
+
+use crate::circuit::QubitOrBit;
+
+/// Read the little-endian value of `wires` for one 64-lane shot into packed
+/// u64 words (so keys wider than 256 bits stay exact).
+fn burn_read_words<R: sha3::digest::XofReader>(
+    sim: &Simulator<'_, R>,
+    wires: &[QubitId],
+    shot: usize,
+) -> Vec<u64> {
+    let mut words = vec![0u64; wires.len().div_ceil(64)];
+    for (i, &q) in wires.iter().enumerate() {
+        if (sim.qubit(q) >> shot) & 1 != 0 {
+            words[i / 64] |= 1u64 << (i % 64);
+        }
+    }
+    words
+}
+
+/// 64 random nonzero denominators (mixed parity) and nonzero numerators,
+/// derived from a labelled SHAKE stream so runs are reproducible.
+fn burn_random_inputs(label: &[u8]) -> (Vec<U256>, Vec<U256>) {
+    use sha3::{
+        digest::{ExtendableOutput, Update, XofReader},
+        Shake256,
+    };
+    let mut seed = Shake256::default();
+    seed.update(b"burn-slice inputs ");
+    seed.update(label);
+    let mut reader = seed.finalize_xof();
+    let mut denoms = Vec::with_capacity(64);
+    let mut numers = Vec::with_capacity(64);
+    while denoms.len() < 64 {
+        let mut db = [0u8; 32];
+        let mut nb = [0u8; 32];
+        XofReader::read(&mut reader, &mut db);
+        XofReader::read(&mut reader, &mut nb);
+        let d = U256::from_le_bytes(db) % SECP256K1_P;
+        let n = U256::from_le_bytes(nb) % SECP256K1_P;
+        if d.is_zero() || n.is_zero() {
+            continue;
+        }
+        denoms.push(d);
+        numers.push(n);
+    }
+    (denoms, numers)
+}
+
+/// Build the bounded slice circuit for `rounds`:
+/// forward walk -> forward replay -> reverse replay -> walk restoration.
+/// Returns (ops, num_qubits, num_bits, peak_qubits, peak_phase, tape_len,
+/// u_final, v_final, coeff, numer, active_after_walk, active_at_replay).
+#[allow(clippy::type_complexity)]
+fn burn_build_full_slice(
+    rounds: usize,
+) -> (
+    Vec<Op>,
+    usize,
+    usize,
+    u32,
+    &'static str,
+    usize,
+    Vec<QubitId>,
+    Vec<QubitId>,
+    Vec<QubitId>,
+    Vec<QubitId>,
+    u32,
+    u32,
+) {
+    let mut b = B::new();
+    let mut u = load_const(&mut b, N, SECP256K1_P);
+    u.extend(b.alloc_qubits(VALUE_WIDTH - N));
+    let mut v = b.alloc_qubits(VALUE_WIDTH);
+    let coefficient = b.alloc_qubits(N);
+    let numerator = b.alloc_qubits(N);
+
+    b.set_phase("burn_walk");
+    let tape = value_walk(&mut b, &mut u, &mut v, rounds);
+    let tape_len = tape.len();
+    let active_after_walk = b.active_qubits;
+
+    b.set_phase("burn_replay_fwd");
+    replay_halving(&mut b, &tape, &coefficient, &numerator);
+    let active_at_replay = b.peak_qubits;
+
+    b.set_phase("burn_replay_rev");
+    replay_doubling_inverse(&mut b, &tape, &coefficient, &numerator);
+
+    b.set_phase("burn_walkback");
+    value_walk_back(&mut b, &mut u, &mut v, tape);
+
+    let num_qubits = b.next_qubit as usize;
+    let num_bits = b.next_bit as usize;
+    let peak_qubits = b.peak_qubits;
+    let peak_phase = b.peak_phase;
+    let ops = b.take_ops();
+    (
+        ops,
+        num_qubits,
+        num_bits,
+        peak_qubits,
+        peak_phase,
+        tape_len,
+        u,
+        v,
+        coefficient,
+        numerator,
+        active_after_walk,
+        active_at_replay,
+    )
+}
+
+/// EXACT anchor: `value_walk(K)` then `value_walk_back(K)` restores (u,v),
+/// clears the tape, and leaves zero phase for ALL inputs (the walk adder's
+/// boundary comparison is an identity, not an approximation).  Asserts.
+fn burn_assert_walk_roundtrip(rounds: usize, denoms: &[U256]) {
+    use sha3::{
+        digest::{ExtendableOutput, Update},
+        Shake256,
+    };
+    let mut b = B::new();
+    let mut u = load_const(&mut b, N, SECP256K1_P);
+    u.extend(b.alloc_qubits(VALUE_WIDTH - N));
+    let mut v = b.alloc_qubits(VALUE_WIDTH);
+    let input_v_low: Vec<QubitId> = v[..N].to_vec();
+    let tape = value_walk(&mut b, &mut u, &mut v, rounds);
+    value_walk_back(&mut b, &mut u, &mut v, tape);
+
+    let num_qubits = b.next_qubit as usize;
+    let num_bits = b.next_bit as usize;
+    let ops = b.take_ops();
+
+    let mut shake = Shake256::default();
+    shake.update(b"burn-slice walk roundtrip");
+    let mut reader = shake.finalize_xof();
+    let mut sim = Simulator::new(num_qubits, num_bits, &mut reader);
+    for shot in 0..64 {
+        for i in 0..N {
+            if denoms[shot].bit(i) {
+                *sim.qubit_mut(input_v_low[i]) |= 1u64 << shot;
+            }
+        }
+    }
+    sim.apply_iter(ops.iter());
+
+    let u_reg: Vec<QubitOrBit> = u.iter().copied().map(QubitOrBit::Qubit).collect();
+    let v_reg: Vec<QubitOrBit> = v.iter().copied().map(QubitOrBit::Qubit).collect();
+    for shot in 0..64 {
+        assert_eq!(
+            sim.get_register(&u_reg, shot),
+            SECP256K1_P,
+            "burn walk roundtrip: u not restored to p at K={rounds}, shot {shot}"
+        );
+        assert_eq!(
+            sim.get_register(&v_reg, shot),
+            denoms[shot],
+            "burn walk roundtrip: v not restored at K={rounds}, shot {shot}"
+        );
+    }
+    assert_eq!(sim.phase, 0, "burn walk roundtrip: phase garbage at K={rounds}");
+    // Every non-input qubit must be clean (tape fully cleared, no dirty ancilla).
+    for &q in &u {
+        *sim.qubit_mut(q) = 0;
+    }
+    for &q in &v {
+        *sim.qubit_mut(q) = 0;
+    }
+    for q in 0..num_qubits as u64 {
+        assert_eq!(
+            sim.qubit(QubitId(q)),
+            0,
+            "burn walk roundtrip: dirty ancilla q{q} at K={rounds}"
+        );
+    }
+    eprintln!("BURN_SLICE walk_roundtrip K={rounds}: EXACT restore, phase=0, ancilla clean");
+}
+
+/// Reachability-aware collision search settling the streaming overturn:
+/// at walkback round r the live walk state is (u_{r+1}, v_{r+1}); does it
+/// determine sign_r?  A single reachable key seen with both sign values means
+/// no bounded function of the live walk state can regenerate sign_r, so the
+/// resident tape is information-theoretically required at that round.
+fn burn_collision_search(rounds: &[usize], batches: usize) {
+    use sha3::{
+        digest::{ExtendableOutput, Update},
+        Shake256,
+    };
+    use std::collections::HashMap;
+
+    eprintln!(
+        "BURN_SLICE collision_search rounds={rounds:?} denominators={}",
+        batches * 64
+    );
+    eprintln!(
+        "{:<6} {:>7} {:>10} {:>12} {:>14}",
+        "round", "width", "samples", "distinct_key", "sign_disagree"
+    );
+
+    let mut first_collision: Option<(usize, usize)> = None;
+    for &r in rounds {
+        // A fresh walk of r+1 rounds; final (u,v) = (u_{r+1}, v_{r+1}) and
+        // tape[r] = sign_r.
+        let mut b = B::new();
+        let mut u = load_const(&mut b, N, SECP256K1_P);
+        u.extend(b.alloc_qubits(VALUE_WIDTH - N));
+        let mut v = b.alloc_qubits(VALUE_WIDTH);
+        let input_v_low: Vec<QubitId> = v[..N].to_vec();
+        let tape = value_walk(&mut b, &mut u, &mut v, r + 1);
+        let sign_r = tape[r];
+        let width = u.len();
+        // The register width read here is exactly the width `walk_back_round(r)`
+        // grows to before consuming sign_r, so the key IS the decoder-visible
+        // state at that walkback instant (not a truncation of a wider register).
+        assert_eq!(
+            width,
+            value_width(r),
+            "collision key width must equal walkback operating width value_width(r)"
+        );
+        let num_qubits = b.next_qubit as usize;
+        let num_bits = b.next_bit as usize;
+        let ops = b.take_ops();
+
+        // key = (u_{r+1} words, v_{r+1} words) -> observed sign bits.
+        let mut seen: HashMap<Vec<u64>, u8> = HashMap::new();
+        let mut samples = 0usize;
+        let mut collisions = 0usize;
+        for batch in 0..batches {
+            let (denoms, _) = burn_random_inputs(format!("collide r{r} b{batch}").as_bytes());
+            let mut shake = Shake256::default();
+            shake.update(b"burn-slice collide sim");
+            let mut reader = shake.finalize_xof();
+            let mut sim = Simulator::new(num_qubits, num_bits, &mut reader);
+            for shot in 0..64 {
+                for i in 0..N {
+                    if denoms[shot].bit(i) {
+                        *sim.qubit_mut(input_v_low[i]) |= 1u64 << shot;
+                    }
+                }
+            }
+            sim.apply_iter(ops.iter());
+            for shot in 0..64 {
+                let mut key = burn_read_words(&sim, &u[..width], shot);
+                key.extend(burn_read_words(&sim, &v[..width], shot));
+                let s = ((sim.qubit(sign_r) >> shot) & 1) as u8;
+                samples += 1;
+                match seen.get(&key) {
+                    None => {
+                        seen.insert(key, 1u8 << s);
+                    }
+                    Some(&mask) => {
+                        let nm = mask | (1u8 << s);
+                        if nm == 0b11 && mask != 0b11 {
+                            collisions += 1;
+                            if first_collision.is_none() {
+                                first_collision = Some((r, width));
+                            }
+                        }
+                        seen.insert(key, nm);
+                    }
+                }
+            }
+        }
+        eprintln!(
+            "{:<6} {:>7} {:>10} {:>12} {:>14}",
+            r,
+            width,
+            samples,
+            seen.len(),
+            collisions
+        );
+    }
+    match first_collision {
+        Some((r, w)) => eprintln!(
+            "BURN_SLICE collision_search: first reachable (u_r+1,v_r+1)->sign_r \
+             sign-disagreement at round {r} (width {w}); a bounded decoder keyed on the \
+             live walk state cannot regenerate sign_r there — resident tape required."
+        ),
+        None => eprintln!(
+            "BURN_SLICE collision_search: no sign-disagreement key observed at the probed \
+             rounds (see distinct_key vs samples for the wide-round birthday floor)."
+        ),
+    }
+}
+
+/// Entry point for `SUB4_PP_BURN_SLICE`.
+pub(crate) fn burn_slice_report() {
+    eprintln!("=== BURN-THE-HOUSE-DOWN ping-pong streaming slice (source 6b5c82c) ===");
+    eprintln!(
+        "{:<6} {:>9} {:>9} {:>9} {:>11} {:>11} {:>20}",
+        "K", "tape", "peak_Q", "walk_Q", "emit_CCX", "emit_CCZ", "peak_phase"
+    );
+    for &k in &[4usize, 6, 8] {
+        let (denoms, _) = burn_random_inputs(format!("anchor K{k}").as_bytes());
+        burn_assert_walk_roundtrip(k, &denoms);
+
+        let (ops, _nq, _nb, peak_q, peak_phase, tape_len, _u, _v, _c, _n, walk_q, replay_q) =
+            burn_build_full_slice(k);
+        let ccx = ops.iter().filter(|o| o.kind == OperationType::CCX).count();
+        let ccz = ops.iter().filter(|o| o.kind == OperationType::CCZ).count();
+        eprintln!(
+            "{:<6} {:>9} {:>9} {:>9} {:>11} {:>11} {:>20}",
+            k, tape_len, peak_q, walk_q, ccx, ccz, peak_phase
+        );
+        eprintln!(
+            "       retained: tape_signs_live_at_replay={tape_len} (=K -> O(rounds)); \
+             active_after_walk={walk_q}; peak_active_through_replay={replay_q}"
+        );
+    }
+    // Probe wide early rounds (birthday floor) and the shrunk convergent tail
+    // (where the width schedule forces the state space below reachable
+    // diversity, so merges/sign-disagreements can appear).
+    burn_collision_search(&[0, 2, 4, 8, 100, 300, 500, 600, 650, 680, 690, 693], 24);
+    eprintln!("=== BURN-THE-HOUSE-DOWN slice complete ===");
+}
+
 #[cfg(test)]
 #[test]
 fn divide_and_multiply_preserve_the_abi_and_clean_ancillas() {
