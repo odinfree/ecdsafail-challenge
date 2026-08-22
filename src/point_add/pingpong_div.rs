@@ -678,6 +678,14 @@ fn walk_split_disabled() -> bool {
     std::env::var_os("SUB4_PP_NO_WALK_SPLIT").is_some()
 }
 
+/// Host the final high-chunk carry in the top output bit during the divide
+/// replay only.  The transform is independently gated so multiply walkback
+/// experiments cannot borrow its width cut before their own exactness gate.
+fn div_walk_top_carry_host_enabled(b: &B) -> bool {
+    b.phase == "pp_div_replay"
+        && std::env::var_os("SUB4_PP_DIV_SPLIT_TOP_CARRY_HOST").is_some()
+}
+
 /// Width of the low chunk of the walk add at `round`, or `None` for the
 /// single-ladder form.
 ///
@@ -766,9 +774,18 @@ fn signed_add_wrapping_sigma_split(
     b.free_vec(&c_lo[..low - 1]);
 
     // High chunk: positions low..n, carry-in `boundary`.
+    //
+    // In the independently gated divide form, the carry out of position n-2
+    // has exactly one consumer: XOR into target[n-1].  Compute that final
+    // majority directly into the output instead of allocating a clean carry,
+    // then restore position n-2 before unwinding the earlier ladder.  All
+    // gates in this suffix are unitary, so the carry needs no measured erase
+    // or phase repair.
     let high = n - 1 - low;
-    let c_hi = b.alloc_qubits(high);
-    for j in 0..high {
+    let host_top = div_walk_top_carry_host_enabled(b);
+    let owned_high = high - usize::from(host_top);
+    let c_hi = b.alloc_qubits(owned_high);
+    for j in 0..owned_high {
         let i = low + j;
         let previous = if j == 0 { boundary } else { c_hi[j - 1] };
         b.cx(previous, source[i]);
@@ -776,10 +793,32 @@ fn signed_add_wrapping_sigma_split(
         b.ccx(source[i], target[i], c_hi[j]);
         b.cx(previous, c_hi[j]);
     }
-    let top = if high > 0 { c_hi[high - 1] } else { boundary };
-    b.cx(top, target[n - 1]);
-    b.cx(source[n - 1], target[n - 1]);
-    for j in (0..high).rev() {
+
+    if host_top {
+        let i = n - 2;
+        let previous = if owned_high == 0 {
+            boundary
+        } else {
+            c_hi[owned_high - 1]
+        };
+
+        // target_top ^= source_top ^ majority(source_i, target_i, previous)
+        b.cx(source[n - 1], target[n - 1]);
+        b.cx(previous, source[i]);
+        b.cx(previous, target[i]);
+        b.ccx(source[i], target[i], target[n - 1]);
+        b.cx(previous, target[n - 1]);
+
+        // Restore source_i and leave target_i as its wrapped-sum output.
+        b.cx(previous, source[i]);
+        b.cx(source[i], target[i]);
+    } else {
+        let top = c_hi[high - 1];
+        b.cx(top, target[n - 1]);
+        b.cx(source[n - 1], target[n - 1]);
+    }
+
+    for j in (0..owned_high).rev() {
         let i = low + j;
         let previous = if j == 0 { boundary } else { c_hi[j - 1] };
         b.cx(previous, c_hi[j]);
@@ -833,7 +872,9 @@ fn signed_add_wrapping_sigma(
     for &q in target {
         b.cx(sign, q);
     }
-    let carries = b.alloc_qubits(n - 1);
+    let host_top = div_walk_top_carry_host_enabled(b);
+    let owned = n - 1 - usize::from(host_top);
+    let carries = b.alloc_qubits(owned);
 
     b.cx(sign, carries[0]);
     if target0_is_one {
@@ -843,17 +884,29 @@ fn signed_add_wrapping_sigma(
     b.cx(carries[0], source[1]);
     b.cx(carries[0], target[1]);
 
-    for i in 2..n - 1 {
+    for i in 2..owned {
         b.cx(carries[i - 1], source[i]);
         b.cx(carries[i - 1], target[i]);
         b.ccx(source[i], target[i], carries[i]);
         b.cx(carries[i - 1], carries[i]);
     }
 
-    b.cx(carries[n - 2], target[n - 1]);
-    b.cx(source[n - 1], target[n - 1]);
+    if host_top {
+        let i = n - 2;
+        let previous = carries[owned - 1];
+        b.cx(source[n - 1], target[n - 1]);
+        b.cx(previous, source[i]);
+        b.cx(previous, target[i]);
+        b.ccx(source[i], target[i], target[n - 1]);
+        b.cx(previous, target[n - 1]);
+        b.cx(previous, source[i]);
+        b.cx(source[i], target[i]);
+    } else {
+        b.cx(carries[n - 2], target[n - 1]);
+        b.cx(source[n - 1], target[n - 1]);
+    }
 
-    for i in (2..n - 1).rev() {
+    for i in (2..owned).rev() {
         b.cx(carries[i - 1], carries[i]);
         let measured = b.alloc_bit();
         b.hmr(carries[i], measured);
@@ -1315,6 +1368,11 @@ fn and_uncompute(b: &mut B, out: QubitId, a: QubitId, c: QubitId) {
     b.free(out);
 }
 
+fn div_replay_source_carry_enabled(b: &B) -> bool {
+    b.phase == "pp_div_replay"
+        && std::env::var_os("SUB4_PP_DIV_REPLAY_SOURCE_CARRY").is_some()
+}
+
 /// One Gidney chunk, preserving the addend and carry-in and optionally
 /// retaining the carry-out.  Every owned carry is measurement-uncomputed.
 fn chunk_add(
@@ -1343,6 +1401,101 @@ fn chunk_add(
     }
 
     let owned = num_carries - usize::from(carry_out.is_some());
+
+    // Replace one clean replay carry with a source-wire MAJ/UMA host.  If the
+    // chunk has an incoming boundary, bit zero supplies the three-wire cell;
+    // otherwise retain the first clean carry and host the carry out of bit one.
+    // MAJ preserves the overwritten information in `acc` and `previous`; UMA
+    // restores both source and incoming boundary after higher carries retire.
+    let source_host = if div_replay_source_carry_enabled(b) {
+        let candidate = usize::from(carry_in.is_none());
+        (candidate < owned).then_some(candidate)
+    } else {
+        None
+    };
+    if let Some(host_index) = source_host {
+        let clean_carries = b.alloc_qubits(owned - 1);
+        let mut clean_index = 0;
+        let mut carries = Vec::with_capacity(num_carries);
+        for i in 0..num_carries {
+            if i == host_index {
+                carries.push(addend[i]);
+            } else if carry_out.is_some() && i + 1 == num_carries {
+                carries.push(carry_out.expect("final carry exists"));
+            } else {
+                carries.push(clean_carries[clean_index]);
+                clean_index += 1;
+            }
+        }
+        debug_assert_eq!(clean_index, clean_carries.len());
+
+        for i in 0..num_carries {
+            let previous = if i == 0 {
+                carry_in
+            } else {
+                Some(carries[i - 1])
+            };
+            if i == host_index {
+                let previous = previous.expect("source carry has an incoming carry");
+                b.cx(addend[i], acc[i]);
+                b.cx(addend[i], previous);
+                b.ccx(acc[i], previous, addend[i]);
+            } else {
+                if let Some(previous) = previous {
+                    b.cx(previous, addend[i]);
+                    b.cx(previous, acc[i]);
+                }
+                b.ccx(addend[i], acc[i], carries[i]);
+                if let Some(previous) = previous {
+                    b.cx(previous, carries[i]);
+                }
+            }
+        }
+
+        if carry_out.is_some() {
+            let i = width - 1;
+            let previous = if i == 0 {
+                carry_in
+            } else {
+                Some(carries[i - 1])
+            };
+            if let Some(previous) = previous {
+                b.cx(previous, addend[i]);
+            }
+            b.cx(addend[i], acc[i]);
+        } else {
+            b.cx(carries[num_carries - 1], acc[width - 1]);
+            b.cx(addend[width - 1], acc[width - 1]);
+        }
+
+        for i in (0..owned).rev() {
+            let previous = if i == 0 {
+                carry_in
+            } else {
+                Some(carries[i - 1])
+            };
+            if i == host_index {
+                let previous = previous.expect("source carry has an incoming carry");
+                b.ccx(acc[i], previous, addend[i]);
+                b.cx(addend[i], previous);
+                b.cx(previous, acc[i]);
+            } else {
+                if let Some(previous) = previous {
+                    b.cx(previous, carries[i]);
+                }
+                let measured = b.alloc_bit();
+                b.hmr(carries[i], measured);
+                b.cz_if(addend[i], acc[i], measured);
+                if let Some(previous) = previous {
+                    b.cx(previous, addend[i]);
+                }
+                b.cx(addend[i], acc[i]);
+            }
+        }
+        b.free_vec(&clean_carries);
+        return;
+    }
+
     let mut carries = b.alloc_qubits(owned);
     if let Some(carry) = carry_out {
         carries.push(carry);
