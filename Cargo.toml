@@ -14,6 +14,12 @@ path = "src/bin/build_circuit.rs"
 name = "eval_circuit"
 path = "src/bin/eval_circuit.rs"
 
+# Lane tooling (research branch only, outside editablePaths — never ships in a
+# submission archive).
+[[bin]]
+name = "screen_nonces"
+path = "src/bin/screen_nonces.rs"
+
 [profile.release]
 opt-level = 3
 lto = "thin"
@@ -23,5 +29,6 @@ debug = false
 [dependencies]
 alloy-primitives = "1.5"
 ruint = "1.12"
+sha2 = "0.10"
 sha3 = "0.10"
 zstd = "0.13"
