@@ -30,9 +30,13 @@ draws. Baked-nonce stream md5 09b1e83b6b438b31b6cd956389074f99.
 | 6000031676 | 18 | 9 | 0 | 914,064.022 |
 
 Mean T ≈ **914,063.2** → ΔT ≈ **−3,417.7** → Δscore ≈ **−4,368,000
-(−0.373%)** at Q1278. The 8.08M figure from the 6b5c probes was
+(−0.373%)** at Q1278 (live gate 1,172,540,718 re-verified unchanged
+2026-08-23 ~01:35Z). The 8.08M figure from the 6b5c probes was
 R694-geometry-specific (schedule stops 10 rounds short there vs 6 here);
-it does NOT transfer to 940e34a. λ_cls mean **17.17**, λ_ph mean **11.17**.
+it does NOT transfer to 940e34a. λ_cls mean **17.17**, λ_ph mean **11.17**
+(n=6). NOTE: the rescale-vs-base PHASE claim ("phase ~flat") is n=6-vs-n=6
+only — base phase (11.50) was never powered, so treat "phase unchanged by
+the width lever" as suggestive, not established. It is load-bearing for E10.
 
 ## E2 — baseline fault rate, paired protocol (6 draws, same nonce family)
 

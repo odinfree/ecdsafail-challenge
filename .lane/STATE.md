@@ -49,8 +49,10 @@ envelope margin on slow-converging shots (width violations).
 **SUB4_PP_WIDTH_RESCALE=1 on 940e34a = CANDIDATE (not GO).**
 
 - WHAT IT IS: a sound, correctly-priced, classically-screenable width-schedule
-  CUT worth **−4,369,482 score** (ΔT −3,419 avg-Toffoli at Q1278 unchanged),
-  costing **+3.2 λ_cls, phase ~0** vs base. Strictly dominates census
+  CUT worth **−4,369,482 score** (ΔT −3,419 avg-Toffoli at Q1278 unchanged;
+  gate 1,172,540,718 RE-VERIFIED live 2026-08-23 ~01:35Z, unchanged),
+  costing **+3.2 λ_cls; phase Δ vs base ≈ 0 (n=6 only, NOT powered — base
+  phase 11.5 was never re-measured at scale)**. Strictly dominates census
   greedy_m452 (3× score, lower λ). Vs greedy_m1000 (powered, E8b n=24):
   rescale has DECISIVELY lower combined λ (Δ+6.75, t=4.04) — classical Δ+4.6
   decisive (oracle n=500 Δ+4.88), phase Δ+2.2 marginal (t=1.79, p≈0.09).
