@@ -56,18 +56,20 @@ envelope margin on slow-converging shots (width violations).
   greedy_m452 (3× score, lower λ). Vs greedy_m1000 (powered, E8b n=24):
   rescale has DECISIVELY lower combined λ (Δ+6.75, t=4.04) — classical Δ+4.6
   decisive (oracle n=500 Δ+4.88), phase Δ+2.2 marginal (t=1.79, p≈0.09).
-  greedy_m1000 leads on CERTAIN score by +490k (0.04%). Net: rescale is the
-  better operating point — greedy1000's tiny score edge costs 9–850× hunt by
+  greedy_m1000 leads on the five-draw rounded score by +481,806 (0.041%).
+  Net: rescale is the better operating point — greedy1000's tiny score edge
+  costs 9–850× hunt by
   pipeline. Direction matches the earlier "rescale better" read, but that was
   only JUSTIFIED once powered to n=24; n=5 combined (t=0.99) was underpowered.
-- SOUND, not a trap: E4 (faults are width-channel, nonce-varying 13–25),
-  E3 (model predicts every count exactly — a deleted-arithmetic trap would
-  not be predictable), E9 (dose-response: rescale sits far from the bias −1
-  cliff). Contrast FOLD_WINDOW/SCHED_BIAS which delete required arithmetic.
+- SOUND, not a trap: E4 (faults are width-channel, nonce-varying 8–25),
+  E3/E6 (zero measured-only shots in 32 masks; one conservative predictor-only
+  shot), E9 (dose-response: rescale sits far from the bias −1 cliff). Contrast
+  FOLD_WINDOW/SCHED_BIAS which delete required arithmetic.
 - SCREEN: the classical width-fault screen (ppfilter PPF_WSCHED path) is SOUND
   on this stream — the task's "undercounts / failed agreement gate" premise is
-  REFUTED (stale-binary incident, since fixed). Bounded FN ≤1.28× at counts
-  13–25; pred=0 regime is the fleet hunt, untestable locally.
+  REFUTED (stale-binary incident, since fixed). The 32-nonce run has 0 FN and
+  one safe FP; heuristic FN multiplier ≤1.11× at predicted counts 8–25.
+  `pred<=4` and `pred=0` were not exercised locally.
 - DOMINANT UNDISCHARGED GATE: an actual **0/0/0 clean nonce** does not exist
   yet — that hunt is fleet-scale (phase-limited ~e^11.6 full-evals per clean;
   or 22× base if the fleet full-evals un-screened). This lane does NOT hunt,
@@ -102,20 +104,24 @@ envelope margin on slow-converging shots (width violations).
 - Baseline E0 reproduced: md5 2476648..., 0/0/0, T917480.917, Q1278 == gate.
 - E1 rescale priced on 940e34a: ΔT −3,418 (−4.37M score), Q1278, +3λ_cls,
   λ_ph flat. NOT the 8.08M 6b5c figure (that was R694 geometry).
-- E3/E6 PPF_WSCHED screen SOUND on this base: 6/6 counts, 21/32 masks
-  0-disagreement (~190k shot decisions), wrong-table canary moves. Task
-  premise ("screen undercounts/failed agreement gate") REFUTED — the g1000
-  0/64 was a stale fleet binary (CALIBRATION.md addendum), fixed binary
-  64/64. Zero-FN 95% UCB ≈ 1e-5 (pred=0 regime untestable locally).
+- E3/E6 PPF_WSCHED comparison completed: 32/32 nonces, 31 exact shot sets,
+  one conservative FP (nonce 6000229651, shot 8735, mask 4), **zero FN** over
+  288,768 shot decisions. Predicted counts span 8–25, so `pred<=4`/`pred=0`
+  were not exercised. Wrong-table canary moves 13→15 (+shots 1339,3619).
+  Task premise ("screen undercounts/failed agreement gate") remains refuted;
+  the g1000 0/64 was a stale fleet binary. Full identities and hashes are in
+  `.lane/MASK32-RECEIPT.md` / `.lane/MASK32-SHA256SUMS`.
 - E5 schedule verified through real code path (700/700); Σ −1,332 bit-rounds
   total (−666/traversal), a smooth reindex of the leader table.
 - E8 greedy head-to-head (940e34a, all Q1278): rescale DOMINATES greedy_m452
-  (3× score, lower λ — solid). Rescale vs greedy_m1000 is a genuine tradeoff:
-  classical λ decisively favors rescale (n=500 oracle 14.6 vs 19.5, Δ+4.88,
-  t≈19) but greedy_m1000 leads on certain score (+490k); phase channel
-  pending (E8b, 24 paired draws). Two prior drafts were miscalibrated (first
-  "dominated" from walk-only census; then "BEST" from a null n=5 combined-λ
-  gap, t=0.99) — both retracted to peer c9. Oracle reproduced my 5 held
+  (3× score, lower λ — solid). Exact greedy_m452 rounded score delta is
+  −1,395,576 (mean T 916,388.5296 rounds to 916,389; prior value was off by
+  one Q1278 factor). Vs greedy_m1000, powered n=24 combined λ favors rescale
+  decisively (+6.75, t=4.04), while phase alone is marginal (+2.17, p≈0.09)
+  and greedy_m1000 leads on score by 481,806. Two prior drafts were
+  miscalibrated (first "dominated" from walk-only census; then "BEST" from
+  a null n=5 combined-λ gap, t=0.99) — both retracted to peer c9. Oracle
+  reproduced my 5 held
   greedy1000 trusted counts exactly (calibration confirmed on this stream).
 - E9 dose-response (Einstein cross-lane): rescale is a SOUND width cut, not
   a deleted-arithmetic trap — bias −1 cliffs at 4,741 cls; rescale's <1-round

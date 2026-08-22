@@ -51,15 +51,17 @@ combined) were unpaired/legacy-geometry readings.
 
 ## E3 — oracle agreement (the lane's core gate)
 
-ppfilter + PPF_WSCHED=<rescaled 700-row CSV> + PPF_ROUNDS_MUL=696 against
-the exact 940e34a+rescale stream:
+ppfilter + PPF_WSCHED=<rescaled 700-row CSV> + PPF_ROUNDS_DIV=698 +
+PPF_ROUNDS_MUL=696 against the exact 940e34a+rescale stream:
 
 - Counts: 6/6 exact (16,16,18,18,17,18 = measured).
 - Base stream (embedded leader table): 6/6 full per-shot mask MATCH
   (predicted faulting-shot index sets == trusted evalall sets).
-- Wrong-table canary: rescaled CSV vs base stream → pred 15 ≠ measured 13:
-  the table override demonstrably couples into predictions.
-- 32-nonce full per-shot mask agreement on the rescale stream: RUNNING.
+- Wrong-table canary: rescaled CSV vs base stream → pred 15 ≠ measured 13;
+  wrong-table-only shots are 1339 and 3619. The override demonstrably couples
+  into predictions.
+- 32-nonce comparison complete: 31 exact shot sets, one conservative FP,
+  zero FN. See E6 and `.lane/MASK32-RECEIPT.md`.
 
 The "PPF_WSCHED undercounts width faults / failed 0/64" wall is refuted
 for the SPECIFIC tested binary — macOS ppfilter sha256
@@ -115,26 +117,27 @@ UNIFORMLY-IN-INDEX, not where census slack is largest.
 
 The pred≤4 boundary scan was mis-sized (P(cls≤4) at λ≈17 ≈ 1.6e-4/nonce;
 401 nonces → E[hits] 0.06; pred=0 ≈ 3.4e-8 is unreachable locally — that
-regime IS the fleet hunt). Killed it. Stronger claim from data in hand:
-the per-shot mask run reached **24/32 nonces before an OOM kill** (the shared
-machine was running another lane's evals concurrently), giving 24×9024 =
-**216,576 exact shot-level predictions with 0 disagreements** (no FP, no FN,
-all 24 MATCH). Rule-of-three 95% UCB on the per-shot disagreement rate ≈
-3/216,576 = **1.39e-5**.
+regime IS the fleet hunt). It was killed. The interrupted mask comparison was
+then finished serially/local-only: **32/32 nonces**, 32×9024 = **288,768**
+shot decisions. Result: **31 exact sets, zero false negatives, one false
+positive**. The sole difference is nonce 6000229651 shot 8735, predictor mask
+4 (multiply-walk terminal guard); trusted evaluation is classically clean.
+Predicted counts span **8–25**, so neither `pred<=4` nor `pred=0` was
+exercised. Rule-of-three 95% UCB for the observed zero-FN rate is
+3/288,768 = **1.04e-5 per shot**.
 
 Translated to hunt economics (framing from cross-lane peer, adopted):
 - FALSE POSITIVES ARE FREE — every screen survivor gets a trusted full-shot
   confirm, so a spurious "clean" costs one eval, not a lost win.
-- Only FALSE NEGATIVES cost. Over 18,048 walk decisions/nonce at the 1.39e-5
-  UCB, P(a truly clean nonce survives) ≥ **0.779**, i.e. an FN hunt-cost
-  multiplier ≤ **1.28×**. Negligible against the ≥6× margin gaps between
-  candidates.
-- Structural bound on "unmodelled channel": a channel absent from the model
-  would undercount at EVERY count level, not only at zero; 0 disagreements
-  across 216k decisions at counts 13–25 bounds that hard. Residual risk is
-  ordinary per-shot model error, not a missing mechanism.
-CAVEAT retained: shots within a nonce share one code path; the pred=0 regime
-the fleet hunt actually consumes is not directly reachable locally.
+- Only FALSE NEGATIVES cost. A dependency-free union bound over 9,024 shots
+  at the 1.04e-5 UCB gives survivor probability ≥ **0.906**, i.e. a heuristic
+  FN hunt-cost multiplier ≤ **1.11×**.
+- The observed error is conservative: predicted-only, never measured-only.
+  It proves the model is not bit-for-bit exact at every boundary, while the
+  zero-FN result gives no evidence of an unmodelled undercount channel.
+CAVEAT retained: shots within a nonce share one code path; the `pred=0`
+regime the fleet hunt consumes was not exercised locally. Every survivor
+still requires the trusted full-shot confirmer.
 
 ## E7 — reconciliation of the base λ gap (advisor flag)
 
@@ -156,9 +159,15 @@ n=5 paired trusted (nonces 6e9+k*7919):
 | table | ΔScore vs gate | cls λ (n=5) | phase λ (n=5) |
 |---|---|---|---|
 | base | 0 | 14.2 | 11.5 |
-| greedy_m452 | −1,396,854 | 16.6 | 16.0 |
+| greedy_m452 | −1,395,576 | 16.6 | 16.0 |
 | rescale | −4,369,482 | 17.4 | 11.6 |
 | greedy_m1000 | −4,851,288 | 18.6 | 13.2 |
+
+Rounding correction: greedy_m452's five-draw mean T is **916,388.5296**,
+which rounds to **916,389** under the benchmark rule. Q1278 gives score
+**1,171,145,142**, exactly **1,395,576** below the 1,172,540,718 gate. The
+prior −1,396,854 cell rounded down to 916,388 and overstated the delta by one
+Q1278 factor.
 
 Powered classical (oracle, n=500 paired, nonces 6.1e9+k*7919; oracle first
 reproduced my 5 held greedy1000 trusted counts 21,16,17,24,15 EXACTLY):
@@ -174,8 +183,9 @@ RESULTS, by strength of evidence:
 2. Rescale vs greedy_m1000 CLASSICAL: rescale is +4.88 λ_cls LOWER (powered,
    decisive). But under a classical-prescreen pipeline this advantage is
    largely absorbed as cheap scans (E10).
-3. Rescale vs greedy_m1000 SCORE: greedy_m1000 leads by a CERTAIN +490k
-   (deterministic, nonce-stable).
+3. Rescale vs greedy_m1000 SCORE: on the five-draw rounded means,
+   greedy_m1000 leads by exactly **481,806**; the direction holds on all five
+   paired draws.
 4. Rescale vs greedy_m1000 PHASE (the binding channel under a screen): n=5
    diff only +1.6, t≈1.6 — NOT separated. Powering with 24 paired draws (E8b).
 
@@ -183,8 +193,8 @@ CORRECTION (twice-revised, logged for honesty): (a) an early draft called
 rescale "dominated" — false, interpolated from WSCHED walk-only λ. (b) the
 next draft over-corrected to "rescale is the BEST operating point / stack on
 rescale not greedy1000" — that rested on a COMBINED-λ n=5 gap of +2.8 that is
-t=0.99, p≈0.38, i.e. NULL, while greedy1000's +490k score is certain. Both
-were headline-stronger-than-caveat (advisory-calibration gate 2). The honest
+t=0.99, p≈0.38, i.e. NULL, while greedy1000's 481,806 score edge is measured.
+Both were headline-stronger-than-caveat (advisory-calibration gate 2). The honest
 label: rescale dominates greedy452; rescale vs greedy1000 is a genuine
 tradeoff — rescale much lower CLASSICAL λ (screenable), greedy1000 higher
 certain score; phase pending. Retracted to peer c9.
@@ -200,15 +210,16 @@ Nonces 6.2e9+k*7919, k=0..23, rescale vs greedy_m1000, all trusted evalall:
 | combined λ | 26.21 | 32.96 | **+6.75** | **4.04** | **decisive** |
 
 SETTLED: greedy_m1000 has decisively HIGHER combined λ than rescale
-(Δ+6.75, t=4.04) for a CERTAIN +490k more score. So rescale IS the better
-operating point of the two — the n=5 combined gap (t=0.99) was underpowered,
+(Δ+6.75, t=4.04) for a five-draw rounded score edge of **481,806**. So
+rescale IS the better operating point of the two — the n=5 combined gap
+(t=0.99) was underpowered,
 not absent; at n=24 it is real and sizable. The economic read splits by
 pipeline (E10):
 - Un-screened full-eval: rescale wins big (Δ6.75 combined ≈ e^6.75 ≈ 850×
-  cheaper hunt) for −490k score. Clear rescale win.
+  cheaper hunt) for −481,806 score. Clear rescale win.
 - Classical-prescreen (phase-limited): classical absorbed; binding channel
-  is phase, where rescale's edge is only MARGINAL (Δ2.2, p≈0.09 ≈ 9×). vs
-  greedy_m1000's +490k certain score, this is a closer call that hinges on a
+  is phase, where rescale's edge is only MARGINAL (Δ2.2, p≈0.09 ≈ 9×). Vs
+  greedy_m1000's 481,806 score edge, this is a closer call that hinges on a
   p≈0.09 phase advantage. Honest: lean rescale, but not locked under this
   pipeline.
 
@@ -250,7 +261,7 @@ that +3.1 depends entirely on the fleet's pipeline:
 - **If the fleet classical-prescreens then confirms survivors** (ppfilter
   scan → trusted eval): the expensive full-eval count is phase-limited
   (Δλ_ph≈0), so rescale's marginal full-eval cost ≈ **1×**, and the +3.1 is
-  ~20× more CPU-cheap scans (× a ≤1.28× FN penalty from E6).
+  ~20× more CPU-cheap scans (× a heuristic ≤1.11× FN penalty from E6).
 
 I do NOT know which pipeline the fleet runs, so I do not assert a single
 multiplier. THIS LANE'S ACTUAL DELIVERABLE on economics is narrower and
