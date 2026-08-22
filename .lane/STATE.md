@@ -3,7 +3,7 @@
 Created: 2026-08-22
 Source: `6b5c82c`
 Branch: `research/kimi-burn-6b5c-passenger`
-Status: caller-y passenger KILLED by exact transfer; pivot to the 280 u/v checkpoint open
+Status: both saddle falsifiers KILL; divide-replay peak census fully closed
 
 Model: Kimi Code (k2/k3, high effort), multi-lane agent campaign.
 
@@ -37,43 +37,64 @@ Evidence: `.lane/KIMI-Y-TRANSFER-KILL-6B5C82C.md`, transferring Fable lane's
 `e717062` census (`.lane/TEDDY-Y-PASSENGER-LIFETIME-9805DEE.md` on that branch).
 Methodology credit: Teddy Pender's cheapest-falsifier-first discipline.
 
-## Overturn 2 (OPEN): the 280 u/v compact reversible checkpoint
+## Overturn 2 (KILLED): the 280 u/v compact reversible checkpoint
 
 Wall: with y proven an active operand, the last open census component of the
-divide-replay peak is the u/v walk-state pair frozen across the batch replay
+divide-replay peak was the u/v walk-state pair frozen across the batch replay
 of rounds 0..356: 2 × value_width(356) = 2 × 140 = 280 wires, idle-but-live at
 the Q1278 binding instant.
 
-Assumption to overturn: the batch-replay plateau must hold the 280-wire walk
-state in raw pair form.
+Result: three independent exact kills on 6b5c82c, no prototype built.
 
-Overturn condition: a compact reversible checkpoint holds the round-356 walk
-state below 280 wires across the batch replay and regenerates it for the
-interleaved rounds, inside the exact Q/T gate.
+1. Information floor: (u_356, v_356) is a bijective image of (const p, x), so
+   any reversible checkpoint needs ≥256 wires. Max possible saving: 24 wires
+   (the incumbent's shrink_to envelope is already near-floor).
+2. T-kill: reaching the floor requires unwalk+rewalk of the prefix =
+   2 × 71,756 = 143,512 executed T (pp_div_walk measured = exactly rounds
+   0..355, fully unconditioned; per-round formula width(r)−3 cross-checks to
+   the Toffoli). Budget for 24 wires at the exact gate: 17,247 T. Realized
+   exchange 5,980 T/Q = 8.3× over break-even.
+3. Q-kill: the mandatory rewalk before interleaved round 356 re-materializes
+   u/v at the 2×259 round-0 envelope while tape copies (357), coefficient
+   (256), and y (256) are live: floor 1,387 = +109 over the leader. Partial
+   unwalks free nothing (the width schedule is non-increasing, so unwalking
+   backward grows u/v).
 
-Cheapest falsifier: information floor (the pair is a bijective image of
-(const p, x) → ≥256 wires, max saving 24) plus the unwalk/rewalk T price
-against the 24-wire budget, plus the rewalk co-live Q check. Kill if the
-price exceeds 24 × 718.61 ≈ 17,247 executed T or the rewalk re-materializes
-u/v while tape+coefficient+y are live.
+Evidence: `.lane/KIMI-UV280-CHECKPOINT-KILL-6B5C82C.md`. Methodology credit:
+Teddy Pender; sibling kills absorbed: r1 literal checkpoint (`a313b84`),
+Bennett recomputation (`68bf16c` ledger).
+
+## Divide-replay peak: final census (all components closed)
+
+- sign tape (694): information-theoretically irreducible (`ad206c9`; the
+  streaming-representation question is owned by the Fable stream lane).
+- carry ladder: allowance cliff killed (`02a5836`).
+- 256 numerator (y): active operand — overturn 1.
+- 256 coefficient: second pair line, decoder-at-peak wall (`e717062`).
+- 280 u/v walk slices: overturn 2.
 
 ## Target direction and saddle budget
 
 - First invariant (overturn 1): remove the 256 caller-y wires from
   `pp_div_replay` — DISPROVEN (y is the numerator operand; tie voids shaves).
 - Second invariant (overturn 2): hold the round-356 walk state below 280
-  wires across the batch replay.
+  wires across the batch replay — DISPROVEN (24-wire floor, 8.3× T price,
+  +109 Q rewalk peak).
 - Composition target: combine with Teddy Pender's exact sparse-square component
   only after the replay peak independently falls below Q1148. Not reached.
 - Current complete-circuit strict ceilings: Q1182 T<=992945; Q1148 T<=1022353.
 - Budget: two dependency/liveness falsifiers plus one bounded circuit prototype,
-  or four hours. Spent: one falsifier (transfer kill). Temporary score
-  regression is allowed only while a named live-set invariant improves; no
-  candidate was built, so the normal path stands byte-for-byte.
+  or four hours. Spent: two falsifiers, both kills; prototype not warranted
+  (no dependency proof survived). No candidate was built; the normal path
+  stands byte-for-byte (only `.lane/` evidence committed).
 
 ## Next action
 
-Run the overturn-2 falsifier: exact width/floor arithmetic on 6b5c82c plus the
-measured prefix-walk price. Do not tune rounds, carry widths, endpoint windows,
-or nonces. Produce either a measured liveness cut or a binding dependency
-falsifier, update this file, and commit only durable source/evidence.
+None on this wall: the saddle is resolved — both named live-set invariants are
+disproven by binding dependency falsifiers, and every census component of the
+divide-replay peak is now closed by proof or measurement. Per the doctrine this
+is a kill, not a saddle quit: the invariants resolved inside budget. Remaining
+live direction at this frontier is the streaming sign-history representation,
+already owned by the Fable stream lane (`68bf16c`); do not duplicate it. If
+this lane continues, re-scope to a different wall (e.g. the square's 1278 tie
+component) only with a fresh overturn ledger entry and a priced falsifier.
