@@ -5,20 +5,15 @@
 //! deliberately reuses the legacy builder's clean add, fold, comparator, and
 //! measurement-based erasure primitives.
 
-use super::super::{arith, comparator, B, BExt};
+use super::super::{arith, comparator, BExt, B};
 use crate::circuit::{OperationType, QubitId, QubitOrBit};
+use crate::point_add::arith::cmp_lt_phase_conditioned;
 
 const N: usize = 256;
 const LSBS: usize = 56;
 const MSBS: usize = 24;
 const GUARD: usize = 24;
-const F_NAF: [(usize, bool); 5] = [
-    (0, false),
-    (4, false),
-    (6, true),
-    (10, false),
-    (32, false),
-];
+const F_NAF: [(usize, bool); 5] = [(0, false), (4, false), (6, true), (10, false), (32, false)];
 
 /// Wide adds (>= `SQUARE_CHUNK_MIN` bits) use the replay's chunked adder with
 /// measured boundary erasure instead of one full-width carry ladder: the
@@ -64,13 +59,186 @@ fn sub_full(circ: &mut B, addend: &[QubitId], acc: &[QubitId]) {
     }
 }
 
-fn row_addsub(
+// Teddy Pender's tape-removal advice exposed this square as the companion
+// co-binder: once the walk tape stops owning the machine, `tri_corr`'s
+// materialised zero pads become the next wall.  This explorer keeps Teddy's
+// architectural direction explicit instead of disguising it as an adder
+// micro-optimization.
+fn teddy_sparse_tri_corr_enabled() -> bool {
+    std::env::var_os("SUB4_SQUARE_TEDDY_SPARSE_TRI_CORR").is_some()
+}
+
+/// One measured-uncompute ripple chunk whose addend may contain structural
+/// zeroes.  This is the same majority/sum network as ping-pong's `chunk_add`,
+/// with the zero-input branches simplified instead of represented by fresh
+/// `|0>` qubits.
+fn sparse_chunk_add(
     circ: &mut B,
-    ctrl: QubitId,
-    operand: &[QubitId],
+    addend: &[Option<QubitId>],
     acc: &[QubitId],
-    inverse: bool,
+    carry_in: Option<QubitId>,
+    carry_out: Option<QubitId>,
 ) {
+    let width = addend.len();
+    assert_eq!(width, acc.len());
+    if width == 0 {
+        return;
+    }
+    let num_carries = if carry_out.is_some() {
+        width
+    } else {
+        width - 1
+    };
+    if num_carries == 0 {
+        if let Some(carry) = carry_in {
+            circ.cx(carry, acc[0]);
+        }
+        if let Some(operand) = addend[0] {
+            circ.cx(operand, acc[0]);
+        }
+        return;
+    }
+
+    let owned = num_carries - usize::from(carry_out.is_some());
+    let mut carries = circ.alloc_qubits(owned);
+    if let Some(carry) = carry_out {
+        carries.push(carry);
+    }
+
+    for i in 0..num_carries {
+        let previous = if i == 0 {
+            carry_in
+        } else {
+            Some(carries[i - 1])
+        };
+        match (addend[i], previous) {
+            (Some(operand), Some(previous)) => {
+                circ.cx(previous, operand);
+                circ.cx(previous, acc[i]);
+                circ.ccx(operand, acc[i], carries[i]);
+                circ.cx(previous, carries[i]);
+            }
+            (Some(operand), None) => circ.ccx(operand, acc[i], carries[i]),
+            (None, Some(previous)) => {
+                // carry = previous & old_acc, while acc becomes old_acc ^ previous.
+                circ.cx(previous, acc[i]);
+                circ.ccx(previous, acc[i], carries[i]);
+                circ.cx(previous, carries[i]);
+            }
+            (None, None) => {}
+        }
+    }
+
+    if carry_out.is_some() {
+        let i = width - 1;
+        let previous = if i == 0 {
+            carry_in
+        } else {
+            Some(carries[i - 1])
+        };
+        if let Some(operand) = addend[i] {
+            if let Some(previous) = previous {
+                circ.cx(previous, operand);
+            }
+            circ.cx(operand, acc[i]);
+        }
+        // For a structural-zero operand the forward carry cell already wrote
+        // `acc ^= previous`, so no separate sum gate is required here.
+    } else {
+        circ.cx(carries[num_carries - 1], acc[width - 1]);
+        if let Some(operand) = addend[width - 1] {
+            circ.cx(operand, acc[width - 1]);
+        }
+    }
+
+    for i in (0..owned).rev() {
+        let previous = if i == 0 {
+            carry_in
+        } else {
+            Some(carries[i - 1])
+        };
+        match (addend[i], previous) {
+            (Some(operand), Some(previous)) => {
+                circ.cx(previous, carries[i]);
+                let measured = circ.alloc_bit();
+                circ.hmr(carries[i], measured);
+                circ.cz_if(operand, acc[i], measured);
+                circ.cx(previous, operand);
+                circ.cx(operand, acc[i]);
+            }
+            (Some(operand), None) => {
+                let measured = circ.alloc_bit();
+                circ.hmr(carries[i], measured);
+                circ.cz_if(operand, acc[i], measured);
+                circ.cx(operand, acc[i]);
+            }
+            (None, Some(previous)) => {
+                circ.cx(previous, carries[i]);
+                let measured = circ.alloc_bit();
+                circ.hmr(carries[i], measured);
+                circ.cz_if(previous, acc[i], measured);
+            }
+            (None, None) => {
+                let measured = circ.alloc_bit();
+                circ.hmr(carries[i], measured);
+            }
+        }
+    }
+    circ.free_vec(&carries[..owned]);
+}
+
+/// Add a 2m-bit sparse operand in two natural m-bit chunks.  The boundary is
+/// erased by an exact full-prefix comparison.  Only the zero positions needed
+/// during that post-ripple comparison are materialised, after the carry ladder
+/// has gone away; the old 2m-bit add materialised all m zeroes across the peak.
+fn sparse_add_full(circ: &mut B, addend: &[Option<QubitId>], acc: &[QubitId]) {
+    assert_eq!(addend.len(), acc.len());
+    assert!(addend.len() >= 2);
+    let split = std::env::var("SUB4_SQUARE_TEDDY_SPARSE_SPLIT")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(addend.len() / 2)
+        .clamp(1, addend.len() - 1);
+
+    let boundary = circ.alloc_qubit();
+    sparse_chunk_add(circ, &addend[..split], &acc[..split], None, Some(boundary));
+    sparse_chunk_add(circ, &addend[split..], &acc[split..], Some(boundary), None);
+
+    let phase = circ.alloc_bit();
+    circ.hmr(boundary, phase);
+    let compare = std::env::var("SUB4_SQUARE_TEDDY_SPARSE_COMPARE")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(split)
+        .clamp(1, split);
+    let start = split - compare;
+    let mut pads = Vec::new();
+    let mut compare_addend = Vec::with_capacity(compare);
+    for operand in &addend[start..split] {
+        if let Some(operand) = operand {
+            compare_addend.push(*operand);
+        } else {
+            let pad = circ.alloc_qubit();
+            pads.push(pad);
+            compare_addend.push(pad);
+        }
+    }
+    cmp_lt_phase_conditioned(circ, &acc[start..split], &compare_addend, phase);
+    circ.free_vec(&pads);
+    circ.free(boundary);
+}
+
+fn sparse_sub_full(circ: &mut B, addend: &[Option<QubitId>], acc: &[QubitId]) {
+    for &q in acc {
+        circ.x(q);
+    }
+    sparse_add_full(circ, addend, acc);
+    for &q in acc {
+        circ.x(q);
+    }
+}
+
+fn row_addsub(circ: &mut B, ctrl: QubitId, operand: &[QubitId], acc: &[QubitId], inverse: bool) {
     let k = operand.len();
     assert_eq!(acc.len(), k + 1);
     let pad = circ.alloc_qubit();
@@ -137,6 +305,10 @@ fn tri_square(circ: &mut B, x: &[QubitId], product: &[QubitId], inverse: bool) {
 
 fn tri_corr(circ: &mut B, x: &[QubitId], product: &[QubitId], inverse: bool) {
     let m = x.len();
+    if teddy_sparse_tri_corr_enabled() {
+        tri_corr_sparse(circ, x, product, inverse);
+        return;
+    }
     let spread = |circ: &mut B| {
         let pads = circ.alloc_qubits(m);
         let mut value = Vec::with_capacity(2 * m);
@@ -195,6 +367,63 @@ fn tri_corr(circ: &mut B, x: &[QubitId], product: &[QubitId], inverse: bool) {
         let (value, pads) = spread(circ);
         sub_full(circ, &value, product);
         circ.free_vec(&pads);
+    }
+}
+
+fn tri_corr_sparse(circ: &mut B, x: &[QubitId], product: &[QubitId], inverse: bool) {
+    let m = x.len();
+    let spread: Vec<Option<QubitId>> = (0..2 * m)
+        .map(|i| {
+            if i.is_multiple_of(2) {
+                None
+            } else {
+                Some(x[i / 2])
+            }
+        })
+        .collect();
+    let xext: Vec<Option<QubitId>> = x
+        .iter()
+        .copied()
+        .map(Some)
+        .chain(std::iter::repeat_n(None, m))
+        .collect();
+    let low: Vec<Option<QubitId>> = x[..m - 1]
+        .iter()
+        .copied()
+        .map(Some)
+        .chain(std::iter::once(None))
+        .collect();
+
+    if !inverse {
+        circ.set_phase("square_teddy_tri_spread_add");
+        sparse_add_full(circ, &spread, product);
+        circ.set_phase("square_teddy_tri_xext_sub");
+        sparse_sub_full(circ, &xext, product);
+        if m >= 2 {
+            circ.set_phase("square_teddy_tri_low_sub");
+            for &q in &x[..m - 1] {
+                circ.x(q);
+            }
+            sparse_sub_full(circ, &low, &product[m..]);
+            for &q in &x[..m - 1] {
+                circ.x(q);
+            }
+        }
+    } else {
+        if m >= 2 {
+            circ.set_phase("square_teddy_tri_low_add");
+            for &q in &x[..m - 1] {
+                circ.x(q);
+            }
+            sparse_add_full(circ, &low, &product[m..]);
+            for &q in &x[..m - 1] {
+                circ.x(q);
+            }
+        }
+        circ.set_phase("square_teddy_tri_xext_add");
+        sparse_add_full(circ, &xext, product);
+        circ.set_phase("square_teddy_tri_spread_sub");
+        sparse_sub_full(circ, &spread, product);
     }
 }
 
@@ -386,6 +615,7 @@ pub(super) fn selfcheck() {
     let num_qubits = circ.next_qubit as usize;
     let num_bits = circ.next_bit as usize;
     let peak_qubits = circ.peak_qubits;
+    let peak_phase = circ.peak_phase;
     let ops = circ.take_ops();
 
     let mut input_seed = Shake256::default();
@@ -413,11 +643,8 @@ pub(super) fn selfcheck() {
     let mut sim_reader = sim_seed.finalize_xof();
     let mut sim = Simulator::new(num_qubits, num_bits, &mut sim_reader);
     let source_reg: Vec<QubitOrBit> = source.iter().copied().map(QubitOrBit::Qubit).collect();
-    let accumulator_reg: Vec<QubitOrBit> = accumulator
-        .iter()
-        .copied()
-        .map(QubitOrBit::Qubit)
-        .collect();
+    let accumulator_reg: Vec<QubitOrBit> =
+        accumulator.iter().copied().map(QubitOrBit::Qubit).collect();
     for shot in 0..64 {
         sim.set_register(&source_reg, sources[shot], shot);
         sim.set_register(&accumulator_reg, accumulators[shot], shot);
@@ -443,6 +670,6 @@ pub(super) fn selfcheck() {
         .count();
     let executed = sim.stats.toffoli_gates as f64 / 64.0;
     eprintln!(
-        "product-register square: {emitted} emitted / {executed:.3} executed Toffoli, {peak_qubits} peak qubits"
+        "product-register square: {emitted} emitted / {executed:.3} executed Toffoli, {peak_qubits} peak qubits at {peak_phase}"
     );
 }
