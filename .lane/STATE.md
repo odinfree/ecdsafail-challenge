@@ -1,6 +1,6 @@
 # Re-descent lane state
 
-Updated: 2026-08-22T14:28:16Z
+Updated: 2026-08-22T14:41:32Z
 
 ## Identity
 
@@ -48,19 +48,19 @@ The current universal gate is `Q * T < 1175495454`. Exact strict T ceilings are 
 
 ## Current phase
 
-`CLEANUP_CONTRACT_REDESCENT`
+`GLOBAL_DEFERRED_CLEANUP_REDESCENT`
 
 ## Current hypothesis
 
-`H7`: the one-sign-per-round tape persists because `value_walk_back` requires every branch decision. Materializing decoders reintroduce about262 live walk qubits and erase the Q gain. The next overturn is therefore the cleanup contract itself: remove the reverse walk through a terminal canonicalization or global invariant, so the tape is unnecessary rather than encoded. Any surviving route must compose with Teddy's measured sparse-square cut.
+`H8`: the component-local terminal state is not injective, but an outer point-add value already resident across the ping-pong call may distinguish the colliding transcripts at zero incremental peak width. The next bounded overturn is deferred global cleanup keyed only by state already live at the call boundary. Newly retained per-round state is disallowed because it recreates the tape. Any surviving route must clear the enlarged key reversibly and compose with Teddy's measured sparse-square cut.
 
 ## Current falsifier
 
-H7 fails for a proposed cleanup invariant on the first reachable collision with identical reverse-live terminal state but different required cleanup actions. `PASS` requires exact uncomputation of both reverse walk and sign tape without a new per-round carrier, with deterministic classical/phase/ancilla `0/0/0`. Context-specific checkpoint, radix, coefficient-absorption, materializing-decoder, and alternate-inversion negatives remain closed unless a changed premise is named.
+H8 fails for a proposed global key on the first reachable collision with identical decoder-visible terminal plus outer state but different required cleanup actions. `PASS` requires the distinguishing outer state to be already resident or explicitly priced, then reversibly cleared without a new per-round carrier. Bounded small-field injectivity is only HOLD to the next scale. Context-specific local-terminal, checkpoint, radix, coefficient-absorption, materializing-decoder, and alternate-inversion negatives remain closed unless a changed premise is named.
 
 ## Next action
 
-Hold the exact prefix-code and terminal-tail lanes at their measured boundaries. Teddy's sparse square overturn is exact at standalone Q1148, but replay still owns global Q1278. The carry-aware coefficient census kills absorption under current cleanup semantics, and Fable's architecture audit kills every concrete decoder that materializes the predecessor walk: the known family needs about262 resident qubits against an ancestral Q1148 budget of120. The one-round MUL695 stream is economically live but trusted dirty12/7/0 and remains HOLD pending independent nonce-selectability evidence. Next, on exact live commit `36f6ca0`, list every post-replay sign consumer and build only the reduced-round collision falsifier for a terminal cleanup invariant. A reachable collision kills the proposed invariant immediately. Grind stays last.
+Hold the exact prefix-code and terminal-tail lanes at their measured boundaries. Teddy's sparse square overturn is exact at standalone Q1148, but replay still owns global Q1278. The carry-aware coefficient census kills absorption, Fable kills materializing decoders, and the exact p=7 cleanup census now kills the component-local terminal invariant at round6 for both divide and multiply. The one-round MUL695 stream is economically live but trusted dirty12/7/0 and remains HOLD pending independent nonce-selectability evidence. Next, trace outer point-add registers already live across the exact `36f6ca0` ping-pong call, price their incremental peak width, and extend the collision key with the smallest zero-increment global invariant. First collision kills; bounded injectivity remains HOLD. Grind stays last.
 
 ## Last verified result
 
@@ -74,6 +74,7 @@ Hold the exact prefix-code and terminal-tail lanes at their measured boundaries.
 - Live protected commit `36f6ca0`: Q1278/T919793/full9024 `0/0/0`; exact accepted diff is multiply depth696 plus nonce48000070891.
 - MUL695 falsifier commit `dff3f66`: Q1278/T919434.045/full9024 `12/7/0`; exact stream KILL, architecture HOLD.
 - Fable Q1148 visibility audit: sparse square HOLD, materializing decoder KILL, cleanup-contract overturn is next; live-rebased memo `.lane/FABLE-Q1148-VISIBILITY.md`.
+- Cleanup collision commit `e06d95d`: exact p=7 fixed-width census finds the first component-local collision at round6 for both divide and multiply; local terminal canonicalization KILL, global/deferred cleanup HOLD behind an enlarged-key gate.
 
 ## Credit and shipping note
 
