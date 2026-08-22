@@ -1,0 +1,68 @@
+diff --git a/src/pp_host.h b/src/pp_host.h
+--- a/src/pp_host.h
++++ b/src/pp_host.h
+@@ -16,2 +16,3 @@
+-// Hard op-count fingerprint guard: the only stream this build serves.
+-static const u64 PP_EXPECTED_OPS_CC20 = 12918089ULL; // ops-cc20.bin (hunt target)
++// Hard op-count fingerprint guard: the only stream this canary build serves.
++static const u64 PP_EXPECTED_OPS_Q1275 = 12953930ULL;
++static const u64 PP_EXPECTED_STATE_Q1275 = 0x6403052ff4377d60ULL;
+@@ -42 +43 @@
+-    if (n != PP_EXPECTED_OPS_CC20) {
++    if (n != PP_EXPECTED_OPS_Q1275) {
+@@ -44 +45 @@
+-                "ppgpu: FATAL: ops stream op count %llu != expected %llu (cc20); "
++                "ppgpu: FATAL: ops stream op count %llu != expected %llu (q1275); "
+@@ -46 +47 @@
+-                (unsigned long long)n, (unsigned long long)PP_EXPECTED_OPS_CC20);
++                (unsigned long long)n, (unsigned long long)PP_EXPECTED_OPS_Q1275);
+diff --git a/src/ppcpu.cpp b/src/ppcpu.cpp
+--- a/src/ppcpu.cpp
++++ b/src/ppcpu.cpp
+@@ -18,0 +19,16 @@
++// Must stay byte-for-byte equivalent to ppgpu.cu::state_digest.
++static u64 state_digest(const PP_Prefix* p) {
++    u64 h = 1469598103934665603ULL;
++    auto mix = [&](const u8* d, size_t n) {
++        for (size_t i = 0; i < n; i++) {
++            h ^= d[i];
++            h *= 1099511628211ULL;
++        }
++    };
++    mix((const u8*)p->checkpoint.st, 200);
++    mix((const u8*)&p->checkpoint.n, 4);
++    mix((const u8*)p->tail, 96 * PP_OP_BYTES);
++    mix((const u8*)&p->total_ops, 8);
++    return h;
++}
++
+@@ -90 +106,12 @@
+-    fprintf(stderr, "ppcpu: prefix loaded, %llu ops\n", (unsigned long long)prefix.total_ops);
++    u64 digest = state_digest(&prefix);
++    if (digest != PP_EXPECTED_STATE_Q1275) {
++        fprintf(stderr,
++                "ppcpu: FATAL: state digest %016llx != expected %016llx (q1275); "
++                "refusing to run on an unknown stream\n",
++                (unsigned long long)digest,
++                (unsigned long long)PP_EXPECTED_STATE_Q1275);
++        return 2;
++    }
++    fprintf(stderr, "ppcpu: prefix loaded, %llu ops, state_digest=%016llx\n",
++            (unsigned long long)prefix.total_ops,
++            (unsigned long long)digest);
+diff --git a/src/ppgpu.cu b/src/ppgpu.cu
+--- a/src/ppgpu.cu
++++ b/src/ppgpu.cu
+@@ -618,0 +619,9 @@
++    u64 digest = state_digest(&prefix);
++    if (digest != PP_EXPECTED_STATE_Q1275) {
++        fprintf(stderr,
++                "ppgpu: FATAL: state digest %016llx != expected %016llx (q1275); "
++                "refusing to run on an unknown stream\n",
++                (unsigned long long)digest,
++                (unsigned long long)PP_EXPECTED_STATE_Q1275);
++        return 2;
++    }
+@@ -620 +629 @@
+-            (unsigned long long)prefix.total_ops, (unsigned long long)state_digest(&prefix));
++            (unsigned long long)prefix.total_ops, (unsigned long long)digest);
