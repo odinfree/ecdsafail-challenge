@@ -81,7 +81,11 @@ simultaneously across all three Q1278 co-binders. The transition-zone
 sign-disagreements (round 600, width 46) are the precise obstruction such a
 construction must defeat. No such construction is exhibited here.
 
-Harness (research-only, gated by `SUB4_PP_BURN_SLICE`; promoted circuit
-byte-identical when unset): `src/point_add/pingpong_div.rs::burn_slice_report`
-+ read-only gate atop `point_add::build`. Reproduce:
-`SUB4_PP_BURN_SLICE=1 ./target/release/build_circuit`.
+Harness lifecycle: the `SUB4_PP_BURN_SLICE` harness was a temporary
+source-bound evaluator. After measurement it was REMOVED from working source —
+`src/point_add/mod.rs` and `src/point_add/pingpong_div.rs` restored
+byte-for-byte to exact `6b5c82c` (`git diff 6b5c82c -- src/` empty). The
+harness is preserved in git history at commit `2b0bd4c`; reproduce
+instructions live in `.lane/EVIDENCE-BURN-SLICE-6B5C82C.md`. Post-restore
+receipt: gate-off build emits 12,950,916 operations, `ops.bin` SHA256
+`88706a40300b7f019202f65a0f28e86dbfe27fda65ad5ed33b0482ff9b14b7eb`.

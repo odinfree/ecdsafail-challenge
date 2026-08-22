@@ -2237,14 +2237,6 @@ fn ccz_self_inverse_cancel_conservative(ops: Vec<Op>) -> Vec<Op> {
 }
 
 pub fn build() -> Vec<Op> {
-    // Research-only gate (Burn-the-House-Down streaming ping-pong descent).
-    // Read-only env check placed before any `set_var`, so with the variable
-    // unset `build()` proceeds byte-for-byte identically to the promoted
-    // circuit.  Never mutates state; returns an empty stream on exit.
-    if std::env::var_os("SUB4_PP_BURN_SLICE").is_some() {
-        pingpong_div::burn_slice_report();
-        return Vec::new();
-    }
     // Reproduce the exact source parent used by the q1150 route.  These are
     // intentionally forced instead of defaults so the benchmark environment
     // cannot select a different geometry.

@@ -183,10 +183,22 @@ even at zero cost.
 
 ## Reproduce
 
+The harness was a temporary source-bound evaluator. After measurement the two
+edited files were restored byte-for-byte to exact `6b5c82c`; the harness
+survives in git history at commit `2b0bd4c` (`burn_slice_report` and helpers in
+`src/point_add/pingpong_div.rs`, plus the read-only gate atop
+`point_add::build`). To re-run it:
+
 ```
+git checkout 2b0bd4c -- src/point_add/mod.rs src/point_add/pingpong_div.rs
 cargo build --release --bin build_circuit
 SUB4_PP_BURN_SLICE=1 ./target/release/build_circuit   # slice + collision table
 PP_PROFILE=1 ./target/release/build_circuit           # promoted peak = pp_div_replay@1278
+git checkout 6b5c82c -- src/point_add/mod.rs src/point_add/pingpong_div.rs   # restore
 ```
-Harness source: `src/point_add/pingpong_div.rs` (`burn_slice_report` and
-helpers) + the read-only gate at the top of `point_add::build`.
+
+Current-source receipt (post-restore): normal gate-off build emits
+12,950,916 operations, `ops.bin` SHA256
+`88706a40300b7f019202f65a0f28e86dbfe27fda65ad5ed33b0482ff9b14b7eb` — identical
+to the pristine `6b5c82c` artifact. (The 12,950,820 ops PP_PROFILE reports are
+the pre-tail-nonce stream; the final artifact appends the 96 identity X-pairs.)
