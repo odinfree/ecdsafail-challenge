@@ -1,0 +1,38 @@
+# Overturn ledger: `6b5c82c`
+
+Updated: 2026-08-22T20:30:05Z
+
+Teddy Pender's method is the authority for process, not for conclusions. Every
+older result below is ancestor-scoped until this exact source reproduces it.
+The ledger contains ten executable assumptions, below the twelve-item cap.
+
+## Objective contract
+
+- Protected source: `6b5c82cbe723b33c296c8926876f14f1ac3307a8`.
+- Protected Q/T/score: `1278 / 918358 / 1173661524`.
+- Objective: `peak_qubits * round(avg_executed_Toffoli)`; strict lower wins.
+- Trusted gate: unchanged 9,024-shot evaluator, classical/phase/ancilla
+  `0/0/0`.
+- Research filters and bounded slices are falsifiers only.
+
+## Assumptions and overturns
+
+| id | incumbent assumption | wall produced | current evidence | overturn observation | cheapest falsifier | budget | status | next action |
+|---|---|---|---|---|---|---|---|---|
+| O-001 | Exact replay requires one persistent sign qubit per round or a full checkpoint materialized at peak. | The 694-round tape owns hundreds of persistent qubits in divide replay and multiply walkback. | Exact-live B0 groups include 355 divide-walk and 563 multiply-walk allocations. On A-400, the Q1123 low-five candidate was compared on a nonzero corpus whose unchanged reference also had cleanup debt, so the candidate verdict is confounded. | A bounded representation reconstructs and clears each next symbol with fixed scratch and no retained-state growth after the unchanged exact-live reference itself returns `0/0/0`. | **F1a:** independent exact-live four-sign nonzero-reference cleanup localization. **F1b:** only then compare an exact 4-8-round compact representation and run its collision census. | One reference repair/localization plus three representation falsifiers or four hours. | testing | `burn-reference-cleanup-6b5c82c` owns F1a; Fable stream owns F1b. |
+| O-002 | The caller's 256-qubit `y` register is an idle passenger that can be excluded from divide replay. | A false passenger diagnosis diverts work from the compact state that could actually move the peak. | Exact A-400 commit `e717062` found all 256 wires active/touched around the peak: `y` is the replay numerator, never freed, with square and multiply walkback co-binding. A-400 -> A-500 changes only depth, endpoint window, and nonce, not this dataflow. The kill is expected to transfer. | Only an exact A-500 lifetime map showing a changed consumer boundary would overturn the A-400 kill. | **F2:** read-only source-indexed producer/consumer transfer census on A-500; expected KILL, no prototype. | One transfer census. | testing / expected kill | Confirm on A-500, then pivot immediately to a compact checkpoint for the 280 `u/v` walk slices. |
+| O-003 | The product square needs both materialized 129-wide correction families and its current shell co-residence. | `square_product_register` independently pins Q1278. | Exact-live B0 sees 258 product wires, two 129-wide families, and a 247-wire shell allocation. An older standalone sparse square reached Q1148 but only on another source. | A structural-zero correction computes the same square with fixed scratch, exact phase cleanup, and a lower exact-live component peak. | **F3:** port only the env-gated sparse primitive, run its self-test and 64-lane phase/ancilla gate, then compare the normal-path hash with the gate off. | One port and one repair; no full hunt. | open | Reproduce the component on `6b5c82c`; do not assume Q1148 transfers. |
+| O-004 | Multiply walkback must retain the complete walk tape beside a full replay allocation. | `pp_mul_walkback` is a second Q1278 arithmetic wall even if divide replay falls. | Exact-live B0 sees 563 walk/tape plus 256 replay wires and 53+53 walkback ladders. | The stream/checkpoint representation used for divide can be consumed symmetrically during multiply walkback without a second full state. | Apply F1's representation to a two-round multiply reverse slice and measure state growth. | One symmetric slice after F1. | open | Require symmetry before claiming a tape win. |
+| O-005 | Divide and multiply should use one fixed terminal-depth policy. | The shallower-converging direction pays avoidable walk, replay, and cleanup rounds. | Older ancestor traces suggested different tails; current source uses the same `rounds()` result. This is not closure. | An exact classical convergence census proves direction-specific safe depth envelopes before nonce selection. | Enumerate terminal state/depth by direction on the unchanged 9,024 Fiat-Shamir inputs without emitting a circuit. | One census. | open | Run only after the structural tape key is understood. |
+| O-006 | Width/depth failures near the endpoint are nonce-searchable rather than a fixed semantic floor. | The campaign can grind a structurally impossible route. | `6b5c82c` needed a fresh nonce after 698->694 and endpoint 20->26; no inference follows for deeper changes. | Failure fingerprints vary with the tail and the exact classical prefilter has nonzero clean support; a fixed input/round floor does not appear. | Exact all-reason prefilter histogram on a small fixed corpus, before any nonce scan. | One corpus, no provider use. | open | Bind every future truncation to this gate. |
+| O-007 | Major levers commute and should be tested only in discovery order on current HEAD. | Greedy descent hides a lever that works on an earlier, cleaner ancestor. | Ancestor-scoped results changed binders in different orders; no exact-live pair has been composed yet. | A lever changes Q/T or correctness when applied before rather than after a companion. | Pairwise component estimates, then both orders on the smallest clean ancestor. | Two orders per surviving pair. | open | Use the composition matrix; never record a context-free kill. |
+| O-008 | Lowering one Q1278 phase is enough to lower global Q. | Work celebrates a local width cut while two other phases preserve Q1278. | Exact-live profiler identifies `pp_div_replay`, square, and `pp_mul_walkback` at Q1278; `pp_mul_replay` is Q1276. | A composition lowers every current co-binder below one declared target. | Re-profile after each component; stop if any untouched owner remains at target or above. | Mandatory after every width lever. | overturned | The next saddle must cover replay, square, and multiply walkback together. |
+| O-009 | The only useful score direction is fewer qubits. | A low-Q explorer may spend far more Toffoli than the product can tolerate. | At Q1321 the strict T ceiling is 888464, requiring about 29,894 fewer rounded T than the leader; at Q1182 the ceiling is 992945. | A wider replay primitive removes enough executed work to clear the exact whole-jump gate. | Static emitted/executed upper bound for one wider primitive, no circuit build. | One accounting pass. | open | Preserve a spend-Q/cut-T explorer independent of tape compression. |
+| O-010 | The incumbent op stream and fitted schedules define the optimization surface. | Agents change round, width, and nonce knobs inside one architecture. | The original ping-pong jump overturned the prior family; current machinery has again concentrated around the accepted schedule. | An alternative fixed-depth recurrence or replay organization clears the product gate under conservative component bounds. | Algebraic reference model plus peak-live-set estimate, before Rust construction. | Two structurally different models. | open | Keep one architecture-free model on the explorer board. |
+
+## Closure rule
+
+`survived` requires the exact ancestor, source/config identity, test command,
+measured result, and evidence path. A prior lane's KILL is a source-bound datum,
+not a universal theorem. `overturned` creates a composition-matrix entry and a
+new exact-live falsifier.
