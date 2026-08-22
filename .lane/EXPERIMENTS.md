@@ -163,6 +163,22 @@ Early abort ⇒ ~15.7x dirty-draw saving at this fault density.
 - JOINT CALIBRATION COMPLETE: two independent toolchains agree exactly on
   stream bytes, per-channel fault counts, and totals, on both the 620 and
   625 streams, across 20 shared fixtures + 2 inherited-nonce draws.
+
+## E10 — Density estimator FALSIFIED and corrected (2026-08-23)
+
+- E8's batch-unit density (geometric fit on first-dirty-batch, λ 16.4 →
+  7.5e-8) was **falsified by campaign ground truth** (Einstein lane): cc20's
+  164 trusted clean receipts / 44.086e9 scanned nonces = 3.72e-9 empirical at
+  λ 19.8. Product form e^-λ = 2.52e-9 (conservative, 1.48x under truth);
+  batch fit = 20x optimistic. Root cause: a censored 100-nonce zero-clean
+  scan has no statistical power on the clustering factor — the fit leaned
+  entirely on constant hazard, and the true clustering boost is ~1.48x.
+- Corrected operative sizing for the 625 stream: e^-20.9 × 1.48 ≈ 1.24e-9
+  → ~8.0e8 nonces/clean → ~12.6 GPU-hours/clean at 17,766 nonces/s per
+  RTX 4090 (campaign figures, relayed). PACKET.md §7 rewritten; memory
+  corrected. Lesson recorded: never promote an estimator validated only
+  against another estimator — anchor to ground truth receipts when they
+  exist.
 - Einstein_Claude advisory packet (`~/ecdsa-ops/HUNT-PACKET-20260823-peakcut.md`)
   independently reproduces our 620 stream (SHA `ac5f5a80…` exact match, ops
   12,954,520 exact) and the 919,639 ceiling; their 10 calibration fixtures

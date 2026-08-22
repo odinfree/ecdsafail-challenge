@@ -121,12 +121,25 @@ abort can't change a verdict, only truncate work.
 
 - Fault sums on the FINAL 625 stream over 4 full draws: 25 / 12 / 15 / 23
   (cls+phase-batches; anc always 0 in all 12 E7 draws + 100 scanned nonces).
-- **Density from the 100-nonce early-abort scan (nonces 4000-4099, 0 clean):**
-  mean first-dirty-batch 8.61/141 → per-batch dirty hazard ≈ 0.116 →
-  **dirty-batch λ ≈ 16.4, island density ≈ e^-16.4 ≈ 7.5e-8** (inferred —
-  geometric fit on censored scan, better unit than raw fault sums because
-  multiple faults share a batch) → geometric-mean cost ≈ **13M candidates**.
-  Raw-fault-sum Poisson (λ≈18.75, n=4) gives the pessimistic bound 7.2e-9.
+- **DENSITY — CORRECTED 2026-08-23 (do NOT size capacity on the batch-unit
+  fit):** an earlier revision of this packet estimated density ≈ 7.5e-8 from
+  a geometric fit to first-dirty-batch positions (100-nonce censored scan, 0
+  cleans). The Einstein lane falsified that estimator against campaign
+  ground truth: the cc20 hunt's 164 trusted clean receipts over a
+  ~44.086e9-nonce scanned span give an empirical density of 3.72e-9 at
+  λ=19.8, where the fault-sum product form e^-λ predicts 2.52e-9
+  (conservative, within 1.5x) and the batch-unit fit style predicts 7.5e-8
+  (**20x optimistic**). A censored zero-clean scan has no power to calibrate
+  batch clustering; the real clustering boost is ~1.48x, not ~30x.
+- **Operative sizing for this stream (λ_625 = 20.9, n=10):**
+  density ≈ e^-20.9 × 1.48 ≈ **1.24e-9 per nonce** → ≈ **8.0e8 nonces per
+  clean draw** → ≈ **12.6 GPU-hours per clean** at the campaign's measured
+  17,766 nonces/s on one RTX 4090 (cc20 figures, relayed from the Einstein
+  lane's ground-truth message 2026-08-23). Real but affordable — budget to
+  this, not to the withdrawn 7.5e-8.
+- The 100-nonce scan's still-valid outputs: 0 cleans (consistent with either
+  estimate), mean first-dirty-batch 8.61/141 → early abort ≈ 16x dirty-draw
+  throughput, abort triggers ≈ 50/50 cls/phase.
 - Early abort measured: mean 8.61 of 141 batches on dirty draws → ≈16x
   throughput vs full eval. At-abort trigger split ≈ 50/50 cls/phase — a
   classical-only prefilter forfeits half the aborts.
