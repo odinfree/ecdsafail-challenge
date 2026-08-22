@@ -12,6 +12,7 @@ MUST refuse to run on a stream whose digest differs.
 | Config (baked defaults) | `SUB4_PP_PEAK=1275 SUB4_PP_R1=342 SUB4_PP_R2=625`, `SQUARE_LADDER=245` |
 | Op count | 12,953,930 |
 | ops.bin SHA-256 (at inherited nonce 176078461220) | `83b66b7ef8e5080924f96faa0970a625044eb9d1e58fa2f6a75d162a3bb850d8` |
+| ops.bin MD5 (same stream, for MD5-keyed tooling) | `7464046369b46251d49e5ee03af881c5` |
 | Qubits (peak) | **1275** |
 | avg executed Toffoli (4 dirty draws) | 918,963-918,974, mean ≈ 918,967.5 |
 | Projected clean score | ≈ 1275 x 918,967 = **1,171,682,925** (−857,793 vs gate) |
@@ -113,12 +114,19 @@ abort can't change a verdict, only truncate work.
 ## 7. Hunt sizing
 
 - Fault sums on the FINAL 625 stream over 4 full draws: 25 / 12 / 15 / 23
-  (cls+phase-batches; anc always 0). Mean λ ≈ 18.75. Poisson estimate:
-  island density ≈ e^-18.75 ≈ 7.2e-9 → geometric-mean cost ≈ **1.4e8
-  candidates** to first island (wide error bars; the 100-nonce local scan in
-  `.lane/scan_4000_4099.tsv` refines λ and the dirty-abort cost profile).
-- 12-draw pooled λ across the three R2 streams ≈ 22.7 — consistent with the
-  inherited "fault sum ≈ 22" probe claim.
+  (cls+phase-batches; anc always 0 in all 12 E7 draws + 100 scanned nonces).
+- **Density from the 100-nonce early-abort scan (nonces 4000-4099, 0 clean):**
+  mean first-dirty-batch 8.61/141 → per-batch dirty hazard ≈ 0.116 →
+  **dirty-batch λ ≈ 16.4, island density ≈ e^-16.4 ≈ 7.5e-8** (inferred —
+  geometric fit on censored scan, better unit than raw fault sums because
+  multiple faults share a batch) → geometric-mean cost ≈ **13M candidates**.
+  Raw-fault-sum Poisson (λ≈18.75, n=4) gives the pessimistic bound 7.2e-9.
+- Early abort measured: mean 8.61 of 141 batches on dirty draws → ≈16x
+  throughput vs full eval. At-abort trigger split ≈ 50/50 cls/phase — a
+  classical-only prefilter forfeits half the aborts.
+- 620-stream λ for comparison: pooled 22.8 (Einstein n=10 fixtures + our
+  n=4 full draws — fixture cross-check was 10/10 exact on both channels).
+  625-vs-620 λ difference is ~1.6σ: suggestive, NOT settled.
 - Nonce space: 48-bit (2.8e14) — density is the constraint, not the space.
 - Local single-core cost ≈ 20-30 s per DIRTY candidate (test-gen + early
   abort) → fleet-scale hunt. NOT to be run to completion locally; local

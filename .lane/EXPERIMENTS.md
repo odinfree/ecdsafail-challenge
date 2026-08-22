@@ -113,4 +113,49 @@ Early abort ⇒ ~15.7x dirty-draw saving at this fault density.
 - Streams: 620 = `ac5f5a80…` (baked), 625 = `83b66b7ef8e5080924f96faa0970a625044eb9d1e58fa2f6a75d162a3bb850d8`,
   630 = `4678b1201ffcdacc0b5100f8eec8d8de2a1e4eee9f66a23482f06806f8ce69ae`.
 - Purpose: separate structural T from draw noise before final default; pick
-  min-mean stream as the packet target. Result: pending.
+  min-mean stream as the packet target.
+- Results (avg_round per draw; faults cls/phase/anc):
+
+| Stream | @176078461220 | @1000 | @2000 | @3000 | mean avg | fault sums |
+|---|---|---|---|---|---|---|
+| R2=620 | 918,997 (9/7/0) | 918,988 (13/13/0) | 919,002 (12/11/0) | 919,003 (18/15/0) | 918,997.5 | 16/26/23/33 |
+| **R2=625** | 918,966 (14/11/0) | 918,963 (9/3/0) | 918,967 (7/8/0) | 918,974 (10/13/0) | **918,967.5** | 25/12/15/23 |
+| R2=630 | 918,971 (8/12/0) | 918,968 (13/13/0) | 918,972 (15/10/0) | 918,969 (15/13/0) | 918,970.0 | 20/26/25/28 |
+
+- Draw σ(avg) ≈ 5-7. **625 beats 620 by 30.0 avg-T on means (~7σ) — settled.**
+  630 vs 625: +2.5, flat. → FINAL default R2=625 (E8 re-cut; digest guard:
+  baked build reproduces `83b66b7e…` exactly). Ancilla channel: 0 in all 12
+  draws. Pooled fault mean 22.7 (n=12) — matches inherited "~22" claim; the
+  625-vs-620 λ difference (18.75 vs 24.5, n=4 each) is ~1.7σ — suggestive,
+  NOT settled.
+- Cross-tool agreement: screener tot/9024 matches `eval_circuit`'s printed avg
+  to all 3 decimals on both streams (620: 918,996.816; 625: 918,965.780), and
+  fault counts match exactly (9/7/0 and 14/11/0).
+
+## E8 — λ-refinement scan + Einstein fixture verification (2026-08-23, done)
+
+- 100 nonces (4000-4099) early-abort on the FINAL 625 stream: **0 clean**
+  (expected ~1e-5 P(≥1) at these densities), mean first-dirty-batch
+  **8.61/141** → per-batch hazard ≈ 0.116 → dirty-batch λ ≈ 16.4, island
+  density ≈ e^-16.4 ≈ 7.5e-8 (inferred — geometric fit, censored n=100) →
+  ~13M candidates geometric-mean hunt. Early abort ≈ 16x dirty-draw saving.
+- Reconciliation reply sent to Einstein_Claude lane (msg
+  7f4d77eb-ca9a-484a-a59a-d27554ccfd92): fixtures verified 10/10, R2=625
+  counter-finding with settled/unsettled split, density data, hand-off
+  pointers.
+- Einstein_Claude advisory packet (`~/ecdsa-ops/HUNT-PACKET-20260823-peakcut.md`)
+  independently reproduces our 620 stream (SHA `ac5f5a80…` exact match, ops
+  12,954,520 exact) and the 919,639 ceiling; their 10 calibration fixtures
+  (nonces 101000000003…110000000027, cls/phase from stock eval) re-screened
+  with screen_nonces --full.
+- **Fixtures: 10/10 EXACT match on BOTH channels** (cls AND phase; anc 0
+  everywhere, Q1275 everywhere). Channel means reproduce their 12.1/10.0 to
+  the decimal. Their q1274 alt stream also reproduced byte-exact (MD5
+  `5bfb54ea2651d97f87ba15f51c04c5ce`, ops 12,969,729, at
+  PEAK=1274/LADDER=244/R1=342/R2=620) and their 620-stream MD5 `200fc84b…`
+  matches our `ac5f5a80…` artifact. Joint toolchain calibration COMPLETE.
+- Pooled 620-stream λ (their n=10 + our n=4): 22.8. 625-stream λ: 18.75
+  (n=4). Difference ~1.6σ — suggestive only; T-advantage of 625 is the
+  settled part (−30 avg-T, ~7σ).
+- Fixture avg_rounds (620 stream, n=10): 918,976-919,004, mean 918,992.4 —
+  consistent with their "918,994.37 (n=3)" and our 4-draw 918,997.5.
