@@ -1,6 +1,6 @@
 # Re-descent lane state
 
-Updated: 2026-08-22T15:14:42Z
+Updated: 2026-08-22T15:22:38Z
 
 ## Identity
 
@@ -9,13 +9,15 @@ Updated: 2026-08-22T15:14:42Z
 - Branch: `research/redescent-teddy-1270`
 - Clean ancestor: `897dda2b0cf267151ecd973252d2a5078cbf1b63`
 - Ancestor meaning: Teddy Pender's first promoted ping-pong submission, `3616dbf2`
-- Protected live leader: `def24be` (`welttowelt`, submission `4269cf6`)
+- Protected live leader: `a9af194` (`welttowelt`, submission `236fb8d`)
 - Live receipt at lane creation: Q=1278, T=924651, score=1181703978 (`70d64f5`)
 - Prior live receipt refreshed 2026-08-22T12:16Z: Q=1278, T=921558, score=1177751124 (`7ca0559`)
 - Current live receipt refreshed 2026-08-22T14:16Z: Q=1278, T=919793, score=1175495454 (`36f6ca0`)
 - Accepted diff from `7ca0559`: multiply replay depth 700 -> 696 plus clean nonce48000070891; no other source change.
 - Current live receipt refreshed 2026-08-22T15:14Z: Q=1278, T=919788, score=1175489064 (`def24be`), full 9024-shot `0/0/0`.
 - Accepted diff from `36f6ca0`: only default nonce48000070891 ->68001243769. The official promoted source matches the validated one-line candidate.
+- Current live receipt refreshed 2026-08-22T15:22Z: Q=1278, T=919785, score=1175485230 (`a9af194`), full 9024-shot `0/0/0`.
+- Accepted diff from `def24be`: only default nonce68001243769 ->57002259501. The official promoted source matches the validated one-line candidate.
 
 The protected leader is outside this worktree. This lane may regress temporarily and may not overwrite, submit, or claim promotion from exploratory evidence.
 
@@ -26,11 +28,11 @@ Primary direction:
 ```text
 Q <= 1270
 original architectural charter: T < 930475 at Q=1270
-current strict live gate: T <= 925581 at Q=1270
-trusted score < 1175489064
+current strict live gate: T <= 925578 at Q=1270
+trusted score < 1175485230
 ```
 
-The current universal gate is `Q * T < 1175489064`. Exact strict T ceilings are Q1278=919787, Q1277=920508, Q1270=925581, Q1266=928506, Q1148=1023945, Q1033=1137937, Q1000=1175489, Q800=1469361, Q700=1679270, and Q637=1845351. At lower Q, recompute the ceiling from a freshly reopened board rather than carrying these values forward. Teddy's reported 637Q / 1.5M-T component shape would score 955,500,000 if it composed and passed the trusted contract.
+The current universal gate is `Q * T < 1175485230`. Exact strict T ceilings are Q1278=919784, Q1277=920505, Q1270=925578, Q1266=928503, Q1148=1023941, Q1033=1137933, Q1000=1175485, Q800=1469356, Q700=1679264, and Q637=1845345. At lower Q, recompute the ceiling from a freshly reopened board rather than carrying these values forward. Teddy's reported 637Q / 1.5M-T component shape would score 955,500,000 if it composed and passed the trusted contract.
 
 ## Research contract
 
@@ -74,7 +76,7 @@ Hold the exact prefix-code and terminal-tail lanes at their measured boundaries.
 - Phase autopsy commit `96aa36e`: four residuals localize to old22-bit HMR carry repairs. A +8.896T local widening overfit one draw and failed reseeds, so source repair KILL.
 - Coefficient-absorption audit commit `ad206c9`: current local one-tag claim KILL; a new global codec/cleanup architecture remains open.
 - Carry-aware coefficient census commit `3650a13`: complete k2/k4/k8 domains reproduce SHA prefixes `740015c4f83142d2`, `8a939e3689283000`, and `a7d7f58ed2818da5`; k4/k8 maximum fibers8/128 confirm KILL.
-- Live protected commit `def24be`: Q1278/T919788/score1175489064/full9024 `0/0/0`; exact accepted diff from `36f6ca0` is nonce48000070891 ->68001243769.
+- Live protected commit `a9af194`: Q1278/T919785/score1175485230/full9024 `0/0/0`; exact accepted diff from `def24be` is nonce68001243769 ->57002259501.
 - MUL695 falsifier commit `dff3f66`: Q1278/T919434.045/full9024 `12/7/0`; exact stream KILL, architecture HOLD.
 - Fable Q1148 visibility audit: sparse square HOLD, materializing decoder KILL, cleanup-contract overturn is next; live-rebased memo `.lane/FABLE-Q1148-VISIBILITY.md`.
 - Cleanup collision commit `e06d95d`: exact p=7 fixed-width census finds the first component-local collision at round6 for both divide and multiply; local terminal canonicalization KILL, global/deferred cleanup HOLD behind an enlarged-key gate.
