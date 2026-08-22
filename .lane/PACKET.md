@@ -104,8 +104,14 @@ Columns: `nonce status cls phase anc batches tot_tof avg_round score verdict`.
 | C': early-abort, FINAL stream | `83b66b7e…` @ 176078461220 | DIRTY, abort at first dirty batch | **DIRTY 1/1/0 at 27/141** ✓ |
 | D: digest guard | wrong `--expect-sha` | refuses, exit 1 | **refused** ✓ |
 
+| E: joint 20-fixture calibration | Einstein lane's stock-eval fixture sets, n=10 per stream, both streams | reproduce cls AND phase exactly | **20/20 EXACT** (both channels, anc 0, Q1275) |
+
 ALL GATES GREEN. Screener is trusted for screening as of lane commit; re-run
-gates after ANY screener or stream change.
+gates after ANY screener or stream change. The Einstein lane's 625 fixture
+table (nonce → cls/pha): 101000000003 10/8, 102000000007 11/11, 103000000009
+17/9, 104000000011 14/7, 105000000013 9/14, 106000000017 9/7, 107000000019
+7/10, 108000000021 8/13, 109000000023 12/8, 110000000027 14/11 — use it to
+calibrate any new screener port before deployment.
 
 Gate A also proves the screener's tot_tof/round/score pipeline against the
 trusted eval's printed totals; B proves per-channel fault agreement; C proves
@@ -124,9 +130,25 @@ abort can't change a verdict, only truncate work.
 - Early abort measured: mean 8.61 of 141 batches on dirty draws → ≈16x
   throughput vs full eval. At-abort trigger split ≈ 50/50 cls/phase — a
   classical-only prefilter forfeits half the aborts.
-- 620-stream λ for comparison: pooled 22.8 (Einstein n=10 fixtures + our
-  n=4 full draws — fixture cross-check was 10/10 exact on both channels).
-  625-vs-620 λ difference is ~1.6σ: suggestive, NOT settled.
+- **λ question SETTLED by the Einstein_Claude lane at n=10 per stream**
+  (their stock-eval fixture harness, same nonce labels, relayed 2026-08-23
+  and cross-verified here): 620 λ = 22.10 (sd 4.98), 625 λ = 20.90
+  (sd 3.28); difference +1.20 ± 1.89 SE, t = 0.64 — NOT significant. Our
+  earlier n=4 read (18.75) was an optimistic small sample; hunt-cost ratio
+  point estimate e^1.2 ≈ 3.3x with an interval including 1. **Do not size
+  capacity on a λ advantage.** 625 is chosen on the settled −30 avg-T score
+  win alone (−38,250 on the winning score); λ is a coin-flip tiebreaker
+  pointing the same way.
+- Their FN-cost note (their analysis, adopted): false positives are free
+  (every survivor gets a trusted full-shot confirm); at a 1e-5 per-shot
+  disagreement bound over 18,048 walk decisions a classical-only screen's
+  clean-survival ≥ 0.835 ⇒ hunt-cost multiplier ≤ 1.20x — weigh that
+  against the ~2x abort-throughput a two-channel screen keeps.
+- Cross-axis independence (their measurement on 940e34a, relayed):
+  WIDTH_RESCALE (−3,436.71 T at fixed q1278) and this peak cut
+  (+1,493.52 T, q1278→1275) stack additively — interaction −5.75 T
+  (0.00063%). The peak axis can be priced alone; a WIDTH_RESCALE+peak-cut
+  stack (~−5.2M score margin) is under their red-team review separately.
 - Nonce space: 48-bit (2.8e14) — density is the constraint, not the space.
 - Local single-core cost ≈ 20-30 s per DIRTY candidate (test-gen + early
   abort) → fleet-scale hunt. NOT to be run to completion locally; local

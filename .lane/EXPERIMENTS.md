@@ -143,6 +143,26 @@ Early abort ⇒ ~15.7x dirty-draw saving at this fault density.
   7f4d77eb-ca9a-484a-a59a-d27554ccfd92): fixtures verified 10/10, R2=625
   counter-finding with settled/unsettled split, density data, hand-off
   pointers.
+
+## E9 — Cross-lane closure (2026-08-23)
+
+- Einstein_Claude independently reproduced the FINAL 625 stream byte-exact
+  (ops 12,953,930, MD5 `74640463…`, SHA256 `83b66b7e…`) and **settled the λ
+  question at n=10/stream**: 620 λ 22.10 (sd 4.98) vs 625 λ 20.90 (sd 3.28),
+  t = 0.64 — not significant. Our n=4 18.75 was optimistic. 625 adopted by
+  both lanes on the score win alone (−38,250 winning score); their packet
+  (`~/ecdsa-ops/HUNT-PACKET-20260823-peakcut.md`) re-headlined to 625.
+- Their additivity measurement (relayed): WIDTH_RESCALE x peak-cut
+  interaction −5.75 T (0.00063%) — axes price independently.
+- Their 625 fixture set (n=10, stock eval, nonces 101000000003…110000000027):
+  **10/10 EXACT on both channels** via screen_nonces --full (all anc 0, all
+  Q1275, all 141/141). Channel means 11.1/9.8 reproduce their λ_625 = 20.90
+  inputs exactly. Fixture avg_rounds 918,956-918,985 (mean 918,970.4),
+  consistent with E7's 918,967.5; every draw ≥654 avg-T below the 919,639
+  ceiling. Pooled fault-sum λ_625 (n=14): 20.3.
+- JOINT CALIBRATION COMPLETE: two independent toolchains agree exactly on
+  stream bytes, per-channel fault counts, and totals, on both the 620 and
+  625 streams, across 20 shared fixtures + 2 inherited-nonce draws.
 - Einstein_Claude advisory packet (`~/ecdsa-ops/HUNT-PACKET-20260823-peakcut.md`)
   independently reproduces our 620 stream (SHA `ac5f5a80…` exact match, ops
   12,954,520 exact) and the 919,639 ceiling; their 10 calibration fixtures
