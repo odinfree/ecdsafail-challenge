@@ -61,11 +61,16 @@ rejected draws (k1==k2/infinity) would shift the denominator.
       better than mandated 620 at ~7σ on means; 630 flat). R1=342 confirmed.
 - [x] screen_nonces screener: FN gates A/B/B'/C/C'/D ALL GREEN (E6).
 - [x] PACKET.md FINAL on the 625 stream.
-- [ ] 100-nonce λ-refinement scan (running).
-- [ ] Cross-lane reconciliation with Einstein_Claude advisory packet
-      (~/ecdsa-ops/HUNT-PACKET-20260823-peakcut.md): their 10 fixtures being
-      verified on the 620 stream; their stream hash + ceiling INDEPENDENTLY
-      MATCH ours; delta = they recommend 620, we measured 625 better.
+- [x] 100-nonce λ-refinement scan: 0 clean, dirty-batch λ ≈ 16.4, density
+      ≈ 7.5e-8/nonce (geometric fit), early abort 16x (E8).
+- [x] Cross-lane reconciliation with Einstein_Claude
+      (~/ecdsa-ops/HUNT-PACKET-20260823-peakcut.md): their 10 fixtures
+      verified **10/10 exact on both channels**; both lanes' stream hashes
+      byte-identical; ceiling independently agreed. Reply sent (msg
+      7f4d77eb…) recommending the 625 stream with the settled/unsettled
+      split. LANE OBJECTIVE COMPLETE — remaining work (fleet hunt, final
+      9024 certification of a survivor, submission) is out of this lane's
+      mandate and handed off via .lane/PACKET.md.
 
 ## FINAL target identity (what the fleet should hunt)
 
