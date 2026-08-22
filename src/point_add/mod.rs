@@ -2531,6 +2531,18 @@ pub fn build() -> Vec<Op> {
         return Vec::new();
     }
     if std::env::var_os("SUB4_LEGACY_POINT_ADD").is_none() {
+        if std::env::var_os("SUB4_PP_BURN_REFERENCE_CLEANUP_SELFTEST").is_some() {
+            pingpong_div::burn_reference_cleanup_selfcheck();
+            return Vec::new();
+        }
+        if std::env::var_os("SUB4_PP_RETAINED_PRODUCTION_PREFIX_SELFTEST").is_some() {
+            pingpong_div::retained_denominator_production_prefix_selfcheck();
+            return Vec::new();
+        }
+        if std::env::var_os("SUB4_PP_TEDDY_RETAINED_ROUND3_SELFTEST").is_some() {
+            pingpong_div::teddy_retained_round3_selfcheck();
+            return Vec::new();
+        }
         if std::env::var_os("SUB4_PINGPONG_POINT_ADD_SELFTEST").is_some() {
             pingpong_div::pingpong_point_add_simulator_selfcheck();
             return Vec::new();
