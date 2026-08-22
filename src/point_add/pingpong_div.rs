@@ -5,11 +5,13 @@ use super::*;
 /// walk restores the denominator and clears the log.
 const ROUNDS: usize = 704;
 const VALUE_WIDTH: usize = N + 3;
-const REPLAY_CHUNK: usize = 96;
+const LEGACY_REPLAY_CHUNK: usize = 96;
+const CLANKER_FARM_CHUNK: usize = 48;
 const REPLAY_CHUNK_COMPARE: usize = 26;
 const REPLAY_FOLD_WINDOW: usize = 56;
 const ENDPOINT_FOLD_WINDOW: usize = 55;
 const REPLAY_FLAG_COMPARE: usize = 28;
+const CLANKER_FARM_FOLD_CHUNKS: usize = 3;
 
 /// Translate the source model's `lsbs = 56` literally: its pseudo-Mersenne
 /// corrections operate on `acc[..lsbs]`, whereas the target helper's `window`
@@ -20,6 +22,26 @@ fn replay_fold_target(target: &[QubitId]) -> &[QubitId] {
     } else {
         target
     }
+}
+
+fn replay_chunk_width() -> usize {
+    if std::env::var_os("SUB4_PP_LEGACY_REPLAY_CHUNKS").is_some() {
+        LEGACY_REPLAY_CHUNK
+    } else {
+        std::env::var("SUB4_PP_REPLAY_CHUNK")
+            .ok()
+            .and_then(|value| value.parse::<usize>().ok())
+            .filter(|width| *width > 0)
+            .unwrap_or(CLANKER_FARM_CHUNK)
+    }
+}
+
+fn fused_fold_chunks() -> usize {
+    std::env::var("SUB4_PP_FOLD_CHUNKS")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|chunks| *chunks > 0)
+        .unwrap_or(CLANKER_FARM_FOLD_CHUNKS)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -72,6 +94,26 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
     let tape = value_walk(b, &mut u, &mut v);
     let coefficient = b.alloc_qubits(N);
 
+    // A converged fixed-depth walk ends with u,v in {+1,-1}.  Replay and the
+    // endpoint canonicalisation read only their sign wires, so the remaining
+    // terminal wires are reconstructible passengers until walk-back.  Loan
+    // them to the ordinary scratch pool, then reacquire the exact identities
+    // before the reverse walk consumes the registers again.
+    let mut terminal_loans: Vec<(QubitId, Option<QubitId>)> = Vec::new();
+    if std::env::var_os("SUB4_PP_NO_TERMINAL_LOAN").is_none() {
+        for register in [&u, &v] {
+            let sign = register[register.len() - 1];
+            for &wire in &register[1..register.len() - 1] {
+                b.cx(sign, wire);
+                b.free(wire);
+                terminal_loans.push((wire, Some(sign)));
+            }
+            b.x(register[0]);
+            b.free(register[0]);
+            terminal_loans.push((register[0], None));
+        }
+    }
+
     match direction {
         PingPongDirection::Divide => {
             // The emitted seed is genuinely (0,c), not a cost-model comment:
@@ -81,8 +123,8 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
             // At the terminal state both coefficient registers hold c/a, with
             // the signs of terminal u and v respectively.  Canonicalise them,
             // then use their equality to clean the redundant register.
-            conditional_mod_negate(b, u[u.len() - 1], &coefficient);
-            conditional_mod_negate(b, v[v.len() - 1], numerator);
+            conditional_mod_negate(b, u[u.len() - 1], &coefficient, &tape);
+            conditional_mod_negate(b, v[v.len() - 1], numerator, &tape);
             for i in 0..N {
                 b.cx(numerator[i], coefficient[i]);
             }
@@ -94,9 +136,18 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
             for i in 0..N {
                 b.cx(numerator[i], coefficient[i]);
             }
-            conditional_mod_negate(b, u[u.len() - 1], &coefficient);
-            conditional_mod_negate(b, v[v.len() - 1], numerator);
+            conditional_mod_negate(b, u[u.len() - 1], &coefficient, &tape);
+            conditional_mod_negate(b, v[v.len() - 1], numerator, &tape);
             replay_doubling_inverse(b, &tape, &coefficient, numerator);
+        }
+    }
+
+    for &(wire, sign) in terminal_loans.iter().rev() {
+        b.reacquire(wire);
+        if let Some(sign) = sign {
+            b.cx(sign, wire);
+        } else {
+            b.x(wire);
         }
     }
 
@@ -558,7 +609,12 @@ fn value_walk_back(b: &mut B, u: &mut Vec<QubitId>, v: &mut Vec<QubitId>, tape: 
     }
 }
 
-fn conditional_mod_negate(b: &mut B, control: QubitId, value: &[QubitId]) {
+fn conditional_mod_negate(
+    b: &mut B,
+    control: QubitId,
+    value: &[QubitId],
+    dirty_scratch: &[QubitId],
+) {
     for &q in value {
         b.cx(control, q);
     }
@@ -568,13 +624,73 @@ fn conditional_mod_negate(b: &mut B, control: QubitId, value: &[QubitId]) {
     let f = U256::MAX
         .wrapping_sub(SECP256K1_P)
         .wrapping_add(U256::from(1));
-    csub_nbit_const_direct_trunc_fast(
+    let correction = f.wrapping_sub(U256::from(1));
+    endpoint_const_add_sub(
         b,
-        replay_fold_target(value),
-        f.wrapping_sub(U256::from(1)),
+        value,
+        correction,
         control,
         ENDPOINT_FOLD_WINDOW,
+        dirty_scratch,
+        false,
     );
+}
+
+fn endpoint_const_add_sub(
+    b: &mut B,
+    value: &[QubitId],
+    correction: U256,
+    control: QubitId,
+    window: usize,
+    dirty_scratch: &[QubitId],
+    add: bool,
+) {
+    let fold_target = replay_fold_target(value);
+    let last = core::cmp::min(
+        fold_target.len() - 2,
+        highest_set_bit(correction).saturating_add(window),
+    );
+    let vented_width = last + 2;
+    if std::env::var_os("SUB4_PP_LEGACY_ENDPOINT_CARRIES").is_some() {
+        if add {
+            cadd_nbit_const_direct_trunc_fast(b, fold_target, correction, control, window);
+        } else {
+            csub_nbit_const_direct_trunc_fast(b, fold_target, correction, control, window);
+        }
+        return;
+    }
+
+    assert_eq!(correction.as_limbs()[1], 0, "vented endpoint constant fits u64");
+    let dirty: Vec<QubitId> = dirty_scratch
+        .iter()
+        .copied()
+        .filter(|wire| *wire != control && !fold_target.contains(wire))
+        .take(vented_width - 2)
+        .collect();
+    assert_eq!(dirty.len(), vented_width - 2);
+    let clean = b.alloc_qubits(2);
+    let clean2 = [clean[0], clean[1]];
+    if add {
+        venting::ciadd_dirty_2clean_classical(
+            b,
+            &fold_target[..vented_width],
+            &dirty,
+            &clean2,
+            correction.as_limbs()[0],
+            control,
+            false,
+        );
+    } else {
+        venting::cisub_dirty_2clean_classical(
+            b,
+            &fold_target[..vented_width],
+            &dirty,
+            &clean2,
+            correction.as_limbs()[0],
+            control,
+        );
+    }
+    b.free_vec(&clean);
 }
 
 fn and_clean(b: &mut B, a: QubitId, c: QubitId) -> QubitId {
@@ -689,13 +805,13 @@ fn chunk_bounds(width: usize, chunk: usize) -> Vec<(usize, usize)> {
 }
 
 /// Exact value add with approximate measurement-only erasure of chunk carries.
-fn add_chunked_measured(
+pub(crate) fn add_chunked_measured(
     b: &mut B,
     addend: &[QubitId],
     acc: &[QubitId],
     carry_out: Option<QubitId>,
 ) {
-    let bounds = chunk_bounds(addend.len(), REPLAY_CHUNK);
+    let bounds = chunk_bounds(addend.len(), replay_chunk_width());
     let mut live_boundaries = Vec::<(QubitId, usize, usize)>::new();
     let mut carry_in = None;
     for (index, &(lo, hi)) in bounds.iter().enumerate() {
@@ -755,6 +871,198 @@ fn fused_operand_controls(
     controls
 }
 
+fn fused_fold_chunk(
+    b: &mut B,
+    acc: &[QubitId],
+    f: U256,
+    negative_f: &[bool],
+    plus_f: QubitId,
+    plus_2f: QubitId,
+    minus_f: QubitId,
+    lo: usize,
+    hi: usize,
+    carry_in: QubitId,
+    carry_out: Option<QubitId>,
+) {
+    let width = hi - lo;
+    assert!(width > 0);
+    let num_carries = if carry_out.is_some() {
+        width
+    } else {
+        width - 1
+    };
+    let owned = num_carries - usize::from(carry_out.is_some());
+    let operand = b.alloc_qubit();
+    let mut carries = b.alloc_qubits(owned);
+    if let Some(carry_out) = carry_out {
+        carries.push(carry_out);
+    }
+
+    for offset in 0..num_carries {
+        let i = lo + offset;
+        let previous = if offset == 0 {
+            carry_in
+        } else {
+            carries[offset - 1]
+        };
+        let selectors =
+            fused_operand_controls(f, negative_f, i, plus_f, plus_2f, minus_f);
+        if selectors.is_empty() {
+            b.cx(previous, acc[i]);
+            b.ccx(previous, acc[i], carries[offset]);
+            b.cx(previous, carries[offset]);
+        } else {
+            for &control in &selectors {
+                b.cx(control, operand);
+            }
+            b.cx(previous, operand);
+            b.cx(previous, acc[i]);
+            b.ccx(operand, acc[i], carries[offset]);
+            b.cx(previous, carries[offset]);
+            b.cx(previous, operand);
+            for &control in &selectors {
+                b.cx(control, operand);
+            }
+        }
+    }
+
+    let last = hi - 1;
+    if carry_out.is_some() {
+        for control in fused_operand_controls(
+            f, negative_f, last, plus_f, plus_2f, minus_f,
+        ) {
+            b.cx(control, acc[last]);
+        }
+    } else {
+        let previous = if width == 1 {
+            carry_in
+        } else {
+            carries[num_carries - 1]
+        };
+        b.cx(previous, acc[last]);
+        for control in fused_operand_controls(
+            f, negative_f, last, plus_f, plus_2f, minus_f,
+        ) {
+            b.cx(control, acc[last]);
+        }
+    }
+
+    for offset in (0..owned).rev() {
+        let i = lo + offset;
+        let previous = if offset == 0 {
+            carry_in
+        } else {
+            carries[offset - 1]
+        };
+        let selectors =
+            fused_operand_controls(f, negative_f, i, plus_f, plus_2f, minus_f);
+        if selectors.is_empty() {
+            b.cx(previous, carries[offset]);
+            let measured = b.alloc_bit();
+            b.hmr(carries[offset], measured);
+            b.cz_if(previous, acc[i], measured);
+        } else {
+            for &control in &selectors {
+                b.cx(control, operand);
+            }
+            b.cx(previous, carries[offset]);
+            b.cx(previous, operand);
+            let measured = b.alloc_bit();
+            b.hmr(carries[offset], measured);
+            b.cz_if(operand, acc[i], measured);
+            b.cx(previous, operand);
+            b.cx(operand, acc[i]);
+            for &control in &selectors {
+                b.cx(control, operand);
+            }
+        }
+    }
+    b.free_vec(&carries[..owned]);
+    b.free(operand);
+}
+
+fn fused_fold_clanker_farm(
+    b: &mut B,
+    acc: &[QubitId],
+    f: U256,
+    negative_f: &[bool],
+    plus_f: QubitId,
+    plus_2f: QubitId,
+    minus_f: QubitId,
+    first_carry: QubitId,
+) {
+    let fold_chunks = fused_fold_chunks();
+    let bits = acc.len() - 1;
+    let chunk_width = bits.div_ceil(fold_chunks);
+    let bounds = chunk_bounds(bits, chunk_width);
+    let mut boundaries = Vec::<(QubitId, usize, usize, QubitId)>::new();
+    let mut carry = first_carry;
+    for (index, &(raw_lo, raw_hi)) in bounds.iter().enumerate() {
+        let lo = raw_lo + 1;
+        let hi = raw_hi + 1;
+        let last = index + 1 == bounds.len();
+        let next = if last { None } else { Some(b.alloc_qubit()) };
+        let carry_in = carry;
+        fused_fold_chunk(
+            b,
+            acc,
+            f,
+            negative_f,
+            plus_f,
+            plus_2f,
+            minus_f,
+            lo,
+            hi,
+            carry,
+            next,
+        );
+        if let Some(next) = next {
+            boundaries.push((next, lo, hi, carry_in));
+            carry = next;
+        }
+    }
+
+    for &(boundary, lo, hi, carry_in) in boundaries.iter().rev() {
+        let compare = REPLAY_CHUNK_COMPARE.min(hi - lo);
+        let operand = b.alloc_qubits(compare);
+        for (offset, &wire) in operand.iter().enumerate() {
+            let i = hi - compare + offset;
+            for control in fused_operand_controls(
+                f, negative_f, i, plus_f, plus_2f, minus_f,
+            ) {
+                b.cx(control, wire);
+            }
+        }
+        let phase = b.alloc_bit();
+        b.hmr(boundary, phase);
+        b.free(boundary);
+        let ctrl = b.alloc_qubit();
+        // The comparator's `ctrl` is a multiplicative phase control, not
+        // scratch.  Pin it high so the repair reconstructs the full carry:
+        // post_sum < operand, including equality when `carry_in` is one.
+        b.x(ctrl);
+        cmp_lt_phase_conditioned_with_cin(
+            b,
+            &acc[hi - compare..hi],
+            &operand,
+            carry_in,
+            ctrl,
+            phase,
+        );
+        b.x(ctrl);
+        b.free(ctrl);
+        for (offset, &wire) in operand.iter().enumerate().rev() {
+            let i = hi - compare + offset;
+            for control in fused_operand_controls(
+                f, negative_f, i, plus_f, plus_2f, minus_f,
+            ) {
+                b.cx(control, wire);
+            }
+        }
+        b.free_vec(&operand);
+    }
+}
+
 /// Add the one-hot selected member of {-f,0,+f,+2f} without materialising a
 /// 56-bit operand.  A single roving bit supplies the classical per-position
 /// XOR of the three selectors.
@@ -767,12 +1075,59 @@ fn fused_fold_maskfree(
     plus_2f: QubitId,
     minus_f: QubitId,
     first_carry: QubitId,
+    dirty_scratch: &[QubitId],
 ) {
     let width = acc.len();
     let controls = |index| fused_operand_controls(f, negative_f, index, plus_f, plus_2f, minus_f);
 
     for control in controls(0) {
         b.cx(control, acc[0]);
+    }
+    if std::env::var_os("SUB4_PP_VENTED_FUSED_FOLD").is_some() && width >= 6 {
+        let upper = &acc[1..];
+        let excluded = [plus_f, plus_2f, minus_f, first_carry];
+        let dirty: Vec<QubitId> = dirty_scratch
+            .iter()
+            .copied()
+            .filter(|wire| !excluded.contains(wire) && !upper.contains(wire))
+            .take(upper.len() - 2)
+            .collect();
+        assert_eq!(dirty.len(), upper.len() - 2);
+
+        let clean = b.alloc_qubits(2);
+        let clean2 = [clean[0], clean[1]];
+        let mut negative_low = 0u64;
+        for (index, &set) in negative_f.iter().enumerate().take(64) {
+            if set {
+                negative_low |= 1u64 << index;
+            }
+        }
+        let f_low = f.as_limbs()[0];
+        for (control, constant) in [
+            (plus_f, f_low >> 1),
+            (plus_2f, f_low),
+            (minus_f, negative_low >> 1),
+            (first_carry, 1),
+        ] {
+            venting::ciadd_dirty_2clean_classical(
+                b, upper, &dirty, &clean2, constant, control, false,
+            );
+        }
+        b.free_vec(&clean);
+        return;
+    }
+    if std::env::var_os("SUB4_PP_LEGACY_FUSED_FOLD").is_none() && width >= 6 {
+        fused_fold_clanker_farm(
+            b,
+            acc,
+            f,
+            negative_f,
+            plus_f,
+            plus_2f,
+            minus_f,
+            first_carry,
+        );
+        return;
     }
     if width == 1 {
         return;
@@ -855,7 +1210,13 @@ fn fused_fold_maskfree(
     b.free(operand);
 }
 
-fn signed_mod_add_pm_halve_fused(b: &mut B, sign: QubitId, source: &[QubitId], target: &[QubitId]) {
+fn signed_mod_add_pm_halve_fused(
+    b: &mut B,
+    sign: QubitId,
+    source: &[QubitId],
+    target: &[QubitId],
+    dirty_scratch: &[QubitId],
+) {
     let f = U256::MAX
         .wrapping_sub(SECP256K1_P)
         .wrapping_add(U256::from(1));
@@ -893,6 +1254,7 @@ fn signed_mod_add_pm_halve_fused(b: &mut B, sign: QubitId, source: &[QubitId], t
         plus_2f,
         minus_f,
         not_sign_and_parity,
+        dirty_scratch,
     );
 
     b.cx(minus_f, plus_f);
@@ -945,6 +1307,7 @@ fn signed_mod_double_add_pm_fused(
     sign: QubitId,
     source: &[QubitId],
     target: &[QubitId],
+    dirty_scratch: &[QubitId],
 ) {
     let f = U256::MAX
         .wrapping_sub(SECP256K1_P)
@@ -992,6 +1355,7 @@ fn signed_mod_double_add_pm_fused(
         plus_2f,
         minus_f,
         first_carry,
+        dirty_scratch,
     );
 
     b.cx(odd_correction, target[0]);
@@ -1066,18 +1430,20 @@ fn signed_mod_add_pm(b: &mut B, sign: QubitId, source: &[QubitId], target: &[Qub
     }
 }
 
-fn mod_halve_pm(b: &mut B, target: &[QubitId]) {
+fn mod_halve_pm(b: &mut B, target: &[QubitId], dirty_scratch: &[QubitId]) {
     let f = U256::MAX
         .wrapping_sub(SECP256K1_P)
         .wrapping_add(U256::from(1));
     let parity = b.alloc_qubit();
     b.cx(target[0], parity);
-    csub_nbit_const_direct_trunc_fast(
+    endpoint_const_add_sub(
         b,
-        replay_fold_target(target),
+        target,
         f,
         parity,
         ENDPOINT_FOLD_WINDOW,
+        dirty_scratch,
+        false,
     );
     for i in 0..N - 1 {
         b.swap(target[i], target[i + 1]);
@@ -1087,7 +1453,7 @@ fn mod_halve_pm(b: &mut B, target: &[QubitId]) {
     b.free(parity);
 }
 
-fn mod_double_pm(b: &mut B, target: &[QubitId]) {
+fn mod_double_pm(b: &mut B, target: &[QubitId], dirty_scratch: &[QubitId]) {
     let f = U256::MAX
         .wrapping_sub(SECP256K1_P)
         .wrapping_add(U256::from(1));
@@ -1096,29 +1462,43 @@ fn mod_double_pm(b: &mut B, target: &[QubitId]) {
     for i in (0..N - 1).rev() {
         b.swap(target[i], target[i + 1]);
     }
-    cadd_nbit_const_direct_trunc_fast(
+    endpoint_const_add_sub(
         b,
-        replay_fold_target(target),
+        target,
         f,
         overflow,
         ENDPOINT_FOLD_WINDOW,
+        dirty_scratch,
+        true,
     );
     b.cx(target[0], overflow);
     b.free(overflow);
 }
 
-fn seed_round_one(b: &mut B, sign: QubitId, source: &[QubitId], target: &[QubitId]) {
+fn seed_round_one(
+    b: &mut B,
+    sign: QubitId,
+    source: &[QubitId],
+    target: &[QubitId],
+    dirty_scratch: &[QubitId],
+) {
     for i in 0..N {
         b.cx(source[i], target[i]);
         b.cx(sign, target[i]);
     }
     let f_minus_one = U256::MAX.wrapping_sub(SECP256K1_P);
-    csub_nbit_const_direct_trunc_fast(b, target, f_minus_one, sign, 32);
+    endpoint_const_add_sub(b, target, f_minus_one, sign, 32, dirty_scratch, false);
 }
 
-fn seed_round_one_inverse(b: &mut B, sign: QubitId, source: &[QubitId], target: &[QubitId]) {
+fn seed_round_one_inverse(
+    b: &mut B,
+    sign: QubitId,
+    source: &[QubitId],
+    target: &[QubitId],
+    dirty_scratch: &[QubitId],
+) {
     let f_minus_one = U256::MAX.wrapping_sub(SECP256K1_P);
-    cadd_nbit_const_direct_trunc_fast(b, target, f_minus_one, sign, 32);
+    endpoint_const_add_sub(b, target, f_minus_one, sign, 32, dirty_scratch, true);
     for i in (0..N).rev() {
         b.cx(sign, target[i]);
         b.cx(source[i], target[i]);
@@ -1133,12 +1513,12 @@ fn replay_halving(b: &mut B, tape: &[QubitId], x: &[QubitId], y: &[QubitId]) {
             (y, x)
         };
         if round == 0 {
-            mod_halve_pm(b, target);
+            mod_halve_pm(b, target, tape);
         } else if round == 1 {
-            seed_round_one(b, sign, source, target);
-            mod_halve_pm(b, target);
+            seed_round_one(b, sign, source, target, tape);
+            mod_halve_pm(b, target, tape);
         } else {
-            signed_mod_add_pm_halve_fused(b, sign, source, target);
+            signed_mod_add_pm_halve_fused(b, sign, source, target, tape);
         }
     }
 }
@@ -1154,13 +1534,13 @@ fn replay_doubling_inverse(b: &mut B, tape: &[QubitId], x: &[QubitId], y: &[Qubi
         };
         if fused && round > 1 {
             b.x(sign);
-            signed_mod_double_add_pm_fused(b, sign, source, target);
+            signed_mod_double_add_pm_fused(b, sign, source, target, tape);
             b.x(sign);
         } else {
-            mod_double_pm(b, target);
+            mod_double_pm(b, target, tape);
         }
         if round == 1 {
-            seed_round_one_inverse(b, sign, source, target);
+            seed_round_one_inverse(b, sign, source, target, tape);
         } else if round > 1 && !fused {
             b.x(sign);
             signed_mod_add_pm(b, sign, source, target);
@@ -1214,6 +1594,32 @@ pub(crate) fn build_pingpong_point_add() -> Vec<Op> {
     circ.declare_qubit_register(&y);
     circ.declare_bit_register(&ox);
     circ.declare_bit_register(&oy);
+    if std::env::var_os("TRACE_PEAK").is_some() {
+        eprintln!(
+            "DEBUG pingpong_peak_qubits={} at phase='{}' ops_idx={} total_ops={}",
+            circ.peak_qubits,
+            circ.peak_phase,
+            circ.peak_ops_idx,
+            circ.ops.len()
+        );
+        let peak = circ.peak_qubits;
+        let mut phases: std::collections::BTreeMap<&'static str, (u32, usize)> =
+            std::collections::BTreeMap::new();
+        for (active, phase, op_idx) in &circ.peak_log {
+            if *active + 5 >= peak {
+                let entry = phases.entry(phase).or_insert((*active, *op_idx));
+                if *active > entry.0 {
+                    *entry = (*active, *op_idx);
+                }
+            }
+        }
+        for (phase, (active, op_idx)) in phases {
+            eprintln!(
+                "DEBUG pingpong_near_peak active={} phase='{}' ops_idx={}",
+                active, phase, op_idx
+            );
+        }
+    }
     circ.b0_finalize();
     circ.take_ops()
 }

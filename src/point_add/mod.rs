@@ -480,6 +480,25 @@ impl B {
     }
     #[track_caller]
     fn alloc_qubits(&mut self, n: usize) -> Vec<QubitId> {
+        if let Some(threshold) = std::env::var("TRACE_ALLOC_BATCH_NEAR_PEAK")
+            .ok()
+            .and_then(|value| value.parse::<u32>().ok())
+        {
+            if self.active_qubits + n as u32 >= threshold {
+                let caller = std::panic::Location::caller();
+                eprintln!(
+                    "ALLOC_BATCH_NEAR active_before={} width={} projected={} phase='{}' ops_idx={} free_pool={} caller={}:{}",
+                    self.active_qubits,
+                    n,
+                    self.active_qubits + n as u32,
+                    self.phase,
+                    self.current_ops_len(),
+                    self.free_qubits.len(),
+                    caller.file(),
+                    caller.line(),
+                );
+            }
+        }
         if self.b0.enabled {
             let c = std::panic::Location::caller();
             self.b0.batch_ctx = Some((c.file(), c.line()));

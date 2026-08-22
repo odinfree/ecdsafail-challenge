@@ -20,8 +20,18 @@ const F_NAF: [(usize, bool); 5] = [
     (32, false),
 ];
 
+const CLANKER_FARM_SQUARE_MIN: usize = 200;
+
 fn add_full(circ: &mut B, addend: &[QubitId], acc: &[QubitId]) {
     assert_eq!(addend.len(), acc.len());
+    let chunk_min = std::env::var("SUB4_CLANKER_FARM_SQUARE_MIN")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(CLANKER_FARM_SQUARE_MIN);
+    if acc.len() >= chunk_min {
+        crate::point_add::pingpong_div::add_chunked_measured(circ, addend, acc, None);
+        return;
+    }
     arith::hybrid_add_adaptive(circ, acc, addend, usize::MAX);
 }
 
