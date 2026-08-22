@@ -1,6 +1,6 @@
 # Re-descent lane state
 
-Updated: 2026-08-22T14:44:52Z
+Updated: 2026-08-22T14:55:18Z
 
 ## Identity
 
@@ -49,19 +49,19 @@ The current universal gate is `Q * T < 1175495454`. Exact strict T ceilings are 
 
 ## Current phase
 
-`GLOBAL_DEFERRED_CLEANUP_REDESCENT`
+`EXACT_SIGN_ORACLE_PROTOTYPE`
 
 ## Current hypothesis
 
-`H8`: the component-local terminal state is not injective, but an outer point-add value already resident across the ping-pong call may distinguish the colliding transcripts at zero incremental peak width. The next bounded overturn is deferred global cleanup keyed only by state already live at the call boundary. Newly retained per-round state is disallowed because it recreates the tape. Any surviving route must clear the enlarged key reversibly and compose with Teddy's measured sparse-square cut.
+`H9`: retaining one exact 256-bit original denominator word makes the bounded component map injective without a persistent per-round carrier. An exact `36f6ca0` prototype can recompute, use, and uncompute one sign at a time, then return the retained word through the ABI. The first version may carry substantial Q/T debt; success means semantic correctness and clean workspace, followed by re-descent to compose with Teddy's sparse square.
 
 ## Current falsifier
 
-H8 fails for a proposed global key on the first reachable collision with identical decoder-visible terminal plus outer state but different required cleanup actions. A first prototype may retain or recompute extra distinguishing state if it is explicitly priced and reversibly cleared; exceeding the final Q/T gate is HOLD debt, not an automatic KILL. Bounded small-field injectivity is only HOLD to the next scale. Context-specific local-terminal, checkpoint, radix, coefficient-absorption, materializing-decoder, and alternate-inversion negatives remain closed unless a changed premise is named.
+H9 fails if the exact prototype assumes unavailable predecessor state, retains an O(R) sign carrier, cannot clear oracle/terminal workspace, or cannot return the retained denominator through the component ABI. Extra scratch, Q above1278, and T regression are explicit prototype debt rather than automatic KILL. Bounded small-field injectivity remains only HOLD until the exact source skeleton validates. Context-specific free-outer-key, local-terminal, checkpoint, radix, coefficient-absorption, and materializing-decoder negatives remain closed unless a changed premise is named.
 
 ## Next action
 
-Hold the exact prefix-code and terminal-tail lanes at their measured boundaries. Teddy's sparse square overturn is exact at standalone Q1148, but replay still owns global Q1278. The carry-aware coefficient census kills absorption, Fable kills materializing decoders, and the exact p=7 cleanup census now kills the component-local terminal invariant at round6 for both divide and multiply. The one-round MUL695 stream is economically live but trusted dirty12/7/0 and remains HOLD pending independent nonce-selectability evidence. Next, trace outer point-add registers already live across the exact `36f6ca0` ping-pong call and extend the collision key with the smallest faithful global invariant. Prefer zero-increment state, but allow a bounded over-width semantic prototype with explicit debt. First collision kills the key; bounded injectivity remains HOLD. Grind stays last.
+Hold the exact prefix-code and terminal-tail lanes at their measured boundaries. Teddy's sparse square overturn is exact at standalone Q1148, but replay still owns global Q1278. The free outer offset key collides for divide and multiply, so that route is KILL. Retaining one original denominator word is injective through p31/20 rounds in both directions, adds no persistent per-round carrier, and is HOLD to exact source. Build the smallest env-gated `36f6ca0` semantic skeleton that recomputes one sign at a time, clears oracle state, and returns the retained denominator. Record the temporary +256Q overlay and recomputation debt; do not optimize or grind before correctness. The one-round MUL695 stream remains a separate economic HOLD at trusted dirty12/7/0. Grind stays last.
 
 ## Last verified result
 
@@ -76,6 +76,7 @@ Hold the exact prefix-code and terminal-tail lanes at their measured boundaries.
 - MUL695 falsifier commit `dff3f66`: Q1278/T919434.045/full9024 `12/7/0`; exact stream KILL, architecture HOLD.
 - Fable Q1148 visibility audit: sparse square HOLD, materializing decoder KILL, cleanup-contract overturn is next; live-rebased memo `.lane/FABLE-Q1148-VISIBILITY.md`.
 - Cleanup collision commit `e06d95d`: exact p=7 fixed-width census finds the first component-local collision at round6 for both divide and multiply; local terminal canonicalization KILL, global/deferred cleanup HOLD behind an enlarged-key gate.
+- Outer-key census commit `f990424`: zero-increment classical offset key KILL; one retained denominator word is bounded injective through p31/20 rounds in both directions, with explicit +256Q and recomputation debt. Exact sign-oracle skeleton is next.
 
 ## Credit and shipping note
 
