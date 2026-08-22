@@ -4,7 +4,8 @@
 
 - Objective: minimize `peak_qubits * rounded_average_executed_Toffoli`.
 - Live gate at creation: `1278 * 924651 = 1181703978`.
-- Target direction: Q<=1270 while preserving T<930475.573 at Q=1270.
+- Current live gate refreshed 2026-08-22T11:43Z: `1278 * 923463 = 1180185714`.
+- Original target direction: Q<=1270 while preserving T<930475 at Q=1270; the refreshed live gate now requires T<=929280 there.
 - Trusted verifier: unchanged repository `eval_circuit`, all 9024 Fiat-Shamir shots.
 - Correctness channels: classical, phase garbage, ancilla garbage.
 
@@ -12,11 +13,11 @@
 
 | field | value |
 |---|---|
-| source | `70d64f58106ae65a0931b761decb2ed0a7b5dbf5` |
+| source | `b5796ce` |
 | qubits | 1278 |
-| Toffoli | 924651 |
-| score | 1181703978 |
-| submission | `03e26c4d` |
+| Toffoli | 923463 |
+| score | 1180185714 |
+| submission | `7b6ad5c` |
 | lane relationship | protected external leader; never replaced by an exploratory result |
 
 ## Assumptions and overturns

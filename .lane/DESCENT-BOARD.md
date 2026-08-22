@@ -4,12 +4,13 @@
 
 | Q | strict maximum rounded T |
 |---:|---:|
-| 1278 | 924650 |
-| 1277 | 925375 |
-| 1275 | 926826 |
-| 1270 | 930475 |
-| 1269 | 931208 |
-| 1260 | 937860 |
+| 1278 | 923462 |
+| 1277 | 924186 |
+| 1275 | 925635 |
+| 1270 | 929280 |
+| 1269 | 930012 |
+| 1266 | 932216 |
+| 1260 | 936655 |
 
 Always verify with the exact product; the table is a routing aid.
 
@@ -20,7 +21,8 @@ Always verify with the exact product; the table is a routing aid.
 | A0 | `897dda2` | first promoted ping-pong architecture | 1321 / 952707 | active clean ancestor |
 | A1 | `8d7051b` | later width/depth/failure-budget descendant | 1278 / 930729 | comparison only |
 | A2 | `787eaa8` | later replay-budget descendant | 1278 / 925387 | comparison only |
-| A3 | `70d64f5` | protected live leader | 1278 / 924651 | score gate only |
+| A3 | `70d64f5` | previous protected leader | 1278 / 924651 | historical score gate |
+| A4 | `b5796ce` | protected live leader refreshed 2026-08-22T11:43Z | 1278 / 923463 | current score gate only |
 
 ## Explorer portfolio
 

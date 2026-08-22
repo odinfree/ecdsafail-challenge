@@ -1,6 +1,6 @@
 # Re-descent lane state
 
-Updated: 2026-08-22T11:41:23Z
+Updated: 2026-08-22T11:43:00Z
 
 ## Identity
 
@@ -9,8 +9,9 @@ Updated: 2026-08-22T11:41:23Z
 - Branch: `research/redescent-teddy-1270`
 - Clean ancestor: `897dda2b0cf267151ecd973252d2a5078cbf1b63`
 - Ancestor meaning: Teddy Pender's first promoted ping-pong submission, `3616dbf2`
-- Protected live leader: `70d64f58106ae65a0931b761decb2ed0a7b5dbf5`
-- Live receipt at lane creation: Q=1278, T=924651, score=1181703978
+- Protected live leader: `b5796ce` (`0xrlawrence`, submission `7b6ad5c`)
+- Live receipt at lane creation: Q=1278, T=924651, score=1181703978 (`70d64f5`)
+- Current live receipt refreshed 2026-08-22T11:43Z: Q=1278, T=923463, score=1180185714
 
 The protected leader is outside this worktree. This lane may regress temporarily and may not overwrite, submit, or claim promotion from exploratory evidence.
 
@@ -20,11 +21,12 @@ Primary direction:
 
 ```text
 Q <= 1270
-T < 930475.573 at Q=1270
-trusted score < 1181703978
+original architectural charter: T < 930475 at Q=1270
+current strict live gate: T <= 929280 at Q=1270
+trusted score < 1180185714
 ```
 
-The universal gate remains `Q * T < 1181703978`. At lower Q, recompute the exact T ceiling rather than carrying the Q=1270 threshold forward.
+The current universal gate is `Q * T < 1180185714`. At lower Q, recompute the exact T ceiling rather than carrying the Q=1270 threshold forward.
 
 ## Research contract
 
@@ -48,7 +50,7 @@ The universal gate remains `Q * T < 1181703978`. At lower Q, recompute the exact
 
 ## Current hypothesis
 
-`H4`: `clankerFARM` proved that the ancestor can run at Q=1266, but measured-boundary reconstruction costs too much T. A genuine replay-cell fusion, cheaper boundary erasure, or a new lifetime cut that permits fewer replay plots must recover at least about 106k executed T while preserving Q<=1270.
+`H4`: `clankerFARM` proved that the ancestor can run at Q=1266, but measured-boundary reconstruction costs too much T. A genuine replay-cell fusion, cheaper boundary erasure, or a new lifetime cut that permits fewer replay plots must recover at least about 104,119 executed T at Q=1266 while preserving Q<=1270.
 
 ## Current falsifier
 
