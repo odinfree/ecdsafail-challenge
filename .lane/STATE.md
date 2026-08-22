@@ -1,7 +1,7 @@
 # Burn pp_div_replay paired re-descent
 
 Updated: 2026-08-22
-Status: `HOLD_PAIRED_LOW5`; production promotion withheld
+Status: `HOLD_PAIRED_LOW5`; production promotion withheld; shipping source clean
 
 ## Frozen source
 
@@ -9,6 +9,9 @@ Status: `HOLD_PAIRED_LOW5`; production promotion withheld
 - Branch: `research/burn-pp-div-replay-redescent-6b5c82c`.
 - Protected normal path: 12,950,916 operations, SHA-256
   `88706a40300b7f019202f65a0f28e86dbfe27fda65ad5ed33b0482ff9b14b7eb`.
+- Exact paired evaluator and receipt: `2d2eeb2`.
+- Shipping production source matches `6b5c82c` byte-for-byte; the
+  source-bound evaluator is absent at lane HEAD.
 
 ## Teddy Pender credit
 

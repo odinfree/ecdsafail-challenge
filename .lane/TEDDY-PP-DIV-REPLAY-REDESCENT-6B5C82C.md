@@ -3,6 +3,7 @@
 Created: 2026-08-22
 Verdict: `HOLD_PAIRED_LOW5`
 Promotion status: `NO_PRODUCTION_PROMOTION`
+Shipping status: production source restored exactly to `6b5c82c`
 
 ## Credit and bounded question
 
@@ -24,6 +25,8 @@ Model: Kimi Code (k2/k3, high effort), multi-lane agent campaign.
 - Branch: `research/burn-pp-div-replay-redescent-6b5c82c`.
 - Low-five source provenance: `34c1b50`.
 - Strict/reference-localization provenance: `2bff9dc`.
+- Exact paired evaluator and receipt commit:
+  `2d2eeb255929cc7ee610f18765445836fe280f60`.
 - The `fable-burn-6b5c-stream` branch had a committed descent plan and an
   uncommitted reference/collision harness, but no measured streamed-history
   candidate. It therefore could not displace the already measured low-five
@@ -177,6 +180,19 @@ emitted operations: 12950916
 The generated stream was written only under a temporary directory and is not
 retained in this worktree.
 
+## PIP shipping audit
+
+The paired evaluator at `2d2eeb2` was verified but is not durable production
+source. It is a 1,862-line, environment-gated campaign diagnostic that imports
+the historical low-five and reference harnesses, hard-codes the four-round
+`6b5c82c` geometry, and has no production callsite. Keeping it at shipping
+HEAD would make later source changes appear covered by a source-bound test.
+
+The follow-up shipping commit therefore removes the evaluator and restores
+`src/point_add/mod.rs` and `src/point_add/pingpong_div.rs` byte-for-byte to
+`6b5c82c`. The exact evaluator remains reproducible at `2d2eeb2`; this note
+is the durable result.
+
 ## Decision and next composition saddle
 
 Overturn the old `KILL_LIVE_NUMERATOR_ABI_CLOSURE` as a low-five verdict.
@@ -198,4 +214,3 @@ The next complete composition must then include Teddy's exact sparse square
 and symmetric multiply teardown, re-profile `pp_div_replay`,
 `square_product_register`, `pp_mul_walkback`, and `pp_mul_replay`, and
 meet Q <= 1182 with rounded T <= 992945 before any grind.
-
