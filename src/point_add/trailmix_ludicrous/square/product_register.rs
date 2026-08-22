@@ -24,8 +24,9 @@ const F_NAF: [(usize, bool); 5] = [
 /// measured boundary erasure instead of one full-width carry ladder: the
 /// 257-carry ladder of `tri_corr` was the square's peak owner (1287 qubits).
 const SQUARE_CHUNK_MIN: usize = 200;
-/// Live carry-ladder budget for those wide adds.
-const SQUARE_LADDER: usize = 248;
+/// Live carry-ladder budget for those wide adds. Co-binder with the replay's
+/// `SUB4_PP_PEAK`: must not exceed peak-cut headroom (245 at peak 1275).
+const SQUARE_LADDER: usize = 245;
 fn add_full(circ: &mut B, addend: &[QubitId], acc: &[QubitId]) {
     assert_eq!(addend.len(), acc.len());
     let chunk_min = std::env::var("SUB4_SQUARE_CHUNK_MIN")

@@ -1185,9 +1185,13 @@ fn plan(rounds: usize) -> Option<Plan> {
     // measured-erasure exposure (lambda) goes down as well.
     // `SUB4_PP_R1=509 SUB4_PP_R2=610` restores the previous op stream byte for
     // byte: at r1=509 no walk round is ever over budget, so nothing splits.
-    let r1 = env("SUB4_PP_R1", 356).min(rounds);
-    let r2 = env("SUB4_PP_R2", 625).min(rounds.saturating_sub(1));
-    let peak = env("SUB4_PP_PEAK", 1278);
+    // q1275 co-binder cut: peak 1278 -> 1275 only lands if the square's wide-add
+    // ladder drops with it (SQUARE_LADDER 248 -> 245, product_register.rs), else
+    // the peak migrates to the square product register. r1/r2 re-tuned for the
+    // 3-qubit-tighter replay allowance.
+    let r1 = env("SUB4_PP_R1", 342).min(rounds);
+    let r2 = env("SUB4_PP_R2", 620).min(rounds.saturating_sub(1));
+    let peak = env("SUB4_PP_PEAK", 1275);
     Some(Plan { r1, r2, peak })
 }
 
