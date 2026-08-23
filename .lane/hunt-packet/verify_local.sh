@@ -61,5 +61,14 @@ awk -F '\t' '
   END { if (NR != 7 || fresh != 5) exit 1 }
 ' "$packet/FIXTURE_RESULTS.tsv"
 
+awk -F '\t' '
+  NR == 1 { next }
+  $1 ~ /^fresh-/ { fresh++ }
+  $11 != $12 { exit 1 }
+  $5 > 0 { replay_div = 1 }
+  $7 > 0 { replay_mul = 1 }
+  END { if (NR != 6 || fresh != 5 || !replay_div || !replay_mul) exit 1 }
+' "$packet/FIXTURE_FAULT_SETS.tsv"
+
 test "$(wc -l < "$packet/RANGE_LEDGER_TEMPLATE.tsv" | tr -d ' ')" = 1
 echo "LOCAL_PACKET_OK SCAN_BLOCKED"
