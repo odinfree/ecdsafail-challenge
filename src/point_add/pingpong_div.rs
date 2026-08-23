@@ -416,8 +416,21 @@ fn restore_wire_layout(
     debug_assert_eq!(v, wanted_v);
 }
 
+/// First width-schedule breakpoint. Compile-time default 30 (protected b523
+/// value); `SUB4_PP_BREAK_1` overrides it. Cached via `OnceLock` because
+/// `value_width` runs per round in the hot build path. Inert when unset: the
+/// unset rebuild reproduces the protected op stream byte for byte.
+fn break_1() -> usize {
+    static SLOT: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    *SLOT.get_or_init(|| {
+        std::env::var("SUB4_PP_BREAK_1").ok().and_then(|v| v.parse::<usize>().ok()).unwrap_or(30)
+    })
+}
+
 fn value_width(round: usize) -> usize {
-    const BREAK_1: usize = 30;
+    let break_1 = break_1();
+    #[allow(non_snake_case)]
+    let BREAK_1 = break_1;
     const BREAK_2: usize = 304;
     const SLOPE_1: usize = 17;
     const SLOPE_2: usize = 34;
