@@ -241,12 +241,12 @@ digest `963a662d2e392804`. Local CPU calibration matches four frozen unchanged
 full-evaluator totals and first failures; the inherited fixture also matches
 all 11 ordered classical mismatch indices and cause masks.
 
-The Linux/CUDA stage is prepared but unrun. Its build compiles range entry
-points disabled, freezes CPU/CUDA comb8/comb16 equality, tests both wrong-count
-and same-count/wrong-SHA rejection, and emits receipts only after all gates
-pass. The dedicated-host path is armed only for an already-present idle GPU;
-the incumbent-borrow path remains explicitly unarmed until exact incumbent
-hashes, assignment, and coverage are committed.
+The Linux/CUDA stage passed on the frozen packet. Its range entry points were
+compiled disabled; CPU, CUDA comb8, and CUDA comb16 matched on all four
+breakdowns and the inherited 11-shot complete set. CPU and CUDA also rejected
+the wrong-count and same-count/wrong-SHA artifacts with exit 2. Exact binary,
+receipt, negative-tree, fixture-tree, and protected-state hashes are recorded
+in `PARITY-RESULT.md`. The incumbent-borrow path remains explicitly unarmed.
 
 Strict predicted-zero filtering remains held. The fold55 restoration branch
 can conservatively overcount a benign wrapped overflow. Source supports

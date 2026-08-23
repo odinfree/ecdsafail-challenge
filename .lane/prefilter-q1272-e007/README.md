@@ -15,7 +15,8 @@ operation stream:
 The shared CPU/CUDA model source is not authorized for scanning. Local CPU
 calibration matches the unchanged full evaluator's classical total and first
 failure on all four frozen nonces. The inherited nonce also matches the exact
-complete 11-shot mismatch set. CUDA comb8/comb16 parity is still open.
+complete 11-shot mismatch set. The later Linux/CUDA stage passed comb8 and
+comb16 parity plus both wrong-stream negatives; see `../PARITY-RESULT.md`.
 
 Before any GPU fixture run, require the full operation SHA above, the model
 source hashes recorded in `../PREFILTER-PREP.md`, and the loader's count and
@@ -28,10 +29,11 @@ evaluation with classical, phase, and ancilla all zero.
 range entry points with `PP_DISABLE_SCAN=1`. Set `PPGPU_CUDA_ARCH=120` on
 Blackwell; the only other admitted architecture is 89.
 
-`stage_dedicated.sh` is the prepared clean-host parity path. It requires an
+`stage_dedicated.sh` is the clean-host parity path. It requires an
 idle single GPU, validates all exact hashes, compares CPU/CUDA comb8/comb16 on
 the four frozen breakdowns and inherited full fault-shot set, and proves both
-wrong-count and same-count/wrong-SHA rejection. It has not been run.
+wrong-count and same-count/wrong-SHA rejection. The frozen stage passed on
+`sm_89`; its runtime receipts remain outside Git.
 
 `stage_borrowed.sh` and `pilot_tolerant.sh` are committed unarmed. The former
 requires a later commit with exact incumbent assignment and immutable-input

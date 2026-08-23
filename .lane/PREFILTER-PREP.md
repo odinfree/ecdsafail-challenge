@@ -4,7 +4,7 @@ Date: 2026-08-23 (Europe/Zurich)
 
 ## Verdict
 
-`HOLD_GPU_PARITY / HOLD_OVERCOUNT_BOUND`
+`PASS_GPU_PARITY / HOLD_OVERCOUNT_BOUND / NO_SCAN`
 
 The exact E007 stream was byte-reproduced from clean committed source. A
 source-bound CPU model was assembled from the previously qualified Q1272
@@ -13,8 +13,10 @@ semantics. It matches all four frozen full-evaluator totals and first failures;
 the inherited fixture also matches all 11 exact failing shot indices and cause
 labels each failure into the existing five-way vocabulary.
 
-No CUDA host is attached locally, so CPU/CUDA comb8/comb16 equality remains a
-hard gate. No scan, hunt, provider action, submission, or incumbent mutation
+Local preparation had no CUDA host. The frozen packet later passed Linux CPU
+equals CUDA comb8 equals CUDA comb16 on all four fixtures and the inherited
+complete set, plus both loader negatives. `PARITY-RESULT.md` records the exact
+receipts. No scan, hunt, provider mutation, submission, or incumbent mutation
 occurred.
 
 ## Live and source anchors

@@ -4,13 +4,14 @@ Date: 2026-08-23 (Europe/Zurich)
 
 ## Status
 
-`PREPARED_NOT_RUN / HOLD_GPU_PARITY / HOLD_OVERCOUNT_BOUND`
+`EXECUTED_PASS / HOLD_OVERCOUNT_BOUND / NO_SCAN`
 
-This commit prepares a fail-closed Linux/CUDA fixture stage. It does not
-contact or provision a host, run CUDA parity, evaluate a range, start a hunt,
-or authorize deployment. The parity build compiles both CPU and CUDA range
-entry points with `PP_DISABLE_SCAN=1`; only diagnostic fixture modes remain
-reachable.
+This commit prepares a fail-closed Linux/CUDA fixture stage. The stage later
+passed exactly as frozen; see `PARITY-RESULT.md` for binary, receipt, negative,
+and protected-state hashes. It did not evaluate a range, start a hunt, mutate
+a provider, submit, or authorize deployment. The parity build compiles both
+CPU and CUDA range entry points with `PP_DISABLE_SCAN=1`; only diagnostic
+fixture modes remain reachable.
 
 The packet follows the receipt structure already exercised by the trusted
 Q1276 packet and the wrong-stream/state-digest requirements identified by the
