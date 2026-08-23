@@ -27,3 +27,12 @@ These four consecutive values were fixed before seeing any result beyond the
 already-known promoted diagnostic nonce `81327465284`. All complete 9,024-shot
 classical failure counts must equal the CPU model exactly; any disagreement
 fails the model closed.
+
+## Frozen Linux/CUDA parity set
+
+Before any Linux or CUDA result, freeze the 32 consecutive nonces in
+`[81327465284,81327465316)`. Compare Linux CPU and CUDA counts for every
+fixture, bind the full source/operation/checkpoint/binary identities, and audit
+the borrowed host's protected incumbent before and after. This is a no-range,
+no-hunt gate. A first tolerant implementation may establish exact count parity;
+complete per-shot masks remain required before broad fleet activation.
