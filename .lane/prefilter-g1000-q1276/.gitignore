@@ -1,0 +1,8 @@
+/ppcpu
+/ppgpu
+/ops.bin
+/runs/
+/*.log
+/*.stdout
+/*.stderr
+/*.tmp
