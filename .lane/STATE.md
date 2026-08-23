@@ -301,3 +301,78 @@ attack:
 - Route 5 (square/replay-ladder co-binder audit) only with measured co-binder
   and exact-test evidence, since the Q1272 peak cut REQUIRES replay 128 + square
   242 jointly (Q1274 lane exp #6/#7: square binds 1274 without both).
+
+## D8 — VERDICT CORRECTION: huntable reference measured; width repair is a LIVE lever
+
+Three advisor-prompted validations (all passed) overturn the D7 "not huntable"
+framing, which rested on a mis-recalled huntable reference (lambda_total ~10.9
+from another lane's prose) and an unjustified channel-independence assumption.
+
+**Apparatus validation (screen_nonces false-negative gates):**
+- Fixture B: Q1272 ops.bin @ inherited nonce 251000962439 -> **17/16/0**, avg
+  914793 == trusted receipt exactly. lambda_phase=13.31 is now cross-validated
+  (the phase channel of the modified screen_nonces reproduces the paid receipt).
+- Fixture A: live-equiv artifact (opt-out chain
+  `SUB4_PP_ROUNDS=698 SUB4_PP_ROUNDS_MUL=696 SUB4_PP_WIDTH_RESCALE=0
+  SUB4_PP_R1=342 SUB4_PP_R2=625 SUB4_PP_PEAK=1275 SUB4_SQUARE_LADDER=245`
+  -> sha256 d9737f51... byte-for-byte, confirming the tooling port left the
+  opt-out intact) @ 251000962439 -> **CLEAN 0/0/0**, avg 918972, score
+  1171689300 exactly. Strongest possible FN gate: the apparatus certifies the
+  accepted submission's own clean nonce.
+
+**Channel dependence:** classical and phase co-vary strongly:
+r=0.833 (Q1272 corpus B), r=0.912 (live corpus B). So the independence product
+exp(lambda_cls+lambda_phase) is a LOWER bound on P(clean); the correlated
+upper bound is exp(-max(lambda_cls,lambda_phase)). E[nonces] for Q1272 lies in
+[exp(17.56), exp(30.87)] = [4.2e7, 2.6e13] -- a 6-order-of-magnitude range.
+
+**Huntable reference (MEASURED, not recalled):** the live config -- which is
+provably huntable, its clean nonce 251000962439 was found and accepted -- has
+measured density on corpus B (n=16, full sim): lambda_cls=15.00,
+lambda_phase=11.38, sum=26.38, r=0.912. NOT 10.9.
+
+**Corrected gap Q1272 vs proven-huntable live:**
+- independence (sum): 30.87 - 26.38 = 4.49 -> ~89x harder
+- correlated (max channel): 17.56 - 15.00 = 2.56 -> ~13x harder
+So Q1272 is ~13-89x harder to hunt than a config that WAS hunted -- a bigger
+GPU scan, NOT categorically infeasible. The 1e6x-from-huntable claim in D7 is
+RETRACTED.
+
+**Width repair is therefore a LIVE lever, not parked.** Cutting classical lambda
+directly closes the gap to the proven-huntable live density, at a STRICTLY
+BETTER score (peak 1272 vs 1275). Held-out realizable (frontier x0.5 in-sample,
+per Q1274 calibration) vs resulting gap:
+
+| width cut (held-out lambda_cls) | gap indep | gap correlated |
+|---|---|---|
+| 0.9 (r100-class) | x36 | x5.3 |
+| 1.2 (r200-class) | x27 | x3.9 |
+| 1.75 (+1 ceiling C1 held-out) | x16 | x2.2 |
+| 3.0 (all-soft, needs +2 repairs) | x4.4 | x0.6 (better than live) |
+
+At the +1 ceiling Q1272 reaches ~2.2x live's hunt cost (correlated); adding
+bounded +2 repairs on the 2.57-lambda soft-excess-gt1 population reaches
+hunt-parity-or-better while beating the score. This is a real search-economics
+win, well inside the 6346-T ceiling.
+
+**Estimated strict-beat score (if a clean nonce is found):** peak 1272 x rounded
+T 914793 = **1,163,616,696**, a **-8,072,604** reduction vs live 1,171,689,300.
+**Held-out density change from THIS lane: none** -- no repair was baked; the
+Q1272 artifact is byte-identical (ecc3d9f0...). The width frontier is recorded
+as the priced, validated recipe for the next step.
+
+## Next binder (corrected)
+
+1. HIGHEST VALUE: fit the sparse +1 width repair on corpus A (greedy cover,
+   tables in D5), validate held-out on B/C via the census tool, MEASURE the
+   diag-T cost per r-set by rebuild+PP_PROFILE (do NOT assume Q1274's T rates),
+   confirm peak co-binders unchanged at Q1272 and both selftests, then bake the
+   knee that reaches hunt-parity with live inside the T ceiling. Add bounded +2
+   repairs on the soft-excess-gt1 population if +1 alone leaves gap > ~1x.
+   Because widening is exactly evaluable (never creates a classical fault), the
+   held-out lambda is provable from deficit profiles without new full sims.
+2. Then re-measure the correlated joint P(clean) directly (larger n full-sim on
+   the baked stream) to price expected nonces exactly, not by the r-bracket.
+3. Phase (~13.3 lambda) and the hard non-converging-walk classical (~7.85) remain
+   the untouchable floor; they cap how far width alone can go but do NOT block
+   reaching live-parity. Route 4/5 architectural work is the lever BEYOND parity.
