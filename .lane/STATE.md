@@ -553,3 +553,74 @@ survives the hash change (consistent with the held-out corpus-B 14.219 vs 14.637
 lambda_phase=13.31 (n=16) is NOT carried; the baked value is a fresh draw and is
 reported next. Classical vs phase co-binding and the final economics bracket follow
 once the baked-stream phase lands.
+
+## D12 — VERDICT + CORRECTION: repair is real; live anchor was ppfilter-inflated
+
+Full-sim (trusted screen_nonces `--full`, no early abort) on the 64 PREDECLARED
+bake nonces (444000000000..063), baked stream sha `95e844f3...`, live sha
+`d9737f51...`, both apparatuses re-certified on their own clean/paid receipts:
+
+| config (n=64 full-sim) | lambda_cls | lambda_phase | lambda_anc | corr | sum | max-channel |
+|---|---:|---:|---:|---:|---:|---:|
+| BAKED Q1272 (ceil) | 13.812 +/- 0.503 | 10.422 +/- 0.407 | 0 | 0.675 | 24.234 | 14.000 |
+| LIVE (same nonces) | 12.266 +/- 0.435 | 10.344 +/- 0.350 | 0 | 0.515 | 22.609 | 12.719 |
+
+**CORRECTION (supersedes the D8/D9 live anchor).** ppfilter faithfully models the
+Q1272 replay (pred_cls=14 == baked eval; pred_cls=10 == full-sim cls=10 at
+444000000000) but OVER-counts LIVE's classical (ppfilter 18 vs full-sim 16 at
+444000000000; replay_div/replay_mul flags fire that live's R1=342/R2=625 replay
+does not produce). So the D8 live anchor (15.00, n=16) and the D9 anchor (14.637,
+n=320 ppfilter) were INFLATED. The trusted full-sim live classical is **12.27**,
+BELOW baked Q1272's 13.81. **Retract the D9/D11 claim that the baked finalist
+beats live classical density.** It does not: live is ~1.5 lambda better on the
+hard classical channel, and phase is essentially tied (10.42 vs 10.34).
+
+**Corrected hunt-economics gap (full-sim, same nonces):**
+- max-channel (correlated, optimistic): 14.000 - 12.719 = 1.281 -> **~3.6x harder**
+- sum (independent, pessimistic): 24.234 - 22.609 = 1.625 -> **~5.1x harder**
+So baked Q1272-at-ceil is ~3.6-5x harder to hunt than proven-huntable live, NOT
+at parity. Uncertainty is real (n=64; cls diff 1.55 is ~2.3 sigma; phase and the
+correlation are small-n).
+
+**What the repair DID achieve (validated, durable, net-positive):**
+- On the IDENTICAL baked 64-nonce corpus, the width repair cut classical lambda
+  by **3.281** (base schedule 17.109 -> ceil 13.812; hard count identical at 705,
+  subset property confirmed on the baked stream). ppfilter is faithful for Q1272,
+  so this delta is trustworthy.
+- Pre-repair Q1272 max-channel ~17.1 vs live 12.72 => ~80x harder. Post-repair
+  ~3.6-5x harder. **The bake improved Q1272 huntability ~15-22x** at a strictly
+  better score (peak 1272 vs 1275; strict-beat score 1,167,197,376, -4,491,924 vs
+  live), inside the rounded-T ceiling (917608 <= 921139), with the opt-out chain
+  intact (d9737f51 reproduces).
+- The bake trades +3.58M score (vs unbaked Q1272's 1,163,616,696) for the ~20x
+  huntability gain -- a strongly favorable trade for the hunt while still beating
+  live by 4.5M.
+
+**Residual gap to live = HARD classical, not width.** Baked Q1272 hard-lambda
+~11.02 (ppfilter, faithful) already exceeds live's TOTAL classical 12.27 by only
+~1.2; the remaining soft (2.79) needs +2 repairs that are INFEASIBLE (all-soft ->
+peak 1278, T over ceiling). So width has been exhausted. The residual is the
+696-round / narrower-peak structure producing more non-converging pingpong walks
+than live's 698-round structure -- Route 4 (walkback/replay-tape overturn), NOT a
+width lever. Phase (~10.4) is tied with live and untouched by width.
+
+**Bottom line.** The task's structural goal is MET: the smallest peak-safe +1
+width repair is fitted, validated (held-out + fresh-corpus full-sim), and baked at
+Q1272 with a strict score beat and an intact opt-out chain, cutting classical
+density by ~3.28 lambda and improving huntability ~20x. The task's ECONOMIC goal
+(reach approximately live hunt economics) is PARTIALLY met: the gap narrows from
+~80x to ~3.6-5x but not to parity, because live's true (full-sim) density is
+better than the ppfilter estimate that motivated the "parity reachable" premise.
+The bake is a genuine, net-positive, durable improvement worth keeping.
+
+## Next binder (corrected, final)
+
+1. The width channel is EXHAUSTED at Q1272 (ceil baked; +2 infeasible). Further
+   huntability requires the HARD classical channel: characterize the ~11 lambda
+   non-converging-walk population at 696 rounds vs live's 698 (Route 4). The
+   +1.5-lambda classical gap to live is entirely here.
+2. Re-audit any future live-vs-Q1272 density comparison with FULL-SIM, never
+   ppfilter, for the live/foreign-replay side. ppfilter is faithful ONLY for the
+   Q1272/7ca0559 replay params it embeds.
+3. Phase (~10.4) is at live parity and width-invariant; no phase lever is needed
+   to reach live economics -- only the hard classical residual blocks parity.
