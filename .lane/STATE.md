@@ -42,10 +42,12 @@ Score = Q × T_avg. At Q=1278, T=915,947.392:
       baseline T while adding ≥ 3(k+1) qubits. Floor case Δscore ≥ +k·915,947.
 - [x] A6 (tape-free escape outside ping-pong) killed by arithmetic: multiplication
       ladders cost ≥ 11× score whole-circuit and ≥ 14× at every hybrid margin (E7).
-- **Lane verdict: EXHAUSTED. In-family Q1278 is exact-optimal (A1–A5), aggregate
-  replay is net-positive-score by lower bound (A2), and the tape-free alternative
-  loses ~10× on Toffoli (A6). No open architecture door remains in this lane;
-  recommend concluding the burn and preserving bdf4845 as-is.**
+- **Lane verdict: TAPE/DECODER ROUTES EXHAUSTED.** Aggregate replay is
+  net-positive-score by lower bound (A2), and the tape-free alternative loses
+  ~10× on Toffoli (A6). This verdict is deliberately narrower than a global
+  Q1278 optimum: the independent coordinated replay-cap plus square-ladder lane
+  subsequently measured Q1276/T916628.572, a lower counterfactual product, at
+  `15/5/0`. Redirect nonce/model qualification there; do not reopen A1–A6 here.
 
 ## Key structural facts (from source read)
 

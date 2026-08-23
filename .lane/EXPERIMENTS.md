@@ -79,3 +79,15 @@
   Fermat ladder ≥ ~270 mult/sq ⇒ ≥ 14.6M T, score ≥ 13B at Q=900 (11× target).
   Hybrid stop-early margin: save ≈ 7.3k T-equiv/bit (2.7 tape qubits + ~4 adds/round
   × 2.7 rounds), pay ~2 mults ≈ 108k T/bit ⇒ ≥14× dead everywhere. **A6 closed.**
+
+## E8 — Cross-lane scope correction: coordinated peak/square saddle
+- Independent exact branch `research/sub4-ladder-bdf4845@0b6ac181` changed only
+  `SUB4_PP_PEAK=1276` and `SUB4_SQUARE_LADDER=246`. Its unchanged full evaluator
+  measured Q1276/T916628.572 and `15/5/0`; counterfactual score 1,169,618,604.
+- The balanced intermediate pair measured Q1277/T916186.355 and `21/12/0`;
+  counterfactual score 1,169,969,522. Q1276 dominates it by 350,918 on product and
+  has the lower inherited fault fingerprint. Neither row is submission-valid while
+  dirty; the Q1276 exact prefilter qualification is the active next gate.
+- Consequence: E6/E7 close segment aggregation and tape-free inversion, but do not
+  prove Q1278 globally optimal. The viable cut composes the replay allowance with
+  the square ladder rather than changing tape representation.

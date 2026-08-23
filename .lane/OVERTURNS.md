@@ -57,11 +57,13 @@ Any overturn must clear this bar net of its own Toffoli cost.
   extra T per qubit freed vs break-even 716.7 → net-negative ≈2–4×.
 
 ## A5 — "Peak 1278 is the score-optimal operating point of this family"
-- Supported: prior lane measurement (PEAK=1277 net-negative); plateau census (E3) shows
-  all three binder families (pp_div_replay, pp_mul_walkback, square_product_register)
-  are budget-followers whose ladders spend allowance up to 1278 to buy Toffoli. A Q cut
-  requires shedding ALL THREE simultaneously; the square co-binder is the closed-lane
-  territory (Q1275 packet), leaving A2 as the only in-lane opening.
+- **FALSIFIED as a global claim by the independent coordinated saddle (E8).** Peak-only
+  cuts are net-negative and the plateau census (E3) correctly requires simultaneous
+  movement in replay and square. The paired defaults do exactly that: peak1277 plus
+  ladder247 measured Q1277/T916186.355, and peak1276 plus ladder246 measured
+  Q1276/T916628.572. Both inherited nonces are dirty, but their counterfactual products
+  beat Q1278; Q1276 is the stronger hunt candidate. This does not reopen the tape or
+  decoder overturns A1–A4/A2.
 
 ## A6 — "A tape-free (data-independent-schedule) inversion could beat Q·T" (outside ping-pong)
 - Claim: the 698-bit sign tape is a ping-pong artifact; an inversion with a classical
@@ -83,9 +85,8 @@ Any overturn must clear this bar net of its own Toffoli cost.
 
 ## Verdict
 The tape cannot be removed, checkpointed, streamed, dirtied, classically recomputed,
-or aggregated into transition matrices (A1–A4 + A2 closed with exact arguments); the
-family's score optimum is Q1278 (A5); and the tape-free escape outside ping-pong loses
-~10× on Toffoli (A6). The inversion-architecture space reachable by this lane is
-exhausted: bdf4845's ping-pong at Q1278 stands. Residual in-worktree surface is only
-the never-edge-ground square (~−1% bounded, T-side polish, incumbent territory), not
-a burn-lane architecture target. Recommend concluding this lane.
+or aggregated into transition matrices (A1–A4 + A2 closed with exact arguments), and
+the tape-free escape loses ~10× on Toffoli (A6). The tape/decoder architecture space
+reachable by this lane is exhausted. A5 is separately falsified by the coordinated
+replay-cap plus square-ladder saddle, so this ledger must not be read as a global Q1278
+lower bound. Conclude this lane and redirect qualification to the measured Q1276 pair.
