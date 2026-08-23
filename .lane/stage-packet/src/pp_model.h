@@ -931,6 +931,7 @@ PP_HD bool pp_sign_at(const u64 signs[11], int r) {
 #define PP_PHASE_FAMILY_CHUNK 0u
 #define PP_PHASE_FAMILY_DIV_FLAG 1u
 #define PP_PHASE_FAMILY_MUL_FLAG 2u
+#define PP_PHASE_FAMILY_SHELL_SUB 3u
 
 struct PP_PhaseTrace {
     u8* values;
@@ -1690,6 +1691,41 @@ PP_HD void pp_coord_sub_model(const u64 reg[4], const u64 coord[4], u64 out[4]) 
     for (int i = 0; i < 4; i++) out[i] = o[i];
 }
 
+// mod_sub_vented's measured carry repair
+// (trailmix_ludicrous/arith.rs:1501). The source complements the coordinate's
+// top 19 bits inside controlled_add_carry_msbs_conditional, then phases when
+// (~coord_top) < result_top. The measured target remains the original full-add
+// carry across the low pseudo-Mersenne correction.
+PP_HD void pp_coord_sub_phase_model(const u64 reg[4], const u64 coord[4], u64 out[4],
+                                    PP_PhaseTrace* tr) {
+    PP_Wide m256, rw, cw, nreg, s, w, o;
+    pp_wide_mask(256, m256);
+    pp_wide_from4(reg, rw);
+    pp_wide_from4(coord, cw);
+    pp_wide_xor(rw, m256, nreg);
+    pp_wide_add(nreg, cw, s);
+    bool anc = pp_wide_bit(s, 256);
+    pp_wide_xor(s, m256, w);
+    for (int i = 0; i < 6; i++) o[i] = w[i];
+    if (anc) {
+        PP_Wide m53, low, lc, fcw, s2, lu;
+        u64 fcv[4] = {PP_FC, 0, 0, 0};
+        pp_wide_mask(PP_ARITH_LSBS, m53);
+        pp_wide_get(o, 0, PP_ARITH_LSBS, low);
+        pp_wide_xor(low, m53, lc);
+        pp_wide_from4(fcv, fcw);
+        pp_wide_add(lc, fcw, s2);
+        pp_wide_xor(s2, m53, lu);
+        pp_wide_set(o, 0, PP_ARITH_LSBS, lu);
+    }
+    for (int i = 0; i < 4; i++) out[i] = o[i];
+
+    const u64 top_mask = (1ULL << 19) - 1;
+    u64 coord_top_not = pp_slice4(coord, 256 - 19, 19) ^ top_mask;
+    u64 result_top = pp_slice4(out, 256 - 19, 19);
+    pp_phase_emit(tr, anc != (coord_top_not < result_top), PP_PHASE_FAMILY_SHELL_SUB);
+}
+
 // mod_add_exact (coord_add3x): reg = (x + y) mod p, 53-bit f-window drop.
 PP_HD void pp_mod_add_exact_model(const u64 x[4], const u64 y[4], u64 out[4]) {
     u64 s[4];
@@ -1841,8 +1877,8 @@ PP_HD u32 pp_shot_fault_phase_trace_s(const u64 tx[4], const u64 ty[4], const u6
     pp_expected_add(tx, ty, ox, oy, lam, rx, ry);
 
     u64 x2[4], y2[4];
-    pp_coord_sub_model(tx, ox, x2);
-    pp_coord_sub_model(ty, oy, y2);
+    pp_coord_sub_phase_model(tx, ox, x2, tr);
+    pp_coord_sub_phase_model(ty, oy, y2, tr);
 
     bool wd_fault, wd_term_ok, wd_u_neg, wd_v_neg;
     pp_walk_sig(x2, PP_ROUNDS_DIV, &wd_fault, &wd_term_ok, &wd_u_neg, &wd_v_neg, signs_d, wtab);
@@ -1868,7 +1904,7 @@ PP_HD u32 pp_shot_fault_phase_trace_s(const u64 tx[4], const u64 ty[4], const u6
     if (!pp_is_zero(xm)) return PP_F_REPLAY_MUL;
 
     u64 y2f[4], x2f[4];
-    pp_coord_sub_model(y2m, oy, y2f);
+    pp_coord_sub_phase_model(y2m, oy, y2f, tr);
     pp_coord_rsub_model(x2c, ox, x2f);
     if (!pp_eq(x2f, rx) || !pp_eq(y2f, ry)) return PP_F_RESULT;
     return 0;

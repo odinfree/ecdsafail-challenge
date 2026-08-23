@@ -2,11 +2,11 @@
 
 // Source-bound R/Hmr schedule for exact Q1274 stream
 // ops.bin sha256: 4c68597468ed1dbb4f2e33042842227bf57c011c51f41e9cdaf13c73194b1f8c
-// phase-meta sha256: 5e4f8aa392b3de1628e252dc3bb2e3dea87cd15f315843c29ea69f320c1dedc0
-#define PP_PHASE_SITE_COUNT 3961
+// phase-meta sha256: 613c9ec76668f0dd2eb3c5d334495ba11b3658dec060f06c3958e538e3011d10
+#define PP_PHASE_SITE_COUNT 3964
 #define PP_PHASE_RHMR_COUNT 1940649
 static const u32 PP_PHASE_ORDINALS[PP_PHASE_SITE_COUNT] = {
-    142439u, 142595u, 143151u, 143307u, 143863u, 144019u, 144575u, 144731u, 145287u, 145443u, 
+    623u, 1544u, 142439u, 142595u, 143151u, 143307u, 143863u, 144019u, 144575u, 144731u, 145287u, 145443u,
     145999u, 146155u, 146711u, 146867u, 147423u, 147579u, 148135u, 148291u, 148847u, 149003u, 
     149559u, 149715u, 150271u, 150427u, 150983u, 151139u, 151695u, 151851u, 152407u, 152563u, 
     153119u, 153275u, 153831u, 153987u, 154543u, 154699u, 155255u, 155411u, 155967u, 156123u, 
@@ -402,10 +402,10 @@ static const u32 PP_PHASE_ORDINALS[PP_PHASE_SITE_COUNT] = {
     1787588u, 1788143u, 1788302u, 1788857u, 1789016u, 1789571u, 1789730u, 1790285u, 1790444u, 1790999u, 
     1791158u, 1791713u, 1791872u, 1792427u, 1792586u, 1793141u, 1793300u, 1793855u, 1794014u, 1794569u, 
     1794728u, 1795283u, 1795442u, 1795997u, 1796156u, 1796711u, 1796870u, 1797425u, 1797584u, 1798139u, 
-    1798298u
+    1798298u, 1939430u
 };
 static const u8 PP_PHASE_FAMILIES[PP_PHASE_SITE_COUNT] = {
-    0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 
+    3u, 3u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u,
     0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 
     0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 
     0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 0u, 1u, 
@@ -570,5 +570,5 @@ static const u8 PP_PHASE_FAMILIES[PP_PHASE_SITE_COUNT] = {
     2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 
     2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 
     2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 2u, 0u, 
-    2u
+    2u, 3u
 };
