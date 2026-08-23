@@ -51,3 +51,9 @@ before measurement as `SUB4_PP_REPLAY_FOLD_WINDOW=55 SUB4_PP_PEAK=1271` on the
 unchanged source. First run F3 only. If and only if F3 reports Q1272 or lower,
 rounded-T headroom remains positive, and `0/0/0`, run the already-frozen H and P
 blocks in full. No corpus or threshold changes.
+
+E-001b stopped before H/P at Q1273. E-001c is now frozen before measurement as
+`SUB4_PP_MUL_PLUS2F_ALIAS=1 SUB4_PP_REPLAY_FOLD_WINDOW=55` at the original
+peak1272 plan. First run the exhaustive selector miter and F3. Only if the miter
+passes and F3 is Q1272 or lower, `0/0/0`, and inside the T ceiling may H/P run.
+The original H/P ranges and thresholds remain unchanged.

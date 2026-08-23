@@ -21,3 +21,18 @@ Q1273, same-seed diag T916106.31, diagnostic `0/0/0`. The source default was
 restored to 54. Per the bounded-saddle rule, E-001b is now predeclared as the
 same fold55 cell plus `SUB4_PP_PEAK=1271`; it advances only if global Q returns
 to 1272 and rounded full T remains within the same ceiling.
+
+E-001b also hit Q1273: 12,945,334 ops, SHA
+`65d7cb17bb9ede12e28f2d1a354b003a79a7b47ebc1ebb80cca2a8b9b4741d90`,
+same-seed diag T917028.50, diagnostic `0/0/0`. The exact B0 census identifies
+the peak as 695 tape + 256 input + 256 coefficient + 53 fold carries + thirteen
+singletons at multiply replay. Budget contraction lowers other phases but does
+not remove the fold cell's own extra wire.
+
+E-001c is frozen before measurement: the multiply cell currently materializes
+`plus_2f = routed XOR minus_f`, although the fold consumes that selector only
+through linear CX toggles. Keep it as the two-wire XOR alias
+`[routed, minus_f]`, removing one live selector qubit, and compose with fold55.
+The scoped exhaustive miter is all `(routed, sign, operand)` states with
+`minus_f = routed AND sign`; it must prove both the selector value and every
+operand toggle identical. The implementation is opt-in until all gates close.
