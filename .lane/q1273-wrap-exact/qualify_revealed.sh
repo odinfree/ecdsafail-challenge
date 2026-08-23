@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-repo=$(cd "$(dirname "$0")/../../.." && pwd)
+repo=$(cd "$(dirname "$0")/../.." && pwd)
 packet=/Users/olifreuler/ecdsa-ops/q1273-predictor-093d85d
 ops="$packet/ops.bin"
 bin=${PP_WRAP_BIN:-/private/tmp/ppcpu-q1273-wrap-exact}
