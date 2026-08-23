@@ -1,5 +1,23 @@
 # Re-descent lane state
 
+## Restart recovery overlay - 2026-08-23
+
+Status: `HISTORICAL_SUPERSEDED`; no worker is running from this worktree.
+
+This branch preserves the X004 tape checkpoint and representation falsifiers.
+Its inherited `T_RECOVERY_AFTER_Q_CROSS` phase and X005 next action below are
+historical, not an active queue item. The exact results retained here are
+Q1266/T1036334.453 with a 64-lane clean diagnostic and full 9,024-shot
+`1/1/0`; ordinary erase/rebuild is killed at Q1266/T1431657.594, while a
+different representation remains open.
+
+The active retained-word continuation moved to
+`/Users/olifreuler/Documents/Codex/2026-08-21/par/work/redescent-teddy-1270`
+at clean HEAD `3370f6656396`, where the next bounded falsifier is the exact
+production round-3 prefix. Current-source tape ownership is now tracked in
+`/Users/olifreuler/Documents/Codex/2026-08-21/par/work/kimi-q1274-tape-087cafa`.
+Do not resume the stale X005 instruction below without a changed premise.
+
 Updated: 2026-08-22T11:43:00Z
 
 ## Identity
