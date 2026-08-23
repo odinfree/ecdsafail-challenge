@@ -1,133 +1,162 @@
-# Lane state — Q1272 rounds696 / ladder242 production bake
+# Lane state — Q1272 hard-channel re-descent
 
 Date: 2026-08-23 (Europe/Zurich)
 
 ## Decision
 
-The audited Q1272 composition is now baked into source defaults on the isolated
-branch `research/q1272-round696-ladder242`, starting from exact receipt commit
-`82a742b19fb28d641e3993c3ef18abd0191544ee`.
+The first bounded Burn-the-House-Down re-descent found a useful composition but
+did not promote it. Replay fold `54 -> 55` alone binds at Q1273. Contracting the
+existing replay peak allowance does not remove that fold-local wire. Replacing
+the multiply replay's materialized `plus_2f` selector by the exact XOR of its
+already-live factors restores Q1272 and keeps full T below the hard ceiling.
 
-The build is byte-for-byte reproducible and passes the production 64-lane
-profile plus both focused self-tests. The inherited 9,024-shot draw remains
-dirty at `17/16/0`, so this branch is a frozen hunt candidate, not a submission
-candidate. No nonce search, provider action, or submission was started here.
+The composed stream reduces replay faults sharply on the frozen H block, but
+it introduces one exact final-result failure and exposed three false negatives
+in the first scratch predictor. That breaches the predeclared no-new-result
+gate and blocks any search use. The protected fold54/alias-off source defaults
+remain unchanged. The exact selector alias and its selfcheck are retained as an
+opt-in structural component for a later result-channel composition.
 
-## Frozen source defaults
+No nonce search, remote/provider action, spend, submission, or mutation of
+another worktree occurred.
 
-```text
-SUB4_PP_WIDTH_RESCALE=1 (implicit default; =0 is the opt-out)
-SUB4_PP_R1=340
-SUB4_PP_R2=628
-SUB4_PP_ROUNDS=696
-SUB4_PP_ROUNDS_MUL=696
-SUB4_PP_PEAK=1272
-SUB4_SQUARE_LADDER=242
-SUB4_PINGPONG_TAIL_NONCE=251000962439 (unchanged inherited nonce)
-```
+## Source and switches
 
-Only three runtime defaults changed from the audited Q1274 source: divide
-rounds `698 -> 696`, replay peak `1274 -> 1272`, and square ladder `244 -> 242`.
-Multiply rounds were already 696; width rescaling and R1/R2 were already baked.
-No arithmetic primitive or evaluator code changed.
+- isolated branch: `research/q1272-hard-channel-redescent`
+- exact starting source: `091abce0c0ac73f5e1965034fa976fa14c855594`
+- default/reproduction stream: fold54, multiply selector alias off
+- held E-001c stream:
+  `SUB4_PP_REPLAY_FOLD_WINDOW=55 SUB4_PP_MUL_PLUS2F_ALIAS=1`
+- exhaustive selector identity gate:
+  `SUB4_PP_MUL_PLUS2F_ALIAS_SELFTEST=1`
 
-Every tuned value retains its environment override. Two reproduction paths
-were exercised after the bake:
+The alias implements
+`plus_2f = routed XOR minus_f`, with `minus_f = routed AND sign`, as two
+existing CX factors. The fold consumes the selector only through linear CX
+toggles. No selector qubit is allocated, measured, or freed on the alias path.
 
-- prior Q1274 route: `ROUNDS=698`, `ROUNDS_MUL=696`, `R1=340`, `R2=628`,
-  `PEAK=1274`, `SQUARE_LADDER=244`, width rescale on -> artifact
-  `60b6fe451b0cea31c2deffee907c74a1327e175f1adbe9dd41d6e9d76e6ea933`;
-- promoted live route: the prior vector plus `WIDTH_RESCALE=0`, `R1=342`,
-  `R2=625`, `PEAK=1275`, `SQUARE_LADDER=245` -> artifact
-  `d9737f5154cf1159d1115f5057dcc8019b42984507f4e0cbeacd80edaee0b124`.
+## Structural saddle ledger
 
-## Exact production evidence
+All diagnostic runs used the predeclared `PP_PROFILE_SEED=hard-fold-55` so T
+comparisons use the same 64-lane diagnostic seed.
 
-Clean release build:
+| experiment | operations | ops SHA-256 | Q | diagnostic T | gate |
+|---|---:|---|---:|---:|---|
+| protected base, fold54 | 12,901,167 | `ecc3d9f0bb1dd4e68e6d337e39c4cdb66cfbfe83928a81fec28e22797fca4cfd` | 1272 | 914777.30 | `0/0/0` |
+| E-001 fold55 | 12,923,378 | `f3915652770187b4200ac6bf424ee3034b54e859b06717bf912fef562f72ed00` | 1273 | 916106.31 | killed on Q |
+| E-001b fold55 + peak1271 | 12,945,334 | `65d7cb17bb9ede12e28f2d1a354b003a79a7b47ebc1ebb80cca2a8b9b4741d90` | 1273 | 917028.50 | killed on Q |
+| E-001c fold55 + selector alias | 12,939,336 | `d4ecab6dd80d044d0a28ae456a9106992d2b3aae070d80cfa0dde3d24400f920` | 1272 | 916117.12 | `0/0/0`; density gate held |
 
-```text
-cargo clean
-cargo build --release --bin build_circuit --bin eval_circuit
-```
+E-001c's diagnostic delta is +1339.82 T against the same-seed base. Its four
+Q1272 co-binders are:
 
-Final default reconstruction:
-
-| item | exact result |
-|---|---|
-| loaded/emitted ops | 12,901,167 |
-| semantic ops before 96-op tail | 12,901,071 |
-| `ops.bin` SHA-256 | `ecc3d9f0bb1dd4e68e6d337e39c4cdb66cfbfe83928a81fec28e22797fca4cfd` |
-| peak qubits | 1272 |
-| 64-lane diagnostic T | 914748.17 |
-| 64-lane gate | classical 0, phase `0x0`, dirty qubits 0 |
-
-The final source state was rebuilt once more after comment cleanup and produced
-the same op count and artifact hash.
-
-## Co-binder profile
-
-`PP_PROFILE=1 PROFILE_ACTIVE_TIMELINE=1` shows a balanced Q1272 plateau:
-
-| phase | peak qubits | executed T on 64-lane diagnostic |
+| phase | peak Q | diagnostic T |
 |---|---:|---:|
-| `pp_div_replay` | 1272 | 262590.31 |
-| `square_product_register` | 1272 | 58733.52 |
-| `pp_mul_replay` | 1272 | 24218.28 |
-| `pp_mul_walkback` | 1272 | 307586.95 |
+| divide replay | 1272 | 263184.47 |
+| product-register square | 1272 | 58720.72 |
+| multiply replay | 1272 | 24273.28 |
+| multiply walkback | 1272 | 308320.66 |
 
-First peak: op 2,527,023 in `pp_div_replay`. Its live-set census is 339 prior
-walk-tape wires, 256 input/numerator wires, 256 replay coefficient wires, 145
-`u`, 145 `v`, 128 replay-ladder wires, and three one-wire controls/signs: 1272
-total. The two-qubit peak cut comes from replay ladder `130 -> 128`, coordinated
-with square ladder `244 -> 242`; R1 remains 340, so the prior tape contributes
-339 wires at the binding snapshot.
+## Exact H64 result
 
-## Focused source gates
+The complete predeclared H block is the 64 nonces
+`444000000000..444000000063`. Both streams ran all 64 through the unchanged
+full 9024-shot simulator with early abort disabled: 577,536 shots per stream.
 
-- `SUB4_PRODUCT_SQUARE_SELFTEST=1`: PASS — 58,980 emitted / 58,721.141
-  executed Toffoli, Q1272, 64 square inputs, phase and ancilla clean.
-- `SUB4_PINGPONG_POINT_ADD_SELFTEST=1`: PASS — 956,012 emitted / 914,661.344
-  executed Toffoli, Q1272, 64 affine additions, phase and ancilla clean.
-- `git diff --check`: PASS.
+| stream | classical | lambda/classical | phase batches | lambda/phase | ancilla | exact average T |
+|---|---:|---:|---:|---:|---:|---:|
+| fold54 base | 1135 | 17.734375 | 839 | 13.109375 | 0 | 914793.939537968 |
+| E-001c | 1054 | 16.468750 | 765 | 11.953125 | 0 | 916182.965865331 |
+| delta | -81 | -1.265625 | -74 | -1.156250 | 0 | +1389.026327363 |
 
-Release compilation emits three pre-existing warnings in unrelated arithmetic
-and dirty-scan code. No warning originates in this bake. Repository-wide
-test-only compilation is not claimed because the audited base has stale legacy
-test modules; the callable production self-tests and unchanged trusted
-evaluator are the applicable gates.
+This is a 7.14% classical-count reduction and an 8.82% phase-batch reduction
+on H. Rounded candidate T is 916183, below the hard ceiling 921139 by 4956.
+At Q1272 the hypothetical clean score would be 1,165,384,776, 6,304,524 below
+the pinned reference score 1,171,689,300. The stream is dirty, so this is only
+an economic bound.
 
-## Unchanged full 9,024-shot evaluation
+The same numeric nonces derive different SHA-bound shots on the two streams.
+These are full ensemble measurements, not paired-shot causal estimates.
 
-The final default artifact was evaluated by the unchanged release
-`eval_circuit` binary:
+## Exact cause census and predictor boundary
+
+The qualified fold54 model matched all 64 full-simulator classical counts and
+classified its 1135 faults as:
 
 ```text
-loaded ops:              12,901,167
-qubits:                  1272
-classical mismatches:    17
-phase-garbage batches:   16
-ancilla-garbage batches: 0
-exact average T:         914792.720
+walk_div=509 replay_div=71 walk_mul=500 replay_mul=55 result=0
 ```
 
-Rounded T would be 914793 and the score would be
-`1272 * 914793 = 1,163,616,696` if a clean nonce exists, an 8,072,604 reduction
-against the audited live score 1,171,689,300. The inherited draw is not clean,
-so no submission claim follows from that score.
+The first fold55 patch predicted only 1051 faults and missed one full-simulator
+fault in each of nonces `444000000009`, `444000000010`, and `444000000025`.
+The gap was not the selector identity. Fold55 exposed an irreversible
+pre-truncation width POP during reverse walkback; the inherited wrapped-output
+rescue propagated replay and shell values but did not model the lost walkback
+bit. A scratch-only fail-closed correction matched all 64 exact counts and
+classified E-001c as:
 
-The full evaluator appends its receipt to `results.tsv`; that generated row was
-removed after reading the exact average and is not part of this branch.
-`ops.bin`, release binaries, logs, and generated score artifacts remain ignored
-and uncommitted.
+```text
+walk_div=502 replay_div=32 walk_mul=486 replay_mul=33 result=1
+```
 
-## Risk and next gate
+Replay therefore fell from 126 to 65 faults, a 48.41% reduction. However, the
+new result fault is real: nonce `444000000032`, shot 7997 is present in the
+unchanged simulator's exact mismatch set. That fails the predeclared gate.
 
-The square and affine primitives pass their binary correctness gates. The
-remaining faults are graded-route risks: two fewer divide rounds change
-convergence exposure, width rescaling narrows the sampled schedule, and the
-smaller replay/square budgets change measured-boundary exposure.
+The scratch correction is evidence, not a production predictor. Its fixed
+`pp_model.h` SHA-256 is
+`5b5bddc05cd92ffff4102fb90fd1dc3ec18daf78bfc59423c0371ae8f1d34ddc`.
+No scan may use E-001c until a stream-bound model passes the full independent
+qualification suite; this lane starts no such qualification.
 
-Before any hunt, qualify an exact classical predictor against unchanged full
-9,024-shot fixtures and prove CPU/GPU parity on this exact op hash. Only after
-that gate should a bounded first-predicted-clean canary be evaluated. A final
-candidate still requires full `0/0/0` on the unchanged evaluator.
+## Exact P16 and inherited gates
+
+The predeclared P block is `444000000000..444000000015`, all sixteen complete
+9024-shot simulations per stream.
+
+| stream | classical | phase batches | ancilla | exact aggregate T |
+|---|---:|---:|---:|---:|
+| fold54 base | 254 | 189 | 0 | 914793.968653036 |
+| E-001c | 258 | 179 | 0 | 916180.733252992 |
+
+The smaller P block is statistically flat on classical output and lower by ten
+phase batches. H is the powered decision block.
+
+The unchanged evaluator on E-001c's inherited nonce `251000962439` reported
+`14/14/0` and exact average T 916180.201. It is not a candidate. Focused gates
+on the held stream passed:
+
+- selector Boolean miter: 8/8 states;
+- product-register square: 58,980 emitted / 58,721.141 executed T, Q1272;
+- full pingpong affine-add selftest: 957,402 emitted / 916,093.578 executed T,
+  Q1272;
+- both focused processes exited 0; `git diff --check` passed.
+
+## Artifact receipts
+
+Generated evidence remains outside Git.
+
+| receipt | SHA-256 |
+|---|---|
+| base H64 full TSV | `7897379ef24d73e04310c72f12cfd0f4b1cb5f6147f80d8c1b86ab4722b6fbad` |
+| E-001c H64 full TSV | `d08f40bc4a88a2038ff9f37def52b3288fe87f232f2d274c92bea1a20780b80f` |
+| base P16 full TSV | `87382f73feb8a7cfb11393845e6f5237800367eaef1a69b6f3b1fc5b17069c80` |
+| E-001c P16 full TSV | `0d3958364c0759e41287830806cc910fd259dd53d3a1c48453c94c197ddb0082` |
+| candidate profile | `8d4c0661e74c0d0d81f5cff574aefeda20f88995e3d2975b0639abf1fd7b21e9` |
+
+The final rebuilt candidate profile reproduces the same operations, SHA, Q,
+T, and `0/0/0`. Temporary evaluators, predictor sources/binaries, ops streams,
+logs, and generated result rows are not committed.
+
+## Reproduction and next falsifier
+
+Default source rebuilt the protected 12,901,167-op SHA `ecc3d9f0...`. The full
+promoted-route override vector, with fold54 and alias off, rebuilt SHA
+`d9737f5154cf1159d1115f5057dcc8019b42984507f4e0cbeacd80edaee0b124`.
+
+The single next structural action is to isolate E-001c's exact result fault at
+nonce `444000000032`, shot 7997 across square versus final coordinate shell.
+Only if that attribution names a bounded repair should E-004 widen the square
+low window or a terminal/result cell. Any composition must retain Q1272,
+rounded full T at or below 921139, exact base/live reproduction, and a fresh
+no-new-result H gate. Do not grind the held stream.

@@ -57,3 +57,17 @@ E-001b stopped before H/P at Q1273. E-001c is now frozen before measurement as
 peak1272 plan. First run the exhaustive selector miter and F3. Only if the miter
 passes and F3 is Q1272 or lower, `0/0/0`, and inside the T ceiling may H/P run.
 The original H/P ranges and thresholds remain unchanged.
+
+## Terminal disposition
+
+E-001c passed the miter/profile gate, so all frozen H and P nonces ran. When the
+first candidate predictor missed two exact P faults, the already-declared H
+block was rerun through the unchanged full simulator for both streams. This did
+not add or select nonces; all 64 ran unconditionally with early abort disabled.
+
+Exact H64 was base `1135/839/0` versus E-001c `1054/765/0` for
+classical/phase-batches/ancilla. A corrected scratch cause census measured
+replay `126 -> 65`, but also result `0 -> 1`. The result event is exact at nonce
+`444000000032`, shot 7997, so gate 4 fails and E-001c is held rather than
+promoted. P16 was base `254/189/0` versus E-001c `258/179/0`; its smaller
+classical sample is flat and does not override H or the result gate.

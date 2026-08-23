@@ -9,6 +9,7 @@ Frozen before new measurement on 2026-08-23.
 | A-200 | `09-pingpong-interleaved.md` | Replay fold cells are much narrower than the binding replay ladder; window changes have a known near-linear T price. | Historical measurements, not current density. |
 | A-300 | Q1272 qualified CPU/CUDA model | Complete classical fault masks agree with the unchanged evaluator on frozen fixtures for the exact fold54 stream. | Any fold-width change requires an independently patched model or full simulation. |
 | A-400 | prior MUL695 selector lane | A retained one-bit selector can host below peak, but one extra round is not a universal terminal repair and controlled replay was expensive. | Do not port before residual-state census. |
+| A-500 | E-001c in this lane | A materialized linear selector can be replaced by its already-live XOR factors, buying one fold-local wire with no new T-bearing gate. | Exact for the selector cell; the fold55 composition is held by one result fault and needs a corrected walkback model. |
 
 The re-descent starts at A-000. It does not cherry-pick an old candidate or
 reuse a stale predictor claim after the operation stream changes.

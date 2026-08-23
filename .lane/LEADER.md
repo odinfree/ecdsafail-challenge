@@ -14,9 +14,10 @@ Frozen before new measurement on 2026-08-23 (Europe/Zurich).
 | inherited full result | `17/16/0`, exact average T `914792.720` |
 | rounded-T ceiling | `921139` |
 
-The base reproduction switch for any replay-fold experiment is
-`SUB4_PP_REPLAY_FOLD_WINDOW=54`. A changed default is invalid unless this
-switch reproduces the exact base ops count and SHA above.
+The base reproduction switches for a replay-fold/selector experiment are
+`SUB4_PP_REPLAY_FOLD_WINDOW=54 SUB4_PP_MUL_PLUS2F_ALIAS=0`. A changed default
+is invalid unless this vector reproduces the exact base ops count and SHA
+above.
 
 ## Promoted-route reproduction fixture
 
@@ -32,9 +33,19 @@ SUB4_PP_R2=625
 SUB4_PP_PEAK=1275
 SUB4_SQUARE_LADDER=245
 SUB4_PP_REPLAY_FOLD_WINDOW=54
+SUB4_PP_MUL_PLUS2F_ALIAS=0
 ```
 
 Expected ops SHA-256:
 `d9737f5154cf1159d1115f5057dcc8019b42984507f4e0cbeacd80edaee0b124`.
 
 No experiment may overwrite either protected reference.
+
+## Held structural component
+
+`SUB4_PP_REPLAY_FOLD_WINDOW=55 SUB4_PP_MUL_PLUS2F_ALIAS=1` reconstructs
+12,939,336 operations at SHA-256
+`d4ecab6dd80d044d0a28ae456a9106992d2b3aae070d80cfa0dde3d24400f920`,
+Q1272, same-seed diagnostic T916117.12, and `0/0/0`. It is not the leader or a
+hunt stream: the exact H64 gate contains one new result fault and the inherited
+nonce is `14/14/0`.

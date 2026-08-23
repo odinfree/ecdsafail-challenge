@@ -1534,20 +1534,51 @@ fn twos_complement_bits(value: U256, width: usize) -> Vec<bool> {
     output
 }
 
+fn mul_plus_2f_alias_enabled() -> bool {
+    std::env::var("SUB4_PP_MUL_PLUS2F_ALIAS")
+        .ok()
+        .as_deref()
+        == Some("1")
+}
+
+/// Exhaust the Boolean identity used by the multiply replay's selector alias.
+/// `minus_f = routed & sign`, so the materialized `plus_2f` selector is
+/// `routed ^ minus_f = routed & !sign`.  The fold consumes that selector only
+/// through CX toggles; toggling by both factors is therefore identical.
+fn multiply_plus_2f_alias_selfcheck() {
+    for routed in [false, true] {
+        for sign in [false, true] {
+            for operand in [false, true] {
+                let minus_f = routed && sign;
+                let materialized = routed ^ minus_f;
+                let materialized_toggle = operand ^ materialized;
+                let aliased_toggle = operand ^ routed ^ minus_f;
+                assert_eq!(materialized, routed && !sign);
+                assert_eq!(aliased_toggle, materialized_toggle);
+            }
+        }
+    }
+    eprintln!("SUB4_PP_MUL_PLUS2F_ALIAS_SELFTEST: PASS (8/8 Boolean states)");
+}
+
 fn fused_operand_controls(
     f: U256,
     negative_f: &[bool],
     index: usize,
     plus_f: QubitId,
     plus_2f: QubitId,
+    plus_2f_xor: Option<QubitId>,
     minus_f: QubitId,
 ) -> Vec<QubitId> {
-    let mut controls = Vec::with_capacity(3);
+    let mut controls = Vec::with_capacity(4);
     if f.bit(index) {
         controls.push(plus_f);
     }
     if index > 0 && f.bit(index - 1) {
         controls.push(plus_2f);
+        if let Some(q) = plus_2f_xor {
+            controls.push(q);
+        }
     }
     if negative_f[index] {
         controls.push(minus_f);
@@ -1557,7 +1588,8 @@ fn fused_operand_controls(
 
 /// Add the one-hot selected member of {-f,0,+f,+2f} without materialising a
 /// 56-bit operand.  A single roving bit supplies the classical per-position
-/// XOR of the three selectors.
+/// XOR of the selector factors.  A logical selector may be supplied as two
+/// wires when its value is already available as their XOR.
 fn fused_fold_maskfree(
     b: &mut B,
     acc: &[QubitId],
@@ -1565,11 +1597,22 @@ fn fused_fold_maskfree(
     negative_f: &[bool],
     plus_f: QubitId,
     plus_2f: QubitId,
+    plus_2f_xor: Option<QubitId>,
     minus_f: QubitId,
     first_carry: QubitId,
 ) {
     let width = acc.len();
-    let controls = |index| fused_operand_controls(f, negative_f, index, plus_f, plus_2f, minus_f);
+    let controls = |index| {
+        fused_operand_controls(
+            f,
+            negative_f,
+            index,
+            plus_f,
+            plus_2f,
+            plus_2f_xor,
+            minus_f,
+        )
+    };
 
     for control in controls(0) {
         b.cx(control, acc[0]);
@@ -1696,6 +1739,7 @@ fn signed_mod_add_pm_halve_fused(b: &mut B, sign: QubitId, source: &[QubitId], t
         &negative_f,
         plus_f,
         plus_2f,
+        None,
         minus_f,
         not_sign_and_parity,
     );
@@ -1779,9 +1823,14 @@ fn signed_mod_double_add_pm_fused(
     b.cx(add_out, sign_xor_add);
     let routed = and_clean(b, doubled_out, sign_xor_add);
     let minus_f = and_clean(b, routed, sign);
-    let plus_2f = b.alloc_qubit();
-    b.cx(routed, plus_2f);
-    b.cx(minus_f, plus_2f);
+    let plus_2f = if mul_plus_2f_alias_enabled() {
+        None
+    } else {
+        let q = b.alloc_qubit();
+        b.cx(routed, q);
+        b.cx(minus_f, q);
+        Some(q)
+    };
     let plus_f = b.alloc_qubit();
     b.cx(doubled_out, plus_f);
     b.cx(add_out, plus_f);
@@ -1799,7 +1848,8 @@ fn signed_mod_double_add_pm_fused(
         f,
         &negative_f,
         plus_f,
-        plus_2f,
+        plus_2f.unwrap_or(routed),
+        plus_2f.is_none().then_some(minus_f),
         minus_f,
         first_carry,
     );
@@ -1815,9 +1865,11 @@ fn signed_mod_double_add_pm_fused(
     b.cx(add_out, plus_f);
     b.cx(minus_f, plus_f);
     b.free(plus_f);
-    b.cx(minus_f, plus_2f);
-    b.cx(routed, plus_2f);
-    b.free(plus_2f);
+    if let Some(plus_2f) = plus_2f {
+        b.cx(minus_f, plus_2f);
+        b.cx(routed, plus_2f);
+        b.free(plus_2f);
+    }
     and_uncompute(b, minus_f, routed, sign);
     and_uncompute(b, routed, doubled_out, sign_xor_add);
     b.cx(add_out, sign_xor_add);
@@ -1985,6 +2037,9 @@ fn replay_doubling_inverse(b: &mut B, tape: &[QubitId], x: &[QubitId], y: &[Qubi
 /// TrailMix coordinate shell and symmetric in-place square verbatim.  Only
 /// the two division callbacks differ from the baseline construction.
 pub(crate) fn build_pingpong_point_add() -> Vec<Op> {
+    if std::env::var_os("SUB4_PP_MUL_PLUS2F_ALIAS_SELFTEST").is_some() {
+        multiply_plus_2f_alias_selfcheck();
+    }
     if mux_round0_correction_enabled() {
         set_default_env("DIALOG_GCD_FOLD_MAJ1", "1");
     }

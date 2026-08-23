@@ -9,8 +9,9 @@ Frozen before new measurement on 2026-08-23.
 | replay fold window | 54 | 55 | base opt-out `=54` |
 | replay peak / square ladder | 1272 / 242 | E-001c: 1272 / 242 | all co-binders must remain Q1272 |
 | multiply `plus_2f` selector | one materialized qubit | XOR alias of existing `routed`, `minus_f` | exact Boolean miter and full cleanup required |
-| replay hard channel | measured on corpus H | predicted lower | primary decision signal |
-| phase density | measured on corpus P | measured on corpus P | secondary signal; no independence assumption |
+| replay hard channel | 126/64 on H | 65/64 on H | 48.41% lower; exact patched cause census |
+| result channel | 0/64 on H | 1/64 on H | predeclared composition blocker |
+| phase density | 839/64 on H | 765/64 on H | lower ensemble count; no independence assumption |
 | full rounded T | 914793 | must be <=921139 | hard gate |
 
 E-001 is not composed with width-repair tables, terminal selectors, endpoint
@@ -24,3 +25,8 @@ Q/T profile; no H/P candidate measurement occurs if the saddle misses.
 E-001b also measured Q1273 and is killed. E-001c restores peak1272, keeps
 fold55, and removes only the redundant multiply selector allocation. It remains
 isolated from every width, endpoint, square, terminal-tail, and nonce change.
+
+E-001c closes its Q/T and focused-selfcheck gates but fails the no-new-result
+gate. It remains an explicit opt-in component; protected defaults stay fold54
+and alias-off. The next composition must repair or avoid the exact result fault
+at nonce `444000000032`, shot 7997 before H is rerun.
