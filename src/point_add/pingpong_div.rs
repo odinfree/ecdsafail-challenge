@@ -202,7 +202,14 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
         PingPongDirection::Multiply => 1, // `doubled_out` lives across the add
     };
     let pick_chunks = |plan: &Plan, tape_len: usize, walk_width: usize| -> usize {
-        let a = allowance(plan, tape_len, walk_width);
+        let replay_peak = match direction {
+            PingPongDirection::Divide => plan.peak,
+            PingPongDirection::Multiply => std::env::var("SUB4_PP_MUL_REPLAY_PEAK")
+                .ok()
+                .and_then(|v| v.parse::<usize>().ok())
+                .unwrap_or(plan.peak),
+        };
+        let a = allowance(replay_peak, tape_len, walk_width);
         if legacy_ladder() {
             // Legacy: a chunk *count*, translated to a width by `set_chunks`.
             return N.div_ceil(chunks_for_allowance(a, cell_extra).unwrap_or(8));
@@ -1278,8 +1285,8 @@ fn plan(rounds: usize) -> Option<Plan> {
 /// Footprint outside the replay cell at an interleaved round: tape (round+1
 /// signs), both coefficient registers, and the two walk registers at their
 /// current width.
-fn allowance(plan: &Plan, tape_len: usize, walk_width: usize) -> usize {
-    plan.peak.saturating_sub(tape_len + 2 * N + 2 * walk_width)
+fn allowance(peak: usize, tape_len: usize, walk_width: usize) -> usize {
+    peak.saturating_sub(tape_len + 2 * N + 2 * walk_width)
 }
 
 fn value_walk(b: &mut B, u: &mut Vec<QubitId>, v: &mut Vec<QubitId>, rounds: usize) -> Vec<QubitId> {
