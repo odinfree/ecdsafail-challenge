@@ -24,11 +24,13 @@
   `1177/871/286/0`;
 - model family: `q1270_native_recurrence_v1`, empty implementation,
   predeclared at `4aaf5b8`;
-- native derivation: phase/checkpoint byte-exact; width/round probe implemented,
-  not yet run;
+- native derivation: phase/checkpoint byte-exact; 700/700 width rows and both
+  696-round active schedules matched frozen source; widths
+  `07e910b9...6f235`, active schedules `c49b95b0...a8bf5`, input seal
+  `c226f964...003a8`;
 - model status: no donor source, binary, table, checkpoint, or output imported;
-- decision: `MODEL FAMILY PREDECLARED / NATIVE DERIVATION NEXT / NO HUNT`.
+- decision: `NATIVE DERIVATION PASS / EMPTY-FILE MODEL IMPLEMENTATION NEXT / NO HUNT`.
 
-Next action: commit/push the native derivation probe, seal its exact output,
-then implement the recurrence from empty target files. D32 remains unopened;
-F16 is frozen only after inherited+H64 model equality.
+Next action: implement the recurrence from empty target files, build it twice,
+and require complete inherited-mask equality. D32 remains unopened; F16 is
+frozen only after inherited+H64 model equality.
