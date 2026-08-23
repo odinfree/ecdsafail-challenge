@@ -268,3 +268,56 @@ not schedule-repairable. Paid-repair census on the repaired stream is the
 one unmeasured box (external tooling). Next binder is not the width
 schedule: it is phase lambda (~11, untouched by any width move) and the
 hard classical channels.
+
+---
+
+# Search-model qualification packet (`.lane/stage-packet/`)
+
+Sealed the classical-fault search-model qualification for the frozen r100
+stream into this committed branch. Non-duplicative: the arm64 CPU
+qualification (`~/ecdsa-ops/gpu-port-q1274-repair-r100`, 22 cases / 323 rows)
+and the terminal Linux CPU/CUDA 32-fixture parity + lane04 canary
+(`~/ecdsa-ops/q1274-repair-r100-packet`) already exist as uncommitted scratch;
+this packet vendors their exact sources and receipts into the git branch and
+adds an independently-run local canary.
+
+## Reproduced here (this worktree, this machine — arm64, macOS)
+
+- Byte-exact artifact: clean `build_circuit` release build, NO env overrides,
+  emitted ops.bin op count 12,920,073, SHA-256
+  `4c68597468ed1dbb4f2e33042842227bf57c011c51f41e9cdaf13c73194b1f8c` (== target).
+- Vendored predictor sources hash-identical to upstream `CORE.sha256`
+  (pp_host.h/pp_model.h/ppcpu.cpp/ppgpu.cu/build.sh).
+- `verify_local_cpu.sh` PASS: 22 cases / **323/323** classical failing-shot
+  rows set-equal to `fixtures.local.tsv`; mask totals 1:136 2:18 4:148 8:21
+  16:0; inherited nonce 251000962439 breakdown 8/0/9/5/0 first=474 (== full-eval
+  22/11/0). Loader state digest d2c95102cb9a277d accepted the reproduced stream.
+- Fail-closed negatives, both exit 2: wrong count 12,921,096 (pre-hash);
+  same-count byte-16-altered stream, SHA
+  `4daf97cffbdfd19fdd6df22d0d8861af49d6b11e0d87f43cb50aafbc85a04e38`
+  (pre-decompress) — the SHA reproduces the frozen PREDICTOR.md negative exactly.
+
+## Referenced by hash (upstream, read-only — NOT re-run here)
+
+- Linux CPU SHA-256 18f170804a2ca40363a0df3a6f5a86ba33ba92d6fdbe372869e30e0950d7d65d;
+  Linux CUDA SHA-256 e7b33611ef13bdd5fa89421cdd5ee802793ef9c2f60542419b2d19ed4ad79032.
+- Linux parity gate ALREADY PASSED: 32/32 fixtures CPU==GPU8==GPU16, 64/64 CUDA
+  state-digest checks, parity-results SHA-256
+  924e31aee95e360eb742fb3bb3de9122552d8efce2a74828dacd7bac1ef130d1, 457 faults,
+  mask 1:178 2:34 4:203 8:42 16:0. `run_linux_parity.sh` reproduces it from the
+  committed packet if re-staged.
+- Sole authorized lane04 canary is terminal: survivor 100000035106674 → 0/2/0
+  (phase-dirty), not a candidate. No hunt/extension/submission initiated here.
+
+## Limitation
+
+Result channel (mask 16) is 0 across all 323 local + 457 parity rows —
+CPU/CUDA parity on that channel is UNEXERCISED, not covered. Both runners emit
+`mask16_observed=0` so a green run is not read as full-channel coverage.
+
+## Blocker / next canary
+
+No open blocker in this worktree: local canary green, sources sealed. The one
+gate this branch cannot itself close is a fresh Linux+CUDA parity run (no local
+nvcc) — `run_linux_parity.sh` is the sealed, self-verifying reproduction for
+that host; the original run already passed with the receipt hashes above.
