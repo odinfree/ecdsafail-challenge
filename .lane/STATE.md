@@ -127,3 +127,100 @@ neither the structural finding nor the `HOLD_HUNT` disposition and was deferred.
 No hunt, provider action, fleet retarget, submission, public note, adaptive
 nonce search, or ecdsa-ops mutation occurred in this lane. `git diff b523ecf..HEAD
 -- src` is the single inert `SUB4_PP_BREAK_1` exposure.
+
+---
+
+# H64 three-stream tiebreak — PREDECLARATION
+
+Written 2026-08-23 on HEAD `b718d20`, BEFORE any candidate aggregate is
+observed. Frozen here, then measured. The structural matrix above is closed and
+is not redone. This tiebreak only decides which reached-Q1274 stream (if any) is
+carried forward for source-bound predictor qualification.
+
+## Streams (exact, source-bound; SHAs reproduced on this host)
+
+- protected b523 — no knobs, Q1278, op SHA `4cb1787b...`, 12,876,472 ops;
+- control — `SUB4_PP_PEAK=1274 SUB4_SQUARE_LADDER=244`, Q1274, op SHA
+  `61a57ce6...`, 12,935,433 ops, inherited-nonce `14/9/0`;
+- score-optimal (B1=24) — `+ SUB4_PP_BREAK_1=24`, Q1274, op SHA `8bc29444...`,
+  12,879,923 ops, inherited-nonce `24/17/0`.
+
+All three SHAs were reproduced byte-for-byte on this host before predeclaring.
+
+## 1. Corpus (frozen, identical for every stream)
+
+Exactly the 64 nonces `444000000000..444000000063` (`SUB4_PINGPONG_TAIL_NONCE`),
+each built from a clean source-bound config and evaluated by the UNCHANGED full
+`eval_circuit` over all 9,024 shots. 64 rows/stream, 128 candidate rows total.
+No row may be skipped: a missing/short/malformed row is a HARD FAIL of the run,
+never a shrunk denominator. Widths, rounds, R1/R2, corpus, and evaluator are
+frozen; nothing is tuned or adapted to results.
+
+## 2. Metrics (per stream)
+
+- classical = sum over 64 nonces of per-shot classical mismatches;
+- phase = sum over 64 nonces of phase-garbage batch counts;
+- ancilla = sum over 64 nonces of ancilla-garbage batch counts;
+- combined = classical + phase;
+- meanT = mean of the 64 exact 3-decimal evaluator average-T rows;
+- every candidate row must read Q == 1274 and ancilla == 0 off the evaluator
+  (Q read per row, never inferred); any violation is a row-level HARD FAIL.
+
+## 3. Protected reference — reuse-or-rerun, and non-inferiority ceilings
+
+The sibling Q1276 study (`b523-ladder-redescent/.lane/STATE.md`) froze the
+protected-b523 H64 receipt: 64 rows, meanT `914783.503250`, `1069/848/0`, 0 clean
+rows; "protected H64 rows, header excluded" SHA-256
+`3b1d7777a7b45fb851cdad5fa9d2e04e6fbd1ace86497e6ceb7a60fd70f82402`.
+
+The frozen row-ledger file was kept outside Git and is not recoverable in any
+worktree/job dir, so its receipt hash CANNOT be verified by re-hash here.
+Therefore, per the task's reuse-or-rerun clause, protected b523 is RERUN
+unchanged. Because this tree reproduces `4cb1787b...` byte-for-byte with
+`SUB4_PP_BREAK_1` unset, the protected op streams — hence Fiat-Shamir seeds and
+every per-nonce count — are deterministically identical to the sibling's. The
+rerun MUST land on `1069/848/0` and meanT `914783.503250` EXACTLY; any deviation
+is a harness bug (env leakage, wrong nonce range, miscount) and the run stops
+rather than averaging over it. Exact reproduction verifies the frozen receipt by
+reproduction, which is stronger than the unavailable hash match.
+
+Ceilings are fixed NOW from the frozen protected totals P, using the
+predeclarable H0 dispersion σ₀ = √(2P) (candidate expected == protected under
+H0; Var(C − P) ≈ 2P). Three-sigma non-inferiority ceilings, floor-rounded:
+
+- classical: 1069 + 3·√2138 = 1069 + 138.7 → **≤ 1207**;
+- phase: 848 + 3·√1696 = 848 + 123.5 → **≤ 971**;
+- combined: 1917 + 3·√3834 = 1917 + 185.8 → **≤ 2102**;
+- ancilla: hard **0** on every one of the 64 rows (no sigma).
+
+A stream is "non-inferior to protected" iff classical ≤ 1207 AND phase ≤ 971 AND
+combined ≤ 2102 AND ancilla == 0 on all rows. This σ₀ = √(2P) form is
+intentionally tighter and predeclarable, unlike the sibling's post-hoc
+σ = √(P+C); both z-forms are reported afterward for continuity, but adjudication
+uses these frozen √(2P) ceilings and this floor-rounding convention only.
+
+## 3b. Score-optimal-vs-control comparison rule (fixed before candidate totals)
+
+"score-optimal not materially worse than control" iff, on the SAME 64-nonce
+corpus, `combined(B1=24) − combined(control) ≤ 3·√(2·combined(control))` AND
+`classical(B1=24) − classical(control) ≤ 3·√(2·classical(control))`. Control's
+totals are unknown until its run; the RULE (formula, threshold, floor rounding)
+is frozen now — only the numbers plug in.
+
+## 4. Selection rule
+
+1. carry score-optimal (B1=24) forward iff it is non-inferior to protected (§3)
+   AND not materially worse than control (§3b);
+2. else carry control forward iff it is non-inferior to protected (§3);
+3. else HOLD BOTH.
+
+Carry-forward means source-bound predictor qualification only — never a hunt,
+provider action, fleet retarget, submission, public note, or default change. A
+dirty inherited nonce is an architecture result, not hunt authorization. Score
+margin never excuses density: the ~9× score edge of B1=24 does not enter §3/§4.
+Final acceptance of any stream remains a future fresh `0/0/0` full run beating a
+reopened frontier; this corpus only gates qualification.
+
+Row ledgers, the harness, and receipt hashes are frozen OUTSIDE Git; only the
+compact aggregate/selection table and one small per-nonce three-stream audit TSV
+are committed.
