@@ -1847,7 +1847,7 @@ fn signed_mod_double_add_pm_fused(
         .wrapping_sub(SECP256K1_P)
         .wrapping_add(U256::from(1));
 
-    let doubled_out = b.alloc_qubit();
+    let mut doubled_out = b.alloc_qubit();
     b.swap(target[N - 1], doubled_out);
     for i in (0..N - 1).rev() {
         b.swap(target[i], target[i + 1]);
@@ -1884,6 +1884,15 @@ fn signed_mod_double_add_pm_fused(
     b.cx(doubled_out, odd_correction);
     b.cx(add_out, odd_correction);
     let first_carry = and_clean(b, target[0], odd_correction);
+    // Prototype third-binder eviction. `doubled_out` equals
+    // `odd_correction ^ add_out` here and is otherwise idle across the fused
+    // fold, so clear and lend its slot before rematerializing the same value.
+    let evict_doubled_out = std::env::var_os("SUB4_PP_EVICT_DOUBLED_OUT").is_some();
+    if evict_doubled_out {
+        b.cx(odd_correction, doubled_out);
+        b.cx(add_out, doubled_out);
+        b.free(doubled_out);
+    }
     let negative_f = twos_complement_bits(f, replay_fold_window());
     fused_fold_maskfree(
         b,
@@ -1895,6 +1904,11 @@ fn signed_mod_double_add_pm_fused(
         minus_f,
         first_carry,
     );
+    if evict_doubled_out {
+        doubled_out = b.alloc_qubit();
+        b.cx(odd_correction, doubled_out);
+        b.cx(add_out, doubled_out);
+    }
 
     b.cx(odd_correction, target[0]);
     and_uncompute(b, first_carry, target[0], odd_correction);
