@@ -37,10 +37,10 @@ REQUIRED_SNIPPETS = (
     'let r2 = env("SUB4_PP_R2", 628).min(rounds.saturating_sub(1));',
     'let peak = env("SUB4_PP_PEAK", 1273);',
     "if false && r <= u16::MAX as usize",
-    'std::env::var("SUB4_PP_FOLD_SELECTOR_EVICT")',
-    'std::env::var("SUB4_PP_EVICT_SIGN_XOR_ADD")',
-    'std::env::var("SUB4_PP_ALIAS_TARGET0_SIGN")',
-    'std::env::var_os("SUB4_PP_EVICT_DOUBLED_OUT")',
+    'std::env::var("SUB4_PP_FOLD_SELECTOR_EVICT").ok().as_deref() == Some("1")',
+    'std::env::var("SUB4_PP_EVICT_SIGN_XOR_ADD").ok().as_deref() == Some("1")',
+    'std::env::var("SUB4_PP_ALIAS_TARGET0_SIGN").ok().as_deref() == Some("1");',
+    'let evict_doubled_out = std::env::var_os("SUB4_PP_EVICT_DOUBLED_OUT").is_some();',
 )
 
 
