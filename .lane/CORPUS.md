@@ -43,3 +43,11 @@ widening is not the hard-channel lever. Gate 5 is secondary: a statistically
 flat P result does not erase a classical win, but a clear phase regression
 blocks composition. Any advance remains a density-improved architecture, not
 a clean submission candidate.
+
+## E-001 terminal result and E-001b gate
+
+E-001 stopped before H/P because its measured peak was Q1273. E-001b is frozen
+before measurement as `SUB4_PP_REPLAY_FOLD_WINDOW=55 SUB4_PP_PEAK=1271` on the
+unchanged source. First run F3 only. If and only if F3 reports Q1272 or lower,
+rounded-T headroom remains positive, and `0/0/0`, run the already-frozen H and P
+blocks in full. No corpus or threshold changes.
