@@ -298,3 +298,30 @@ ran. Default, E-007, and tail42 operation hashes reproduced exactly after
 cleanup. Any next repair must explicitly preserve the carry across the
 low56/high200 boundary and erase it coherently inside the remaining 992-T live
 budget; another width shift is ruled out.
+
+## E-011 explicit call-9 carry terminal update
+
+E-011C1 reused the clean constant-add ladder apex to compute the exact carry
+crossing bit 56 and controlled-increment the untouched high200 suffix. The
+pinned E-009 control/target pair passed exact value, phase, and ancilla. The
+focused square remained Q1272 and measured 59,583 emitted / 59,327.438
+executed Toffoli versus the inherited 58,980 / 58,721.141: a `+603` /
+`+606.297` price inside the 992-T live allowance.
+
+The next frozen gate killed the implementation. All eight adversarial miter
+values were exact, including both bit-57 boundary cases that killed E-010, and
+all scratch was clean, but lane 4 (`z = 2^57-f`) retained phase mask `0x10`.
+The miter peaked at Q515 and emitted 817 Toffolis. Per the declared stop rule,
+square64, composition, full 9,024-shot evaluation, and H64 were not run.
+
+The failed source and temporary harnesses were removed. Protected arithmetic,
+product-square, evaluator, and tracked-results SHA-256 values reproduce as
+`c6deb3c0...69e0`, `21e4ef93...a4c6`, `b35314bc...890b`, and
+`eea84022...c810`. Default, E-007, and E-009 tail42 operation streams reproduce
+12,901,167 / `ecc3d9f0...4cfd`, 12,943,345 / `4618d4af...9f37`, and
+12,943,345 / `89d26f32...968` respectively.
+
+Terminal verdict: `VALUE_EXACT; COST_PASS; PHASE_KILL; SOURCE_REMOVED`.
+No hunt, scan, provider, remote, spend, submission, or downstream candidate
+measurement ran. A successor requires a separately predeclared phase-clean
+erasure, not another boundary shift or an adaptive patch inside E-011.
