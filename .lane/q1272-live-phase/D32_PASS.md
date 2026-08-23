@@ -1,6 +1,6 @@
 # Q1272 D32 combined-mask qualification
 
-Verdict: `PASS_D32_32_OF_32 / CPU_COMBINED_EXACT / NEGATIVES NEXT`.
+Verdict: `PASS_D32_32_OF_32 / CPU_COMBINED_EXACT / NEGATIVES PASS`.
 
 The source-bound CPU model reproduces every complete trusted classical and
 conditional-phase mask on the frozen, disjoint D32 corpus.  The model and
@@ -69,8 +69,7 @@ primary-lane gate and is not inferred from this receipt.
 
 ## Next gate
 
-Run the fixed fail-closed negative matrix against these unchanged sources and
-binary: malformed operation framing, wrong count, same-count wrong SHA,
-wrong checkpoint, wrong phase schedule, absent stream, scan-disabled command,
-unknown command, noncanonical/out-of-range nonce, and malformed/out-of-range
-shot.  Only a terminal negative-matrix pass may be handed to the CUDA lane.
+The fixed fail-closed negative matrix passed `23/23` and is sealed in
+`NEGATIVES_PASS.md`.  The next allowed action is an exact-source CUDA port and
+CPU=CUDA fixture parity under a separate predeclaration.  Range mode remains
+disabled.
