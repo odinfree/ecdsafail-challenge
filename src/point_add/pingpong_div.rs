@@ -540,6 +540,17 @@ fn fused_lift_round0_enabled() -> bool {
     std::env::var_os("SUB4_PINGPONG_SEPARATE_LIFT").is_none()
 }
 
+/// Opt-in (default off): evict the derived `sign_and_parity` selector across
+/// the 53-bit fused fold in [`signed_mod_add_pm_halve_fused`].  The selector
+/// is a two-CX function of `parity` and `not_sign_and_parity`, both of which
+/// stay live through the fold, and the fold itself never reads it; erasing it
+/// to proven zero before the fold and reconstructing it afterwards takes one
+/// wire off the fold cell's binding allocation.  Read per call (not cached) so
+/// the micro-selftest can compare both lifecycles in one process.
+fn fold_selector_evicted() -> bool {
+    std::env::var("SUB4_PP_FOLD_SELECTOR_EVICT").ok().as_deref() == Some("1")
+}
+
 fn mux_round0_correction_enabled() -> bool {
     std::env::var_os("SUB4_PINGPONG_SPLIT_ROUND0").is_none()
 }
@@ -1745,6 +1756,15 @@ fn signed_mod_add_pm_halve_fused(b: &mut B, sign: QubitId, source: &[QubitId], t
     let minus_f = and_clean(b, overflow, not_sign_and_parity);
     b.x(overflow);
     let plus_2f = and_clean(b, overflow, sign_and_parity);
+    let evict = fold_selector_evicted();
+    if evict {
+        // Both parents stay live and the fold never reads this selector:
+        // reverse the two CX that created it and release the proven zero, so
+        // the fold's binding allocation below is one wire narrower.
+        b.cx(not_sign_and_parity, sign_and_parity);
+        b.cx(parity, sign_and_parity);
+        b.free(sign_and_parity);
+    }
     let plus_f = b.alloc_qubit();
     b.cx(minus_f, plus_f);
     b.cx(sign, plus_f);
@@ -1762,6 +1782,16 @@ fn signed_mod_add_pm_halve_fused(b: &mut B, sign: QubitId, source: &[QubitId], t
         not_sign_and_parity,
     );
 
+    let sign_and_parity = if evict {
+        // Reconstruct the evicted selector from the same still-live controls;
+        // the protected cleanup below then consumes it unchanged.
+        let q = b.alloc_qubit();
+        b.cx(parity, q);
+        b.cx(not_sign_and_parity, q);
+        q
+    } else {
+        sign_and_parity
+    };
     b.cx(minus_f, plus_f);
     b.cx(sign, plus_f);
     b.cx(parity, plus_f);
@@ -2427,6 +2457,199 @@ pub(crate) fn pingpong_simulator_selfcheck() {
             assert_eq!(sim.qubit(q), 0, "dirty ancilla {q:?} in {direction:?}");
         }
     }
+}
+
+/// Focused exact falsifier for the `SUB4_PP_FOLD_SELECTOR_EVICT` lifecycle.
+///
+/// Builds the standalone `signed_mod_add_pm_halve_fused` cell twice — once
+/// protected, once with the selector evicted across the fold — under the
+/// terminal-replay ladder budget (58, the `allowance()` value at the D1272
+/// peak), and asserts on 64 lanes:
+///
+/// * lane values exactly match the classical `((t +/- s)/2) mod p` model AND
+///   the protected stream lane-for-lane;
+/// * full phase mask 0 and every non-input ancilla 0 on both streams;
+/// * the streams emit identical CCX+CCZ; the evicted stream adds exactly
+///   4 CX + 1 R and peaks exactly one qubit lower;
+/// * all eight (sign, overflow, parity) selector control arms are exercised
+///   by the deterministic generic corpus (coverage is asserted).
+#[allow(dead_code)]
+pub(crate) fn fold_selector_evict_selftest() {
+    use crate::circuit::QubitOrBit;
+    use sha3::{
+        digest::{ExtendableOutput, Update, XofReader},
+        Shake256,
+    };
+
+    let f = U256::MAX
+        .wrapping_sub(SECP256K1_P)
+        .wrapping_add(U256::from(1));
+    let p = SECP256K1_P;
+
+    // Classical model of the cell's (sign, overflow, parity) selector wires at
+    // the fold instant: the target is complemented when sign=1, then added to
+    // the source with a 256-bit carry-out.
+    let arm_of = |t: U256, s: U256, sign: bool| -> usize {
+        let work = if sign { !t } else { t };
+        let (sum, o) = work.overflowing_add(s);
+        usize::from(sign) << 2 | usize::from(o) << 1 | usize::from(sum.bit(0))
+    };
+
+    // 64 generic pseudorandom lanes (the truncated-window repairs are exact
+    // only on generic values, so no adversarially degenerate operands here);
+    // each lane's sign is chosen greedily so all 8 selector arms are covered.
+    let mut shake = Shake256::default();
+    shake.update(b"fold selector evict lifecycle falsifier inputs");
+    let mut reader = shake.finalize_xof();
+    let mut lanes: Vec<(U256, U256, bool)> = Vec::with_capacity(64);
+    let mut arm_counts = [0usize; 8];
+    while lanes.len() < 64 {
+        let mut bytes = [[0u8; 32]; 2];
+        XofReader::read(&mut reader, &mut bytes[0]);
+        XofReader::read(&mut reader, &mut bytes[1]);
+        let t = U256::from_le_bytes(bytes[0]) % p;
+        let s = U256::from_le_bytes(bytes[1]) % p;
+        if t < f || s < f {
+            continue;
+        }
+        let sign = arm_counts[arm_of(t, s, true)] < arm_counts[arm_of(t, s, false)];
+        arm_counts[arm_of(t, s, sign)] += 1;
+        lanes.push((t, s, sign));
+    }
+    assert!(
+        arm_counts.iter().all(|&c| c > 0),
+        "selector arm coverage incomplete: {arm_counts:?}"
+    );
+
+    let inv2 = p.wrapping_add(U256::from(1)) >> 1;
+    let expected: Vec<U256> = lanes
+        .iter()
+        .map(|&(t, s, sign)| {
+            let r0 = if sign {
+                if t >= s { t - s } else { p - (s - t) }
+            } else {
+                t.add_mod(s, p)
+            };
+            r0.mul_mod(inv2, p)
+        })
+        .collect();
+
+    // Build the standalone cell under the terminal-replay ladder budget.
+    let build = |evicted: bool| {
+        let saved = std::env::var("SUB4_PP_FOLD_SELECTOR_EVICT").ok();
+        if evicted {
+            std::env::set_var("SUB4_PP_FOLD_SELECTOR_EVICT", "1");
+        } else {
+            std::env::remove_var("SUB4_PP_FOLD_SELECTOR_EVICT");
+        }
+        let mut b = B::new();
+        let sign = b.alloc_qubit();
+        let source = b.alloc_qubits(N);
+        let target = b.alloc_qubits(N);
+        set_ladder(58);
+        signed_mod_add_pm_halve_fused(&mut b, sign, &source, &target);
+        clear_chunks();
+        match saved {
+            Some(v) => std::env::set_var("SUB4_PP_FOLD_SELECTOR_EVICT", v),
+            None => std::env::remove_var("SUB4_PP_FOLD_SELECTOR_EVICT"),
+        }
+        let num_qubits = b.next_qubit as usize;
+        let num_bits = b.next_bit as usize;
+        let peak = b.peak_qubits;
+        (b.take_ops(), sign, source, target, num_qubits, num_bits, peak)
+    };
+    let (ops_p, sign_p, source_p, target_p, nq_p, nb_p, peak_p) = build(false);
+    let (ops_e, sign_e, source_e, target_e, nq_e, nb_e, peak_e) = build(true);
+    assert_eq!(sign_p, sign_e);
+    assert_eq!(source_p, source_e);
+    assert_eq!(target_p, target_e);
+
+    // Structural gates: no Toffoli-bearing change, exactly 4 CX + 1 R added,
+    // exactly one peak qubit returned.
+    let count = |ops: &[Op], kind: OperationType| ops.iter().filter(|op| op.kind == kind).count();
+    let tof = |ops: &[Op]| count(ops, OperationType::CCX) + count(ops, OperationType::CCZ);
+    assert_eq!(tof(&ops_p), tof(&ops_e), "eviction must not change Toffoli");
+    assert_eq!(
+        count(&ops_e, OperationType::CX),
+        count(&ops_p, OperationType::CX) + 4,
+        "eviction must add exactly the four lifecycle CX"
+    );
+    assert_eq!(
+        count(&ops_e, OperationType::R),
+        count(&ops_p, OperationType::R) + 1,
+        "eviction must add exactly one proven-zero release"
+    );
+    assert_eq!(ops_e.len(), ops_p.len() + 5, "unexpected op-stream delta");
+    assert_eq!(
+        count(&ops_e, OperationType::Hmr),
+        count(&ops_p, OperationType::Hmr),
+        "eviction must not add Hmr"
+    );
+    assert_eq!(
+        count(&ops_e, OperationType::CZ),
+        count(&ops_p, OperationType::CZ),
+        "eviction must not add CZ"
+    );
+    assert_eq!(
+        peak_e + 1,
+        peak_p,
+        "eviction must return exactly one peak qubit ({peak_e} vs {peak_p})"
+    );
+
+    // Exact 64-lane simulation of each stream.
+    let run = |tag: &str, ops: &[Op], sign: QubitId, source: &[QubitId], target: &[QubitId], nq: usize, nb: usize| -> Vec<U256> {
+        let mut seed = Shake256::default();
+        seed.update(b"fold selector evict lifecycle falsifier sim ");
+        seed.update(tag.as_bytes());
+        let mut sim_reader = seed.finalize_xof();
+        let mut sim = Simulator::new(nq, nb, &mut sim_reader);
+        let source_reg: Vec<QubitOrBit> = source.iter().copied().map(QubitOrBit::Qubit).collect();
+        let target_reg: Vec<QubitOrBit> = target.iter().copied().map(QubitOrBit::Qubit).collect();
+        for (shot, &(t, s, lane_sign)) in lanes.iter().enumerate() {
+            sim.set_register(&source_reg, s, shot);
+            sim.set_register(&target_reg, t, shot);
+            if lane_sign {
+                *sim.qubit_mut(sign) |= 1 << shot;
+            }
+        }
+        sim.apply_iter(ops.iter());
+        let mut out = Vec::with_capacity(64);
+        for (shot, &(_, s, lane_sign)) in lanes.iter().enumerate() {
+            assert_eq!(
+                sim.get_register(&source_reg, shot),
+                s,
+                "{tag}: source clobbered in shot {shot}"
+            );
+            assert_eq!(
+                sim.qubit(sign) >> shot & 1,
+                u64::from(lane_sign),
+                "{tag}: sign clobbered in shot {shot}"
+            );
+            assert_eq!(
+                sim.get_register(&target_reg, shot),
+                expected[shot],
+                "{tag}: value mismatch in shot {shot}"
+            );
+            out.push(sim.get_register(&target_reg, shot));
+        }
+        assert_eq!(sim.phase, 0, "{tag}: phase garbage");
+        *sim.qubit_mut(sign) = 0;
+        for &q in source.iter().chain(target.iter()) {
+            *sim.qubit_mut(q) = 0;
+        }
+        for q in 0..nq as u64 {
+            assert_eq!(sim.qubit(QubitId(q)), 0, "{tag}: dirty ancilla q{q}");
+        }
+        out
+    };
+    let out_p = run("protected", &ops_p, sign_p, &source_p, &target_p, nq_p, nb_p);
+    let out_e = run("evicted", &ops_e, sign_e, &source_e, &target_e, nq_e, nb_e);
+    assert_eq!(out_p, out_e, "protected and evicted lane values diverge");
+
+    eprintln!(
+        "FOLD_SELECTOR_EVICT_SELFTEST: PASS (64/64 values exact both lifecycles, phase 0, \
+         ancilla 0, all 8 selector arms, Toffoli identical, +4 CX +1 R, peak {peak_p} -> {peak_e})"
+    );
 }
 
 #[cfg(test)]

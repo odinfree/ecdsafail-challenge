@@ -2541,6 +2541,10 @@ pub fn build() -> Vec<Op> {
             pingpong_div::pingpong_point_add_simulator_selfcheck();
             return Vec::new();
         }
+        if std::env::var_os("SUB4_PP_FOLD_SELECTOR_EVICT_SELFTEST").is_some() {
+            pingpong_div::fold_selector_evict_selftest();
+            return Vec::new();
+        }
         let mut ops = pingpong_div::build_pingpong_point_add();
         let nonce = std::env::var("SUB4_PINGPONG_TAIL_NONCE")
             .unwrap_or_default()
