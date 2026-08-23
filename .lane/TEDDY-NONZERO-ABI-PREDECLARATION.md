@@ -13,8 +13,8 @@ The candidate reconstructs production signs 1 through 3 from one retained
 denominator word, uses one shared sign, the existing two-qubit oracle scratch,
 and the same single local normalization flag from X007. It must expose exactly
 the same coefficient/numerator continuation as an unchanged production-walk
-reference on a frozen nonzero-seed corpus. A separately built unchanged
-production inverse must map that continuation back to the exact input ABI.
+reference on a frozen nonzero-seed corpus. The raw forward continuation must
+also define an exact finite inverse on the frozen seed set for each denominator.
 
 This is one semantic experiment. There is no second flag, persistent carrier,
 extra retained word, width schedule change, arithmetic-window change, nonce
@@ -75,8 +75,7 @@ predeclaration commit.
 Let `d` be the denominator and `(c0,n0)` the coefficient/numerator seed. Let
 `s1,s2,s3` be the exact first three nontrivial signs from the unchanged
 production denominator walk. Let `Rr(sr)` be production
-`replay_halving_round` at round `r`, and `Dr(sr)` its unchanged production
-`replay_doubling_round` inverse.
+`replay_halving_round` at round `r`.
 
 The unchanged production forward mapping executes:
 
@@ -84,11 +83,17 @@ The unchanged production forward mapping executes:
 (c0,n0) --R0--> --R1(s1)--> --R2(s2)--> --R3(s3)--> (c4,n4)
 ```
 
-The independently seeded inverse mapping executes:
+For each frozen denominator, the exact finite inverse is defined on the image
+of the 64 frozen seed pairs:
 
 ```text
-(c4,n4) --D3(s3)--> --D2(s2)--> --D1(s1)--> --D0--> (c0,n0)
+Fd^-1[Fd(c0,n0)] = (c0,n0)
 ```
+
+The harness must reject any duplicate `(c4,n4)` image for distinct seed pairs,
+construct the inverse table from the raw production-forward outputs, and
+round-trip all 64 entries exactly. Candidate parity with the same forward image
+therefore binds it to this inverse ABI without allocating inverse state.
 
 The retained candidate replaces each stored sign with compute/use/uncompute
 from retained `d`. It retains X007's exact round-2 sequence:
@@ -104,10 +109,21 @@ Round 3 remains flag-free. The unchanged production reference does not apply
 continuation after every round, so a zero-seed-only sentinel assumption cannot
 hide behind a candidate/reference pair that shares the same modification.
 
-The inverse circuit is a reference-side ABI miter, not added candidate state.
-It is seeded from the measured forward continuation and must restore the exact
-input coefficient/numerator pair for every row. Reference inverse failure is
-reported separately and does not count as candidate parity.
+### Pre-result amendment 0: do not use the approximate reverse cell as oracle
+
+After the first predeclaration commit, but before any X008 semantic execution or
+source edit, source archaeology reopened commit
+`9fb89d3e6d0cf1c26a880dcacd3c560c3970ef7a`. Its exact pair probe already
+establishes that current `signed_mod_double_add_pm_fused` is not a bit-exact
+inverse on arbitrary canonical inputs: it can return the correct field value as
+the lazy representative `value+p`. That shared production primitive is exact on
+its tuned full-circuit trajectory but is not an admissible arbitrary-seed oracle.
+
+Making `D3,D2,D1,D0` a blocking X008 gate would knowingly retest that unrelated
+shared limitation and leave the retained candidate unjudged. The finite inverse
+above is therefore the frozen X008 inverse ABI. Raw production forward remains
+the only continuation authority; no candidate operation is relaxed, and this
+amendment is committed before the new miter exists or runs.
 
 ## Exact pass and kill gates
 
@@ -115,15 +131,15 @@ X008 passes only if all 4,096 rows satisfy all of these:
 
 - unchanged production forward and retained candidate coefficient/numerator
   continuations are equal after rounds 0, 1, 2, and 3;
-- unchanged production inverse restores `(c0,n0)` exactly from `(c4,n4)`;
+- raw production forward images are collision-free across all 64 seeds for each
+  denominator and the constructed finite inverse restores `(c0,n0)` exactly;
 - denominator and retained denominator are preserved exactly;
 - retained sign reconstruction matches production walk signs 1 through 3;
 - one shared sign, two oracle scratch qubits, and the one normalization flag
   are zero at every declared cleanup checkpoint;
 - normalization flags peak at one and never overlap another flag;
 - persistent carrier bits remain zero;
-- phase and non-output ancilla debt are zero in candidate, forward reference,
-  and inverse reference;
+- phase and non-output ancilla debt are zero in candidate and forward reference;
 - candidate peak Q is at most 1114 and the round-2
   `signed_mod_add_pm_halve_fused` cell remains the first Q binder.
 
@@ -133,25 +149,24 @@ registers starting zero. A mismatch only in seeds 32 through 63 is
 `KILL_GENERAL_TRANSDUCER_ABI`; it preserves only the narrower production-entry
 subspace. Any extra 256-bit carrier, second flag, Q>1114, unavailable
 predecessor, dirty sign/scratch/flag, phase, or ancilla is also an immediate
-KILL. If the unchanged inverse fails, report `KILL_REFERENCE_ABI_UNAVAILABLE`
-instead of blaming the retained candidate. Stop on the first failing class; no
-repair ladder is authorized.
+KILL. A duplicate raw-forward continuation is
+`KILL_FORWARD_ABI_NONINJECTIVE`. Stop on the first failing class; no repair
+ladder is authorized.
 
 ## Frozen Q/T prototype price
 
 The candidate ABI is Q768: denominator, coefficient, and numerator. Its fixed
 debt is retained denominator256 + shared sign1 + oracle scratch2 + one local
 flag1 =260, for base Q1028. The X007 round-2 fused cell uses at most86 transient
-qubits, so X008's candidate cap is unchanged at Q1114. No extra inverse or
-carrier register is charged to the candidate; forward and inverse references
-are separate miters.
+qubits, so X008's candidate cap is unchanged at Q1114. The finite inverse is a
+host-side assertion over reference outputs and adds no quantum state.
 
 The forward candidate emits exactly the same structural rounds-`0..3` path as
 X007: at most960 Toffoli, split65/141/377/377. Nonzero inputs may raise average
 executed T, so the frozen executed ceiling is960. This prices a worst-case
 +65.946 average executed T over X007's zero-seed894.054 receipt, with no Q or
-emitted-T allowance. Reference forward/inverse costs are recorded separately
-and are not a score claim.
+emitted-T allowance. Reference-forward cost is recorded separately and is not
+a score claim.
 
 ## Exact outcome boundary
 

@@ -57,15 +57,15 @@ The current universal gate is `Q * T < 1175485230`. Exact strict T ceilings are 
 
 ## Current hypothesis
 
-`H10`: X007's exact retained-word rounds0..3 mapping composes with the live production coefficient/numerator ABI, not only its all-zero seed. X008 is frozen before semantic execution on an independent64-denominator x64-seed Cartesian corpus (4,096 rows, SHA-256 `53b06714ffdf079be23b2d3e1d25706c0d2853ab08d13345588f9a505c9409b0`). Seeds0..31 use production `coefficient=0,numerator!=0`; seeds32..63 set both registers nonzero. The candidate must match unchanged production continuation after every round and a separate unchanged inverse must restore the exact input ABI.
+`H10`: X007's exact retained-word rounds0..3 mapping composes with the live production coefficient/numerator ABI, not only its all-zero seed. X008 is frozen before semantic execution on an independent64-denominator x64-seed Cartesian corpus (4,096 rows, SHA-256 `53b06714ffdf079be23b2d3e1d25706c0d2853ab08d13345588f9a505c9409b0`). Seeds0..31 use production `coefficient=0,numerator!=0`; seeds32..63 set both registers nonzero. The candidate must match unchanged raw-production continuation after every round; per-denominator raw forward images must be collision-free and their exact finite inverse must restore each seed.
 
 ## Current falsifier
 
-H10 fails immediately if the single sign1-keyed sentinel toggle changes a nonzero production-ABI continuation, if reference inverse closure is unavailable, or if exactness needs Q>1114, an extra256-bit carrier, a second flag, unavailable predecessor state, dirty sign/scratch/flag, phase debt, or ancilla debt. The raw production reference must not share the candidate's normalization toggle. X007 remains exact only on its frozen zero-seed corpus until X008 clears. Context-specific free-outer-key, local-terminal, checkpoint, radix, coefficient-absorption, and materializing-decoder negatives remain closed unless a changed premise is named.
+H10 fails immediately if the single sign1-keyed sentinel toggle changes a nonzero production-ABI continuation, if raw forward images collide on the frozen seed set, or if exactness needs Q>1114, an extra256-bit carrier, a second flag, unavailable predecessor state, dirty sign/scratch/flag, phase debt, or ancilla debt. The raw production reference must not share the candidate's normalization toggle. Archived commit `9fb89d3` proves the approximate fused reverse cell is not an arbitrary-seed oracle, so X008 uses the exact finite inverse of raw forward outputs instead of knowingly re-killing that shared primitive. X007 remains exact only on its frozen zero-seed corpus until X008 clears.
 
 ## Next action
 
-Push X008's source/ABI/corpus/Q-T predeclaration before source edits or semantic execution. Then build the unchanged-production forward and inverse reference miters, require their exact closure first, and compare the retained candidate after rounds0/1/2/3. Stop on the first declared KILL class. If exact, name the rounds1..3 whole-production divide splice gate; do not implement it, extend to round4, optimize, grind, hunt, or touch a provider.
+Push X008 pre-result amendment0, then build the unchanged raw-production forward miter, require collision-free finite inverse closure, and compare the retained candidate after rounds0/1/2/3. Stop on the first declared KILL class. If exact, name the rounds1..3 whole-production divide splice gate; do not implement it, extend to round4, optimize, grind, hunt, or touch a provider.
 
 ## Last verified result
 
