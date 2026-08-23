@@ -2,7 +2,8 @@
 
 ## Current verdict
 
-`FAIL_MODEL`; `HOLD_PARITY`; `HOLD_SCAN`; `HOLD_HUNT`; `HOLD_SUBMIT`.
+`FAIL_MODEL`; `DIAGNOSIS_CLOSED`; `HOLD_PARITY`; `HOLD_SCAN`; `HOLD_HUNT`;
+`HOLD_SUBMIT`.
 
 The two-line hard-coded bake is byte-identical to the measured Q1276 candidate,
 but the exact upstream classical-model port underpredicts three of 64 frozen
@@ -20,7 +21,8 @@ full-evaluator rows by one.  See `.lane/MODEL-QUALIFICATION.md` and
 
 ## Next bounded action
 
-Commit and push this terminal receipt.  Only then open a separately
-predeclared structural missing-channel audit.  Approximate predictor output is
-canary-only; it is not scan-safe.
-
+The separately predeclared mechanism audit is closed in
+`.lane/MISSING-CHANNEL-DIAGNOSIS.md`: all three missing shots are bit-53
+coordinate-shell boundary events.  Commit and push that diagnosis before the
+one frozen source-semantic predictor correction.  Approximate predictor output
+remains canary-only; it is not scan-safe.
