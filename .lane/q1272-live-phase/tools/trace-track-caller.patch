@@ -1,0 +1,11 @@
+diff --git a/src/point_add/mod.rs b/src/point_add/mod.rs
+--- a/src/point_add/mod.rs
++++ b/src/point_add/mod.rs
+@@
+-    fn r(&mut self, q: QubitId) {
++    #[track_caller]
++    fn r(&mut self, q: QubitId) {
+@@
+-    fn hmr(&mut self, q: QubitId, c: BitId) {
++    #[track_caller]
++    fn hmr(&mut self, q: QubitId, c: BitId) {
