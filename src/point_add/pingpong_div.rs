@@ -558,6 +558,14 @@ fn fold_selector_evicted() -> bool {
     std::env::var("SUB4_PP_FOLD_SELECTOR_EVICT").ok().as_deref() == Some("1")
 }
 
+/// Opt-in (default off): checkpoint `sign XOR add_out` through its clean AND
+/// output, then rematerialize it only when that AND is uncomputed.  Neither
+/// the selector construction nor the fused correction fold reads the XOR
+/// wire after `routed` has captured it.
+fn sign_xor_add_evicted() -> bool {
+    std::env::var("SUB4_PP_EVICT_SIGN_XOR_ADD").ok().as_deref() == Some("1")
+}
+
 fn mux_round0_correction_enabled() -> bool {
     std::env::var_os("SUB4_PINGPONG_SPLIT_ROUND0").is_none()
 }
@@ -1934,6 +1942,15 @@ fn signed_mod_double_add_pm_fused(
     b.cx(sign, sign_xor_add);
     b.cx(add_out, sign_xor_add);
     let routed = and_clean(b, doubled_out, sign_xor_add);
+    let evict_sign_xor_add = sign_xor_add_evicted();
+    if evict_sign_xor_add {
+        // `routed` is the only consumer until its exact uncompute below.  The
+        // two parents stay live, so return this derived wire across the whole
+        // correction-fold interval and reconstruct it just in time.
+        b.cx(add_out, sign_xor_add);
+        b.cx(sign, sign_xor_add);
+        b.free(sign_xor_add);
+    }
     let minus_f = and_clean(b, routed, sign);
     let plus_2f = b.alloc_qubit();
     b.cx(routed, plus_2f);
@@ -1989,6 +2006,14 @@ fn signed_mod_double_add_pm_fused(
     b.cx(routed, plus_2f);
     b.free(plus_2f);
     and_uncompute(b, minus_f, routed, sign);
+    let sign_xor_add = if evict_sign_xor_add {
+        let q = b.alloc_qubit();
+        b.cx(sign, q);
+        b.cx(add_out, q);
+        q
+    } else {
+        sign_xor_add
+    };
     and_uncompute(b, routed, doubled_out, sign_xor_add);
     b.cx(add_out, sign_xor_add);
     b.cx(sign, sign_xor_add);
@@ -2657,6 +2682,151 @@ pub(crate) fn target0_sign_alias_selftest() {
     assert_eq!(protected_result, aliased_result, "value or relative-phase divergence");
     eprintln!(
         "TARGET0_SIGN_ALIAS_SELFTEST: PASS (64/64 exact miter, 16/16 arms, phase equal, ancilla 0, Toffoli equal, +3 CX +1 R, peak {peak_p}->{peak_a})"
+    );
+}
+
+/// Exact protected-versus-rematerialized miter for the multiply correction
+/// cell's `sign_xor_add` checkpoint.
+#[allow(dead_code)]
+pub(crate) fn sign_xor_add_evict_selftest() {
+    use crate::circuit::QubitOrBit;
+    use sha3::{
+        digest::{ExtendableOutput, Update, XofReader},
+        Shake256,
+    };
+
+    let build = |evicted: bool| {
+        let saved_alias = std::env::var("SUB4_PP_ALIAS_TARGET0_SIGN").ok();
+        let saved_doubled = std::env::var("SUB4_PP_EVICT_DOUBLED_OUT").ok();
+        let saved_sign_xor = std::env::var("SUB4_PP_EVICT_SIGN_XOR_ADD").ok();
+        std::env::set_var("SUB4_PP_ALIAS_TARGET0_SIGN", "1");
+        std::env::set_var("SUB4_PP_EVICT_DOUBLED_OUT", "1");
+        if evicted {
+            std::env::set_var("SUB4_PP_EVICT_SIGN_XOR_ADD", "1");
+        } else {
+            std::env::remove_var("SUB4_PP_EVICT_SIGN_XOR_ADD");
+        }
+
+        let mut b = B::new();
+        let sign = b.alloc_qubit();
+        let source = b.alloc_qubits(N);
+        let target = b.alloc_qubits(N);
+        // The descended full circuit gives the correction fold a 52-wire
+        // carry ladder.  Pin that budget so this lifecycle owns the local
+        // peak instead of a wider, unrelated main-add chunk.
+        set_ladder(52);
+        signed_mod_double_add_pm_fused(&mut b, sign, &source, &target);
+        clear_chunks();
+
+        match saved_alias {
+            Some(v) => std::env::set_var("SUB4_PP_ALIAS_TARGET0_SIGN", v),
+            None => std::env::remove_var("SUB4_PP_ALIAS_TARGET0_SIGN"),
+        }
+        match saved_doubled {
+            Some(v) => std::env::set_var("SUB4_PP_EVICT_DOUBLED_OUT", v),
+            None => std::env::remove_var("SUB4_PP_EVICT_DOUBLED_OUT"),
+        }
+        match saved_sign_xor {
+            Some(v) => std::env::set_var("SUB4_PP_EVICT_SIGN_XOR_ADD", v),
+            None => std::env::remove_var("SUB4_PP_EVICT_SIGN_XOR_ADD"),
+        }
+
+        let num_qubits = b.next_qubit as usize;
+        let num_bits = b.next_bit as usize;
+        let peak = b.peak_qubits;
+        (b.take_ops(), sign, source, target, num_qubits, num_bits, peak)
+    };
+
+    let (protected, sign_p, source_p, target_p, nq_p, nb_p, peak_p) = build(false);
+    let (evicted, sign_e, source_e, target_e, nq_e, nb_e, peak_e) = build(true);
+    assert_eq!((sign_p, &source_p, &target_p), (sign_e, &source_e, &target_e));
+
+    let count = |ops: &[Op], kind: OperationType| {
+        ops.iter().filter(|operation| operation.kind == kind).count()
+    };
+    let toffoli = |ops: &[Op]| count(ops, OperationType::CCX) + count(ops, OperationType::CCZ);
+    assert_eq!(toffoli(&protected), toffoli(&evicted));
+    assert_eq!(count(&protected, OperationType::Hmr), count(&evicted, OperationType::Hmr));
+    assert_eq!(count(&protected, OperationType::CZ), count(&evicted, OperationType::CZ));
+    assert_eq!(count(&evicted, OperationType::CX), count(&protected, OperationType::CX) + 4);
+    assert_eq!(count(&evicted, OperationType::R), count(&protected, OperationType::R) + 1);
+    assert_eq!(peak_e + 1, peak_p, "checkpoint must lend exactly one live wire");
+
+    let mut input_seed = Shake256::default();
+    input_seed.update(b"sign xor add checkpoint exact miter inputs");
+    let mut input_reader = input_seed.finalize_xof();
+    let mut representatives: Vec<Option<(U256, U256, bool)>> = vec![None; 8];
+    let mut extras = Vec::<(U256, U256, bool)>::new();
+    let mut draw = 0usize;
+    while representatives.iter().any(Option::is_none) || extras.len() < 56 {
+        let mut bytes = [[0u8; 32]; 2];
+        XofReader::read(&mut input_reader, &mut bytes[0]);
+        XofReader::read(&mut input_reader, &mut bytes[1]);
+        let source = U256::from_le_bytes(bytes[0]) % SECP256K1_P;
+        let target = U256::from_le_bytes(bytes[1]) % SECP256K1_P;
+        let sign = draw.is_multiple_of(2);
+        draw += 1;
+        let shifted: U256 = target << 1usize;
+        let add_target = if sign { !shifted } else { shifted };
+        let (_, add_out) = add_target.overflowing_add(source);
+        let arm = (usize::from(sign) << 2)
+            | (usize::from(target.bit(N - 1)) << 1)
+            | usize::from(add_out);
+        if representatives[arm].is_none() {
+            representatives[arm] = Some((source, target, sign));
+        } else if extras.len() < 56 {
+            extras.push((source, target, sign));
+        }
+    }
+    let mut lanes: Vec<(U256, U256, bool)> = representatives
+        .into_iter()
+        .map(|lane| lane.expect("all eight control arms covered"))
+        .collect();
+    lanes.extend(extras);
+    assert_eq!(lanes.len(), 64);
+
+    let run = |ops: &[Op],
+               sign: QubitId,
+               source: &[QubitId],
+               target: &[QubitId],
+               nq: usize,
+               nb: usize| {
+        let mut sim_seed = Shake256::default();
+        sim_seed.update(b"sign xor add checkpoint exact miter simulation");
+        let mut sim_reader = sim_seed.finalize_xof();
+        let mut sim = Simulator::new(nq, nb, &mut sim_reader);
+        let source_reg: Vec<QubitOrBit> = source.iter().copied().map(QubitOrBit::Qubit).collect();
+        let target_reg: Vec<QubitOrBit> = target.iter().copied().map(QubitOrBit::Qubit).collect();
+        for (shot, &(source_value, target_value, lane_sign)) in lanes.iter().enumerate() {
+            sim.set_register(&source_reg, source_value, shot);
+            sim.set_register(&target_reg, target_value, shot);
+            if lane_sign {
+                *sim.qubit_mut(sign) |= 1u64 << shot;
+            }
+        }
+        sim.apply_iter(ops.iter());
+        let mut outputs = Vec::with_capacity(64);
+        for (shot, &(source_value, _, lane_sign)) in lanes.iter().enumerate() {
+            assert_eq!(sim.get_register(&source_reg, shot), source_value, "source shot {shot}");
+            assert_eq!((sim.qubit(sign) >> shot) & 1, u64::from(lane_sign), "sign shot {shot}");
+            outputs.push(sim.get_register(&target_reg, shot));
+        }
+        let phase = sim.phase;
+        *sim.qubit_mut(sign) = 0;
+        for &q in source.iter().chain(target.iter()) {
+            *sim.qubit_mut(q) = 0;
+        }
+        for q in 0..nq as u64 {
+            assert_eq!(sim.qubit(QubitId(q)), 0, "dirty scratch q{q}");
+        }
+        (outputs, phase)
+    };
+
+    let protected_result = run(&protected, sign_p, &source_p, &target_p, nq_p, nb_p);
+    let evicted_result = run(&evicted, sign_e, &source_e, &target_e, nq_e, nb_e);
+    assert_eq!(protected_result, evicted_result, "value or relative-phase divergence");
+    eprintln!(
+        "SIGN_XOR_ADD_EVICT_SELFTEST: PASS (64/64 exact miter, 8/8 arms, phase equal, scratch 0, Toffoli equal, +4 CX +1 R, peak {peak_p}->{peak_e})"
     );
 }
 

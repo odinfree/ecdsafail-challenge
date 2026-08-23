@@ -17,7 +17,7 @@ Q1271 component receipt and hashes are frozen in `PREDECLARATION.md`.
 
 | lineage | ancestor | target | correctness | saddle budget | state |
 |---|---|---|---|---|---|
-| routed-control checkpoint | `a220903` | Q1270, else exact T cut | pending | one miter, one implementation, three profile rows | PREDECLARED |
+| routed-control checkpoint | `a220903` | Q1270, else exact T cut | PASS: exact miter, affine, square, profile | one miter, one implementation, three profile rows | **GO_Q1270** |
 
 ## Ancestor ladder
 
@@ -30,10 +30,21 @@ Q1271 component receipt and hashes are frozen in `PREDECLARATION.md`.
 
 | lever | selector evict | doubled-out evict | target0/sign alias | routed checkpoint |
 |---|---:|---:|---:|---:|
-| selector evict | inherited | PASS | PASS | pending |
-| doubled-out evict | PASS | inherited | PASS | pending |
-| target0/sign alias | PASS | PASS | inherited | pending |
-| routed checkpoint | pending | pending | pending | predeclared |
+| selector evict | inherited | PASS | PASS | PASS |
+| doubled-out evict | PASS | inherited | PASS | PASS |
+| target0/sign alias | PASS | PASS | inherited | PASS |
+| routed checkpoint | PASS | PASS | PASS | **Q1270** |
 
-Next action: commit/push this predeclaration, then reproduce the protected
-profile before any candidate source edit.
+## Terminal receipt
+
+- protected flag-off stream: byte-identical, SHA-256 `590cb55d...5972fa`;
+- focused routed-checkpoint miter: 64/64 exact, 8/8 arms, phase equal,
+  scratch zero, no Toffoli delta, `+4 CX +1 R`, peak 574 -> 573;
+- descended control: Q1271 / T916333.09, with only `pp_mul_replay` binding;
+- candidate: Q1270 / T916295.41, profile `0/0/0`;
+- full affine and product-square component checks: PASS at Q1270;
+- exact candidate operations SHA-256: `ec4fadc0...eb63a`.
+
+The local structural lane is complete. `RESULT.md` is the durable receipt.
+No search, cloud action, external evaluator, or submission is authorized by
+this GO.

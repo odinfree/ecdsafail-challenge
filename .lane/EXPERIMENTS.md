@@ -84,3 +84,28 @@ Verdict: `SCORE_GO / VALIDATION_DIRTY`.  The saddle clears the frozen Q1272
 score ceiling by 177 rounded Toffoli, but `23/8/0` forbids submission and makes
 source-bound predictor qualification the next binder.  No hunt, provider,
 range, fleet, or submission action was taken.
+
+## E002 — routed-control checkpoint re-descent
+
+Status: `GO_Q1270 / LOCAL_COMPONENT_CLEAN`.
+
+Starting from exact composed source `a220903`, the predeclared default-off
+`SUB4_PP_EVICT_SIGN_XOR_ADD=1` lifecycle loans the derived
+`sign XOR add_out` wire after `routed` captures it and rematerializes it only
+for the original AND uncompute. The focused miter passed 64/64 lanes and all
+eight control arms with equal values and relative phase, zero scratch, no
+Toffoli delta, exact `+4 CX +1 R`, and standalone peak `574 -> 573`.
+
+The fixed three-row ablation produced:
+
+- protected composition: Q1271 / diagnostic T915100.86;
+- descended geometry without the checkpoint: Q1271 / T916333.09, solely
+  bound by `pp_mul_replay`;
+- identical descended geometry with the checkpoint: Q1270 / T916295.41,
+  profile classical/phase/dirty `0/0/0`.
+
+Full affine and product-square component selfchecks passed at Q1270. The
+flag-off operation stream reproduced SHA-256 `590cb55d...5972fa`; the fixed
+candidate artifact is `ec4fadc0...eb63a`. See `RESULT.md` for the complete
+owner table, hashes, and test receipts. No external evaluator, search,
+provider action, or submission was performed.

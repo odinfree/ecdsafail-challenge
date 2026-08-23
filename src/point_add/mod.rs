@@ -2537,6 +2537,10 @@ pub fn build() -> Vec<Op> {
         return Vec::new();
     }
     if std::env::var_os("SUB4_LEGACY_POINT_ADD").is_none() {
+        if std::env::var_os("SUB4_PP_SIGN_XOR_EVICT_SELFTEST").is_some() {
+            pingpong_div::sign_xor_add_evict_selftest();
+            return Vec::new();
+        }
         if std::env::var_os("SUB4_PP_TARGET0_SIGN_ALIAS_SELFTEST").is_some() {
             pingpong_div::target0_sign_alias_selftest();
             return Vec::new();
