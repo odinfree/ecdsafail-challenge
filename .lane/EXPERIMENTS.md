@@ -109,3 +109,12 @@ flag-off operation stream reproduced SHA-256 `590cb55d...5972fa`; the fixed
 candidate artifact is `ec4fadc0...eb63a`. See `RESULT.md` for the complete
 owner table, hashes, and test receipts. No external evaluator, search,
 provider action, or submission was performed.
+
+### Terminal full evaluator
+
+One unchanged 9,024-shot run against the exact candidate artifact measured
+Q1270 / T916366.972, rounded score 1,163,786,090, and a strict 45,249 score
+margin. It also found classical / conditional-phase / ancilla totals
+`23/14/0`, with first classical failure at shot 373. The result is therefore
+`SCORE_GO / VALIDATION_DIRTY / NO HUNT`. `FULL-9024-RESULT.md` freezes the
+complete receipt and the combined source-bound predictor handoff.

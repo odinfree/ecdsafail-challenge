@@ -10,8 +10,11 @@ Date: 2026-08-23. Branch: `research/burn-q1270-target0-saddle`.
 profiled phase is at or below 1,270 qubits, and the supplied exact component
 checks preserve values, relative phase, and scratch cleanup.
 
-This is not a shipping or submission receipt. The lane did not run a nonce
-search, cloud worker, external evaluator, or submission.
+The unchanged local full evaluator has now completed one 9,024-shot run. It
+measured Q1270 / T916366.972 and a strict score beat, but found classical and
+conditional-phase failures. The candidate is not valid or shippable. See
+`FULL-9024-RESULT.md` for the sealed receipt. The lane did not run a nonce
+search, cloud worker, submission, or public note.
 
 ## Architecture
 
@@ -107,3 +110,15 @@ harness passes as recorded above.
 
 Generated `ops.bin`, build output, and transient logs are deliberately absent
 from the commit.
+
+## Full-run disposition
+
+The single unchanged 9,024-shot evaluator run produced:
+
+- Q1270 / exact displayed T916366.972 / rounded T916367;
+- rounded score 1,163,786,090, a strict 45,249 below the frozen reference;
+- classical / conditional-phase / ancilla totals `23/14/0`;
+- first classical mismatch at shot 373.
+
+Verdict: `SCORE_GO / VALIDATION_DIRTY / NO HUNT`. The exact source-bound
+combined-predictor handoff is frozen in `FULL-9024-RESULT.md`.

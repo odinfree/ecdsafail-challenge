@@ -45,6 +45,16 @@ Q1271 component receipt and hashes are frozen in `PREDECLARATION.md`.
 - full affine and product-square component checks: PASS at Q1270;
 - exact candidate operations SHA-256: `ec4fadc0...eb63a`.
 
-The local structural lane is complete. `RESULT.md` is the durable receipt.
-No search, cloud action, external evaluator, or submission is authorized by
-this GO.
+## Full evaluator disposition
+
+- unchanged evaluator: one complete 9,024-shot run;
+- Q1270 / T916366.972 / rounded score 1,163,786,090;
+- strict frozen-score margin: 45,249;
+- classical / conditional-phase / ancilla: `23/14/0`;
+- first classical mismatch: shot 373;
+- verdict: `SCORE_GO / VALIDATION_DIRTY / NO HUNT`.
+
+The structural lane is complete. `RESULT.md` and `FULL-9024-RESULT.md` are the
+durable receipts. The only next lane is the exact source-bound combined
+classical and conditional-phase predictor specified there. No search, cloud
+action, submission, or public note is authorized by this GO.
