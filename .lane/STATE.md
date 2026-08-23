@@ -268,3 +268,107 @@ not schedule-repairable. Paid-repair census on the repaired stream is the
 one unmeasured box (external tooling). Next binder is not the width
 schedule: it is phase lambda (~11, untouched by any width move) and the
 hard classical channels.
+
+---
+
+# Lane re-descent — PHASE channel (predeclared 2026-08-23, before instrumentation)
+
+Frozen target identity (unchanged): source `fe0b7ba`, evidence `d793aa2`,
+HEAD `4aebb8b`, 12,920,073 ops, ops.bin SHA-256
+`4c68597468ed1dbb4f2e33042842227bf57c011c51f41e9cdaf13c73194b1f8c`, Q1274,
+diag T916424.62, inherited full `22/11/0`. Classical predictor is qualified
+(gpu-port-q1274-repair-r100); NOT rebuilt here.
+
+## Why phase is now the binding constraint (from existing receipts)
+
+The hunt needs a nonce terminal `0/0/0`. The qualified classical predictor
+finds classical-zero nonces (~1 per 10^6); its sole confirmed canary,
+`100000035106674`, was terminal `0/2/0` — classical-clean but phase-dirty.
+From the 22 FIXTURES.md receipts: 323 classical / 248 phase-shot faults over
+198,528 shots -> lambda_cls ~14.7, lambda_phase ~11.3 per 9024-shot eval.
+Joint-clean ~ exp(-23) even with the union discount. A phase-channel REPAIR
+that zeroes the leak makes every classical-clean nonce a `0/0/0` candidate
+(~10^4-10^5x the value of a phase predictor alone), so a bounded reversible
+repair is the primary objective; a source-bound exact phase predictor is the
+fallback search-economics result.
+
+## Mechanism hypothesis (to be proven exactly, not inherited)
+
+`sim.rs` R/Hmr: `phase ^= qubit(q_target) & rng & cond; qubit &= !cond`. A
+lane holding 1 at an R/Hmr free kicks a random phase bit then force-zeroes the
+qubit (so it never shows as ancilla garbage). `dirtyscan.rs` asserts:
+- **H1 (linchpin):** Hmr dirty-frees are benign — the kickback `q&rng` is
+  cancelled by a following bit-conditioned CZ fixup (Gidney uncompute), so
+  only unrecoverable `R` dirty-frees produce net phase garbage.
+- **H2:** the earliest phase-garbage cause on any fixture is the first `R` op
+  (in stream order) that frees a qubit dirty on a live lane.
+
+Predeclared FALSIFIERS:
+- H1 falsified if the observed final `sim.phase` on a batch is NOT reconstructed
+  by XOR of the R-dirty contribution masks alone (i.e. Hmr/deterministic
+  channels contribute net phase). Test: partition every phase-contributing
+  event (R-dirty, Hmr-dirty, Z/CZ/CCZ/Neg) by op index and check subset XOR ==
+  final phase, per 64-lane batch.
+- H2/"earliest" is ILL-DEFINED on any shot where two leaks XOR to parity 0;
+  the report will list the full per-shot event set and state whether such
+  cancellation actually occurs before naming an "earliest" op.
+
+## Repair-vs-predictor decision rule (predeclared)
+
+Score = round(avg_tof) x qubits; R/Hmr/CZ/CX/Swap are Cliffords and are NOT
+scored. Converting a leaking `R` into `Hmr` + a bit-conditioned `CZ` fixup
+costs 0 Toffoli and 0 qubits IF the fixup cancels. Cancellation (advisor
+algebra): Hmr leaves bit c = rng&cond and kicks phase ^= q_before&rng; a
+following `CZ(a,b)` conditioned on c contributes rng & q_a & q_b, cancelling
+iff `q_a & q_b == q_before` at the free — i.e. the freed qubit is an
+AND-ancilla whose two controls are still live and unmodified at the free.
+DECISION:
+- If every leaking R site's controls survive unmodified to the free -> the
+  repair is ~free on score (T and Q); pursue the bounded reversible repair.
+- If controls are recycled (keeping them live costs qubits and Q<=1274 binds)
+  -> deliver the source-bound exact phase predictor instead.
+Any repair must preserve Q<=1274 and rounded full-eval T<=918822 and keep the
+byte-faithful opt-out chain (default-off env restores the frozen artifact).
+Must confirm `Op::validate` accepts `CZ` with `c_condition` set (R/Hmr reject
+it, per the loader).
+
+## Predeclared corpus (nonces only; non-adaptive)
+
+The 23 nonces with existing ground-truth receipts, drawn only from
+FIXTURES.md + the canary receipt. NO new nonce search, NO adaptive selection.
+
+Inherited: 251000962439 (22/11/11/0).
+Fixtures 0-4: 216979462201002, 236196892829662, 271225631924494,
+  12909430816056, 65511261373299.
+Mask-ext 0-15: 248914870509046, 200464614537294, 269472481077161,
+  107056343334753, 109186235979289, 12679622957485, 153431043467723,
+  30329995037154, 63846899198573, 71599102709711, 205769309325701,
+  236213025161514, 117850942287407, 56005648468635, 151276714938924,
+  227714064851892.
+Canary: 100000035106674 (classical 0, phase-dirty; cls/phase/anc form 0/2/0,
+  batches-vs-shots ambiguous — nothing fit tightly to it).
+
+VALIDATION PROTOCOL: the unchanged trusted evaluator (or a logging-only mirror
+proven byte-identical in behavior) run over these 23 nonces PATCHED INTO
+WHATEVER STREAM IS UNDER TEST. Receipts validate a phase MODEL on the frozen
+stream. A repair changes the Fiat-Shamir seed, so each fixture becomes a fresh
+draw on the repaired stream — a repair is validated by full-shot re-eval on the
+same 23 patched nonces (phase batches must drop toward 0), not by the frozen
+receipts.
+
+## Instrument hygiene (predeclared)
+
+- Job A (structural localization): `dirtyscan` via `TLM_DIRTY_SCAN_FINAL=1
+  TRACE_OP_SITES=1` (+ CONSTPROP_DISABLE / SINGLE_CCX_FANOUT_DISABLE for 1:1
+  op-site mapping) gives file:line of leaking R sites. Those disables REWRITE
+  the stream (different count/SHA/seed) so any hit is a POINTER; re-confirm the
+  same R site/qubit is a dirty free on the frozen default stream. Re-verify
+  ops.bin SHA still 4c68597... after any source edit.
+- Job B (exactness on inherited fixture): needs an EXTERNAL logging-only mirror
+  of `run_tests` seeded from `fiat_shamir_seed(ops)` (NOT dirtyscan's
+  measure_xof). xof order is load-bearing: run_tests draws ALL 2x32B test
+  inputs first (including discarded `continue` pairs) THEN Simulator::new
+  consumes 8B per R/Hmr. Build the mirror in an external crate — the trusted
+  evaluator writes results.tsv/score.json into CARGO_MANIFEST_DIR.
+- Keep all experiments opt-in. Do NOT commit ops.bin, results rows, binaries,
+  logs, temp evaluators, caches, or artifacts.
