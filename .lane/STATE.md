@@ -260,3 +260,25 @@ evaluator source and tracked results were restored to SHA-256 `b35314bc...90b`
 and `eea84022...810`; generated artifacts remain outside Git. The next single
 structural action is fixed-shot E-009 localization of candidate shot 3036
 across the final coordinate shell.
+
+## E-009 square-boundary terminal update
+
+The exact tail42 stream reproduced 12,943,345 operations, SHA
+`89d26f325df66ba0ebd9ec327895ccb537a918f0c7b0d34d9c8002a094f9d968`,
+and Q1272. Condition depth was zero at every frozen phase cut. Adjacent control
+3035 stayed exact with phase/dirty `0/0` throughout. Target 3036 was exact
+through add3x, then first diverged after the product-register square by exactly
+`+2^56` in x while y, phase, and dirty state remained exact/clean.
+
+An independent integer replay matched the observed square output and isolates
+the lost carry to the ninth and final `mod_add_top`: the C-half subtraction.
+Its overflow-controlled `+f` crosses the low56 boundary; none of the first
+eight top reductions does. Multiply and the final coordinate shell only
+propagate this error. No source repair ran during localization. Temporary
+instrumentation was removed and protected evaluator/results hashes reproduce.
+
+The next bounded experiment, if admitted, is a separately predeclared one-site
+C-half 56-to-57 window falsifier followed immediately by an adversarial
+boundary miter. The pinned event has bit56 zero and should become exact, but a
+general carry can recur at bit57; failure of that exactness gate kills the
+width shift without another adaptive width.

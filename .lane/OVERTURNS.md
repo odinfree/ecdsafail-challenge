@@ -10,6 +10,7 @@ Frozen before new measurement on 2026-08-23.
 | O-004 | Hard classical and phase density are separate taxes. | H64 changes classical 1135→1054 and phase 839→765 on the same fixed nonce block, though shots are SHA-bound ensembles. | Full unchanged simulation on the predeclared block; report joint counts without assuming independence. | co-movement observed; independence unclaimed |
 | O-005 | A local replay improvement is enough to claim a candidate. | Terminal, walkback, square, and result channels can remain, and all Q1272 co-binders must stay at or below 1272. | Require complete cause census, focused selftests, base/live opt-outs, and full channel reporting. | protected |
 | O-006 | Numeric mismatch indices can be paired after a source change. | E-007 and held mismatch sets were disjoint because their operation SHAs derive independent Fiat-Shamir inputs; E-008 instead passed fixed H64 non-inferiority and exact cause coverage. | Compare complete SHA-bound ensembles and first-failure distributions under a predeclared statistical gate. | overturned |
+| O-007 | The remaining result channel is another final-coordinate-shell fault. | E-009 shot 3036 is exact through add3x and first diverges in x after the product-register square by `+2^56`; all later shell faults are causal propagation. | Split the exact stream only at balanced top-level phases, then replay all nine square top reductions as integers. | overturned; final C-half reduction binds |
 
 Kill conditions for the first experiment: Q above 1272; rounded full T above
 921139; either protected SHA fails; a focused miter/selfcheck fails; or the
@@ -46,3 +47,8 @@ E-008 completed both independent H64 ensembles and an all-64 exact-set cause
 audit. E-007 measured `1053/776/0` versus held `1054/765/0`, passing the frozen
 three-sigma non-inferiority ceilings without earning strict superiority. This
 retires rebound numeric-index subset tests as a structural acceptance rule.
+
+E-009's exact fixed-shot trace attributes candidate shot 3036 to the square,
+not the final coordinate shell. Its final C-half reduction drops a carry across
+the 56-bit `+f` window. The observed input has bit 56 clear, so a one-site
+57-bit window is a valid smallest falsifier but not a global exactness claim.
