@@ -4,15 +4,16 @@ Worker: Claude Fable 5, high effort, ≤USD 25. Source frozen at 4eb93cb
 (child predeclaration commit 8525146). Harness never edited. No provider
 compute / nonce hunt / fleet / submission / external messages.
 
-## DISPOSITION: Q1271 STRUCTURAL PASS / FROZEN-EIGHT CALIBRATION PENDING
+## DISPOSITION: Q1271 SCORE_GO / VALIDATION_DIRTY / NO CLEAN CANDIDATE
 
 Takeover checkpoint: the predeclared default-off `doubled_out` lifecycle is
 now implemented and independently gated.  Default Q1273 control reproduced
 exactly; the focused relative value/phase/ancilla miter, full affine component,
 and square component pass; and the inherited default-nonce Q1271 result
-reproduces exactly at T915685.693 with channels 13/11/0.  See
-`Q1271-FIVE-T-STRUCTURAL-PASS.md`.  The frozen eight rows are the only remaining
-authorized experiment.
+reproduces exactly at T915685.693 with channels 13/11/0.  The frozen eight are
+complete: nonce `65700024945647` is the sole score-go row at rounded T915676,
+but remains dirty at 13/17/0.  See `Q1271-FIVE-T-STRUCTURAL-PASS.md` and
+`Q1271-FIVE-T-FROZEN-EIGHT.md`.
 
 A Q1272 candidate STRICTLY BEATS the incumbent objective and is dirty on full
 channels → per lane rule it is handed (as durable source + op identity) to a
@@ -78,10 +79,10 @@ over-shoots the peak knob by 2 steps and would score WORSE (S=1,166,170,872).
 - SUB4_PP_PEAK / SUB4_SQUARE_LADDER alone: no Q gain, T up, dirty.
 
 ## Next objective-advancing action
-Run exactly the eight predeclared full-evaluator nonces
-`65700024945641..65700024945648`, once each and in order.  Stop after row eight;
-do not extend, hunt, contact a provider, submit, or publish.
+STOP this bounded lane.  The frozen eight are exhausted and no row is clean.
+Any source-bound screening or clean qualification is a separate lane requiring
+fresh predeclaration and authority; this packet grants none.
 
 ## Worktree
-Clean: source byte-exact; ops.bin/score.json gitignored; results.tsv restored
-to tracked state (benchmark FAIL rows discarded). Only .lane/*.md committed.
+Terminal evidence is committed; `ops.bin`/binaries are ignored and the
+generated eight-row `results.tsv` is restored before the terminal commit.

@@ -29,7 +29,28 @@ rounded Toffoli). Its focused 64-lane direct and forward/inverse relative
 value/phase/ancilla miter, full affine component, and square component now pass.
 The inherited default-nonce 13/11/0 row also reproduced at identical
 12,926,780 operations and exact T915685.693.  See
-`Q1271-FIVE-T-STRUCTURAL-PASS.md`; frozen-eight calibration is pending.
+`Q1271-FIVE-T-STRUCTURAL-PASS.md`.
+
+## Terminal frozen-eight calibration
+
+Exactly nonces `65700024945641..65700024945648` ran once each, in order, on
+the Q1271 lifecycle candidate.  Exact T / rounded T / channels:
+
+| suffix | exact T | rounded T | cls / phase / anc | verdict |
+|---:|---:|---:|---:|---|
+| 641 | 915690.782 | 915691 | 18 / 9 / 0 | score miss, dirty |
+| 642 | 915690.020 | 915690 | 16 / 13 / 0 | score miss, dirty |
+| 643 | 915696.244 | 915696 | 19 / 15 / 0 | score miss, dirty |
+| 644 | 915692.326 | 915692 | 27 / 19 / 0 | score miss, dirty |
+| 645 | 915685.693 | 915686 | 13 / 11 / 0 | score miss, dirty |
+| 646 | 915689.499 | 915689 | 21 / 18 / 0 | score miss, dirty |
+| **647** | **915675.850** | **915676** | **13 / 17 / 0** | **SCORE_GO / VALIDATION_DIRTY** |
+| 648 | 915684.857 | 915685 | 15 / 16 / 0 | score miss, dirty |
+
+The sole below-ceiling row (`...647`) would score `1,163,824,196` against the
+frozen reference `1,163,831,339`, but it is not a clean candidate.  Complete
+operation hashes and first-mismatch witnesses are sealed in
+`Q1271-FIVE-T-FROZEN-EIGHT.md`.  The bounded set is exhausted; no extension.
 
 ## Binder map (control, all four independently @1273)
 - pp_div_replay + pp_mul_replay: shared fused-fold cell (`fused_fold_maskfree`
