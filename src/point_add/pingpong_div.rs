@@ -464,6 +464,38 @@ fn wsched_override() -> Option<&'static Vec<u16>> {
     .as_ref()
 }
 
+/// Sparse +1-bit repair of the compressed width schedule.  The rescale's
+/// uniform-in-index narrowing leaves a population of marginal (excess exactly
+/// one bit) width violations spread across the whole curve; these 100 sampled
+/// indices are the greedy cost-weighted cover of that population, fitted on
+/// 640 fresh classical draws and validated on a held-out 320-draw sample:
+/// classical fault density -0.95 lambda for +519 diagnostic Toffoli, with the
+/// peak binding profile unchanged (Q1274 at pp_div_replay).  Applies only on
+/// top of the embedded table with the rescale active;
+/// `SUB4_PP_WIDTH_REPAIR=0` restores the unrepaired schedule.
+const WIDTH_REPAIR: [u16; 100] = [
+    18, 19, 27, 35, 44, 54, 55, 57, 58, 67, 70, 73, 76, 98, 119, 121, 123, 124, 125, 127, 129,
+    164, 166, 167, 168, 193, 248, 259, 261, 262, 263, 264, 272, 297, 299, 300, 301, 302, 303, 304,
+    312, 323, 325, 327, 328, 356, 377, 400, 401, 402, 403, 406, 475, 516, 526, 528, 530, 533, 536,
+    538, 541, 563, 593, 595, 600, 602, 603, 625, 628, 629, 631, 647, 648, 649, 650, 651, 652, 655,
+    657, 659, 661, 663, 664, 666, 667, 668, 669, 671, 672, 674, 676, 678, 679, 680, 681, 683, 685,
+    687, 689, 693,
+];
+
+fn width_repair(r: usize) -> i32 {
+    if std::env::var("SUB4_PP_WIDTH_REPAIR").is_ok_and(|v| v == "0") {
+        return 0;
+    }
+    if std::env::var("SUB4_PP_WIDTH_RESCALE").is_ok_and(|v| v == "0") {
+        return 0;
+    }
+    if r <= u16::MAX as usize && WIDTH_REPAIR.binary_search(&(r as u16)).is_ok() {
+        1
+    } else {
+        0
+    }
+}
+
 fn value_width(round: usize) -> usize {
     if std::env::var_os("SUB4_PP_SCHED_LINEAR").is_none() {
         if round == 0 {
@@ -472,7 +504,8 @@ fn value_width(round: usize) -> usize {
         let r = width_round_index(round);
         let table = wsched_override().map_or(&WIDTH_SCHEDULE[..], |v| &v[..]);
         if r < table.len() {
-            return ((table[r] as i32 + sched_bias()).max(8) as usize).clamp(8, VALUE_WIDTH);
+            let rep = if wsched_override().is_none() { width_repair(r) } else { 0 };
+            return ((table[r] as i32 + rep + sched_bias()).max(8) as usize).clamp(8, VALUE_WIDTH);
         }
         return 8;
     }

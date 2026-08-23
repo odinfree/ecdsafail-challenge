@@ -171,3 +171,66 @@ repair of the narrowest/highest-exposure rescaled rounds.
   hard-faulted non-converging walks with deficits growing to +8 (unrepairable
   by +1); exactly one shot (4815) is hard=0 with all-excess-1 deficits
   (div rounds 432,444,445,446) — the repairable class.
+
+## R3 — width-violation structure measured (320 fresh classical draws, sample A)
+
+Deficit census on the candidate stream (corpus = its own Fiat-Shamir prefix),
+zero cross-check mismatches vs the validated shot_fault_mask path:
+
+- lambda_cls = 15.116 (n=320). Composition of the 4,837 faulting shots:
+  1,315 hard-channel only (term/walkback/replay/square-zero/result — width
+  repair cannot touch these), 2,007 hard AND width (non-converging walks,
+  deficits grow to +8 — unrepairable), 1,515 width-only ("soft").
+- Of the soft shots, 795 would be clean under the UNRESCALED schedule
+  (rescale-induced repairable lambda = 2.48); 884 are fixable by +1-bit
+  widening (2.76 lambda ceiling for any +1 repair).
+- KEY NEGATIVE (kills the task's ~6-round hypothesis): the soft faults are
+  NOT concentrated. Median repairable shot needs ~3 distinct sampled-table
+  indices; best single index fixes 9/884; the best 6-index set fixes 46/884
+  in-sample and HALF that out-of-sample (-0.081 lambda for +217 diag T).
+  There is no cheap pocket: lambda vs T is a smooth near-linear frontier.
+
+## R4 — repair frontier measured (all clean rebuilds, PP_PROFILE 64-lane diag)
+
+Greedy cost-weighted set cover fitted on sample A (320 draws), validated on
+held-out sample B (320 fresh draws); then REFIT on A+B (640 draws) and
+validated on held-out sample C (320 fresh draws). All candidates: Q=1274,
+peak binding unchanged (pp_div_replay), diag 0 classical / phase 0x0 / 0 dirty.
+
+| set | indices | diag T | dT vs 915905.50 | holdout d_lambda_cls | rate |
+|---|---|---|---|---|---|
+| c6 (A-fit) | 6 | 916122.78 | +217 | -0.081 (B) | 0.37/kT |
+| c40 (A-fit) | 40 | 916332.09 | +427 | -0.500 (B) | 1.17/kT |
+| c100 (A-fit) | 100 | 916602.62 | +697 | -0.906 (B) | 1.30/kT |
+| c200 (A-fit) | 200 | 917063.78 | +1158 | -1.413 (B) | 1.22/kT |
+| r40 (AB-fit) | 40 | 916207.27 | +302 | -0.541 (C) | 1.79/kT |
+| **r100 (AB-fit)** | **100** | **916424.62** | **+519** | **-0.947 (C)** | **1.82/kT** |
+| r150 (AB-fit) | 150 | 916801.16 | +896 | -1.281 (C) | 1.43/kT |
+| r200 (AB-fit) | 200 | 916892.09 | +987 | -1.541 (C) | 1.56/kT |
+
+Uniform tail ranges (+1 on k[a..703]) are strictly worse (~1.0 lambda/kT).
+Real diag T per widened index is ~3-36x the naive 3.2/bit-round rate (chunk
+layout interactions); all pricing above is measured, not modeled.
+
+## R5 — FROZEN: r100 baked as source default (commit follows)
+
+- `WIDTH_REPAIR` const (100 sampled-table indices, +1 bit each) applied in
+  `value_width` on top of the embedded table when the rescale is active;
+  `SUB4_PP_WIDTH_REPAIR=0` opts out.
+- Bake faithfulness (clean rebuild, byte-for-byte):
+  default -> sha256 4c68597468ed1dbb4f2e33042842227bf57c011c51f41e9cdaf13c73194b1f8c
+  (== the env-driven r100 stream), 12,919,977 emitted ops (12,920,073 loaded);
+  SUB4_PP_WIDTH_REPAIR=0 -> 60b6fe45... (starting candidate, exact);
+  full opt-out chain (REPAIR=0 RESCALE=0 R1=342 R2=625 PEAK=1275 SQ=245)
+  -> d9737f51... (live artifact, exact).
+- Gates on baked default: diag T916,424.62 (== pre-bake measurement), Q1274,
+  peak_phase pp_div_replay, 0 cls / 0x0 ph / 0 dirty; production selftest
+  PASS (916,510.469 executed T on its gate, 1274 qubits).
+- Score: est. full T ~916,401 (diag - 23.4 offset) at Q1274 ->
+  ~1,167,494,874; still ~-4.19M vs live leader 1,171,689,300. Ceiling margin
+  ~3,290 T below 919,693.
+- Paid-repair census: NOT re-measured on the repaired stream (census tooling
+  was external to this tree); flagged for the density lane.
+- ppfilter on baked stream @ inherited nonce: pred_cls=22 (fresh corpus draw
+  at lambda ~14.2 — the ops prefix changed, so the corpus is a new draw;
+  ensemble receipts below are the metric).
