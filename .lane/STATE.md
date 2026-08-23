@@ -376,3 +376,81 @@ as the priced, validated recipe for the next step.
 3. Phase (~13.3 lambda) and the hard non-converging-walk classical (~7.85) remain
    the untouchable floor; they cap how far width alone can go but do NOT block
    reaching live-parity. Route 4/5 architectural work is the lever BEYOND parity.
+
+## D9 — width-repair Pareto FITTED, VALIDATED, T-PRICED (this session)
+
+Baseline reproduced byte-for-byte: build_circuit -> 12,901,167 ops, ops.bin
+sha256 `ecc3d9f0...`, PP_PROFILE peak 1272 (op 2,527,023, pp_div_replay),
+TOTAL diag T 914748.17, 64-lane classical 0 / phase 0x0 / dirty 0. VERIFIED.
+
+**Census tool (ppfilter `deficits` mode) added and cross-validated.** ppfilter
+source `/Users/olifreuler/ecdsa-ppfilter-rl` gained an infinite-width `walk_required`
+census + `deficits` mode (per soft-repairable shot: sampled-index deficit set;
+plus hard/soft/plus1 counts). Rebuilt binary sha256
+`dfa6f76ca8681aaa260879293f5fb02f0f389c24b3e33e7df0535e7a3b7d9e3e` (was
+`f763f770...`; MODEL unchanged, only a new read-only mode added). Provenance
+re-validated: `breakdown 251000962439` still `pred_cls=17` (walk_div=10
+replay_div=0 walk_mul=5 replay_mul=2, width=11 term=4). Census on corpus A
+reproduces D5 EXACTLY: lambda_cls=17.559, soft=6.081, +1-repairable=3.509.
+
+**Fitting protocol.** Deficits mapped raw round -> build sampled index via the
+exact build map `width_round_index(r)=r*703/695` (ROUNDS_DEFAULT=704, r=696).
+Two structural gates enforced at fit time (advisor-flagged):
+- Monotonicity: `pingpong_simulator_selfcheck` asserts value_width non-increasing
+  (PRODUCTION gate). Every candidate table is a right-to-left running-max
+  ENVELOPE of base+deltas; all candidates verified non-increasing effective.
+- Peak safety: the Q1272 binding plateau is sampled idx {342,343,344,345} (w=145,
+  contributing 145 u + 145 v to the 1272 live-set). Excluded from the cover pool;
+  14 soft shots that require it were dropped (cost 0.043 in-sample lambda).
+Python compression of a candidate table reproduces the build's SUB4_DUMP_WSCHED
+effective schedule with ZERO mismatch, so density is priced with no rebuilds via
+`PPF_WSCHED=<candidate effective>`; T is priced with no recompile via the build's
+`SUB4_PP_WSCHED_FILE=<candidate sampled table>` + PP_PROFILE (base-table override
+reproduces TOTAL 914748.17 / peak 1272 exactly = neutral).
+
+**Greedy +1 set-cover frontier (corpus A, excl forbidden plateau)** reproduces
+D5: 40 idx->0.938, 100->1.659, 200->2.359, 300->2.816, +1 ceiling 555->3.466.
+
+**Pareto set (peak 1272 held on ALL +1 candidates; 64-lane 0/0x0/0 on all):**
+
+| cand | idx | diag T | ΔT | A λ_cls | B λ_cls (held-out) | held-out Δλ | Δλ/ΔT |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| base | 0 | 914748.17 | 0 | 17.559 | 17.784 | 0 | — |
+| r100 | 100 | 915106.17 | +358 | 15.900 | 16.275 | 1.509 | 0.00421 |
+| r200 | 200 | 915772.23 | +1024 | 15.200 | 15.588 | 2.196 | 0.00214 |
+| r300 | 300 | 916331.23 | +1583 | 14.744 | 15.062 | 2.722 | 0.00172 |
+| ceil | 555 | 917491.50 | +2743 | 14.094 | 14.219 | 3.565 | 0.00130 |
+
+In-sample Δλ matches set-cover exactly (1.659/2.359/2.816). Held-out transfer is
+0.91-0.93 of in-sample (NOT 0.5 as D8 conservatively assumed) — the greedy indices
+are high-population-rate, not overfit. **Subset property confirmed empirically:**
+`hard` count is INVARIANT across all candidates (A=3673, B=3599) — widening never
+creates a classical fault; the faulting-shot set is a strict subset of baseline's.
+
+**Live classical anchor re-measured at n=320 (exact oracle), not D8's n=16.**
+Live artifact rebuilt via the opt-out chain -> sha `d9737f51...` (byte-exact);
+ppfilter certifies live's accepted clean nonce (pred_cls=0). Live corpus-B
+classical lambda = **14.637** (D8's n=16 read was 15.00). So held-out classical
+PARITY with live sits between r300 (15.062) and ceil (14.219); ceil is BELOW live
+classical.
+
+**Bounded +2 is INFEASIBLE.** The all-soft (widen every soft deficit) candidate
+has deficits up to +9 bits, bumps peak to **1278** (pp_mul_walkback) and diag T to
+931996 (over the 921139 ceiling). So the +1 ceiling is the natural maximum; the
+soft_gt1 (deficit>1) population cannot be repaired without breaking Q1272. No +2
+candidate is bakeable.
+
+**Score headroom.** Full-eval T ceiling 921139; baseline full 914792.72 (offset
++44.55, to be re-derived for finalist). Est finalist full T (offset+44.55) and
+strict-beat score (peak 1272 x rounded full-T) vs live 1,171,689,300:
+- r300: full ~916376 -> score ~1,165,630,272 (beat -6,059,028)
+- ceil: full ~917536 -> score ~1,167,085,792 (beat -4,603,508)
+All +1 candidates beat live by millions; T ceiling is not the binding constraint.
+
+**Uncertainty (small-n phase).** Width touches only the classical channel. Phase
+lambda (D8 n=16): Q1272 13.31, live 11.38 — an irreducible +1.9 gap width cannot
+close. Under the correlated (max-channel) model classical binds until cls~phase
+(~13.31), so every +1 cut down to ~ceil still reduces the binding channel; under
+the independent (sum) model the phase gap keeps Q1272 ~4.5x above live even at
+ceil. True E[nonces] is a bracket, not a point. Finalist phase density MUST be
+re-measured post-bake on a fresh corpus (hash change).
