@@ -37,8 +37,13 @@
   and B shift-6 `sign=0` explicit; two builds byte-identical at
   `f7ce2e97...596ad`, output `a62ccdfd...af77`;
 - model status: no donor source, binary, table, checkpoint, or output imported;
-- decision: `NATIVE BUILD PASS / COMPLETE-MASK QUALIFICATION HOLD-UNRUN / NO HUNT`.
+- complete-mask qualification: stopped before predictor edits or comparison;
+  the native recurrence has no exact post-fault continuation or batch-indexed
+  4,658-site R/Hmr phase composition; detailed receipt
+  `COMPLETE-MASK-QUALIFICATION-HOLD.md`;
+- decision: `NATIVE BUILD PASS / COMPLETE-MASK QUALIFICATION HOLD / NO HUNT`.
 
-Next action: add bounded complete-mask output and require all 141 inherited
-classical and clean-phase words exactly. D32 remains unopened; F16 is frozen
-only after inherited+H64 model equality.
+Next action: implement and independently test exact finite-width post-fault
+continuation plus source-bound phase-site emission before the one-shot
+inherited and unchanged H64 complete-mask comparison. D32 remains unopened;
+F16 is frozen only after inherited+H64 model equality.
