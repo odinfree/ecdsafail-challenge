@@ -1,27 +1,18 @@
-# Lane state
+# Lane state — Kimi Q1271 selector composition
 
-- branch: `research/q1272-promoted-selector-rebase`
-- base: `4eb93cb33bbf6a93229fe166b8d511c5e52ee253`
-- decision: `SCORE_GO / VALIDATION_DIRTY / NO HUNT`
-- structural commit / tree:
-  `73422709ed70ba9725b3cb592770bcf197df4cdb` /
-  `fe77bddfb49b426312b1cca3d009b150cd06fd89`
-- semantic edit: exact hash-bound transplant of donor `14608572` selector
-  lifecycle plus focused miter only
-- target `pingpong_div.rs` / `mod.rs` SHA-256:
-  `6e7cce578663d8419c032190a9caa405ca0d84e0512104b766b9c68540f01994` /
-  `0c9e9a920d9078f2390028009895f03d495096fdac9d2b596c7913c064e03e63`
-- focused miter: PASS 64/64, phase 0, ancilla 0, all eight arms,
-  identical Toffoli, `+4 CX +1 R`, peak `573 -> 572`
-- square component: PASS, Q1272
-- ping-pong component: PASS, Q1272
-- candidate artifact: 12,904,643 ops, SHA-256
-  `ea19759d80a4bc1492a5e98c966e70ee79d5aa40211e6cc480b08cf032c8a0f1`
-- unchanged full 9,024-shot evaluation: Q1272, T914783.521 (rounded
-  914784), classical/phase/ancilla `23/8/0`
-- projected rounded score: `1,163,605,248`, a strict improvement of
-  `226,091` over the measured live score `1,163,831,339`
-- Q1272 rounded-T ceiling: `914961`
-- next gate: fresh source-bound classical and conditional-phase predictor
-  qualification before any search; this lane does not hunt
-- provider/range/hunt/submission: forbidden
+- phase: `PREDECLARED / MODEL_QUOTA_HOLD`
+- branch: `research/kimi-q1271-selector-binder`
+- predeclaration commit: `341ebcb`
+- target evidence/source: `41dd0b4` / `7342270`
+- target operations: `12,904,643` / `ea19759d80a4bc1492a5e98c966e70ee79d5aa40211e6cc480b08cf032c8a0f1`
+- semantic edits: none
+- provider/range/hunt/submission: none
+
+At `2026-08-23T12:09:14Z`, one first-party `kimi-code/k3` prompt attempt
+failed before work began with the provider billing-cycle usage-limit response
+(`403`). The two earlier CLI invocations failed locally at option parsing and
+never called the model. No paid usage or source mutation occurred.
+
+Do not retry Kimi repeatedly. The next objective-advancing action is either a
+single fresh availability check after an external quota change or a clean
+handoff of this frozen lane to Claude Fable after the active Fable lane ends.
