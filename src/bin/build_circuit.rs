@@ -92,6 +92,34 @@ fn main() {
     let ops = point_add::build();
     println!("  emitted ops : {}", ops.len());
 
+    // Opt-in, byte-neutral: dump per-op source-site trace for the external phase
+    // mirror. Requires TRACE_OP_SITES=1 (populates the trace during build) and
+    // SUB4_DUMP_OP_SITES=<path>. Runs after the ops are built and does not touch
+    // op emission, so ops.bin is unchanged (verified: same SHA with/without).
+    if let Some(path) = std::env::var_os("SUB4_DUMP_OP_SITES") {
+        let sites = point_add::take_last_op_sites();
+        // The divider ops are traced 1:1; build() then appends 96 X tail-nonce
+        // ops that carry no source site. Untraced trailing ops are fine for the
+        // mirror (they are X, never Gidney frees).
+        assert!(
+            sites.len() <= ops.len(),
+            "op-site trace longer than op stream"
+        );
+        println!(
+            "  op-sites    : traced {} / {} ops (untraced tail = {})",
+            sites.len(),
+            ops.len(),
+            ops.len() - sites.len()
+        );
+        let f = File::create(&path).expect("create op-site dump");
+        let mut w = BufWriter::new(f);
+        for (i, (file, line, ctx)) in sites.iter().enumerate() {
+            writeln!(w, "{i}\t{file}\t{line}\t{ctx}").expect("write op-site row");
+        }
+        w.flush().expect("flush op-site dump");
+        println!("  op-sites    : wrote {} rows to {:?}", sites.len(), path);
+    }
+
     let path = Path::new(OPS_PATH);
     if let Err(e) = write_ops(&ops, path) {
         eprintln!("error: failed to write {}: {}", OPS_PATH, e);

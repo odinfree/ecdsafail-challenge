@@ -499,6 +499,7 @@ impl B {
     fn alloc_bits(&mut self, n: usize) -> Vec<BitId> {
         (0..n).map(|_| self.alloc_bit()).collect()
     }
+    #[track_caller]
     fn free(&mut self, q: QubitId) {
         self.r(q);
         self.free_qubits
@@ -668,6 +669,7 @@ impl B {
         op.q_target = b;
         self.push_op(op);
     }
+    #[track_caller]
     fn r(&mut self, q: QubitId) {
         let mut op = Op::empty();
         op.kind = OperationType::R;
@@ -682,6 +684,7 @@ impl B {
         self.push_op(op);
     }
 
+    #[track_caller]
     fn hmr(&mut self, q: QubitId, c: BitId) {
         let mut op = Op::empty();
         op.kind = OperationType::Hmr;

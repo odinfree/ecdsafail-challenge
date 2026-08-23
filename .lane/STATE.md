@@ -569,3 +569,106 @@ phase effect is measured by re-running the mirror over the 23 patched nonces on
 the repaired stream (23 fresh draws) vs the frozen stream, not by frozen
 receipts. Byte-faithful opt-out chain preserved (default-off env restores
 `4c68597...`).
+
+---
+
+# Targeted phase-carry overturn — RESULTS (2026-08-23)
+
+## Extended mirror (external, /tmp, NOT committed; rebuildable from this spec)
+
+Design (path-dep crate on this worktree; reproduce with build_circuit +
+`TRACE_OP_SITES=1 SUB4_DUMP_OP_SITES=<sites.tsv>`):
+- TWO passes over the SAME `fiat_shamir_seed(ops)` (two independent
+  `Shake256Reader`): Pass B = the real `quantum_ecc::sim::Simulator`
+  (`apply_iter`) for ground-truth per-batch classical-fail lanes / final phase /
+  ancilla; Pass A = an op-by-op faithful copy of `apply_iter` (identical match
+  arms; SAME xof consumption — pre-draw 2x32B x NUM_TESTS=9024 incl. `continue`
+  pairs, then 8B per R/Hmr) with per-op phase attribution. Cross-check asserts
+  Pass A per-batch `phase & cond_mask == Pass B`, so Pass A is faithful by
+  construction AND by assertion.
+- Gidney attribution: each measured bit is fresh (`alloc_bit`, never reused), so
+  a site = one Hmr(carry, m) plus every op gated by m via `c_condition==m` OR the
+  push-condition stack (cmp_lt_phase_conditioned wraps its fixup in
+  `push_condition(phase)`, so the phase-kick `cz(ctrl,u[n-1])` is stack-gated,
+  NOT c_condition-gated — a single-CZ pairing model is WRONG and must handle the
+  stack). Net site divergence on a lane = XOR of the group's per-op phase deltas;
+  collected only on classical-clean phase-dirty lanes
+  (`final_phase & !classical_fail & cond_mask`), which is empty on almost all
+  batches so cost ~ one full sim (~25s/nonce).
+- Source site: `push_op` is `#[track_caller]`; adding `#[track_caller]` to
+  `r`/`free`/`hmr` (mod.rs) makes the trace point at the pingpong_div call site.
+  VERIFIED byte-neutral (ops.bin still `4c68597...`). build_circuit dump
+  (`SUB4_DUMP_OP_SITES`, opt-in, post-build) is byte-neutral too; traces
+  12,919,977 / 12,920,073 ops (untraced tail = 96 X tail-nonce ops, never Gidney).
+
+## Source-exactness (regression, all 23) — PASS 23/23, 0 mismatch
+
+The extended mirror reproduces `cls/phase-batches/phase-shots/anc` EXACTLY on all
+23 corpus nonces (FIXTURES.md fixed-six + 16 mask-ext + canary 0/2/2/0), with
+zero Pass-A-vs-Simulator batch divergences. Inherited 22/11/11/0, canary
+0/2/2/0, etc. (full table in /tmp/mirror_receipts.tsv during the run).
+
+## Per-site clean-lane divergence census (dev-fit, holdout-validated)
+
+Clean-lane phase faults are 100% Gidney measured-uncompute divergence
+(DEV 54/54, HOLDOUT 35/35; ZERO bare-R, ZERO deterministic) — confirms and
+sharpens the earlier claim with exact per-lane attribution.
+
+CONCENTRATION — the decisive result (answers task step 3):
+- BY SOURCE LINE: extremely concentrated. ALL clean divergences (dev+hold) live
+  on exactly 3 lines, ALL the same mechanism (a measured boundary carry
+  uncomputed by a TRUNCATED-window `cmp_lt_phase_conditioned`):
+    pingpong_div.rs:1547  chunk-boundary erase, window `replay_chunk_compare()`
+                          (dev 46 / hold 29)
+    pingpong_div.rs:1783  replay-flag boundary,  window `replay_flag_compare()`
+                          (dev 4 / hold 3)
+    pingpong_div.rs:1898  doubled add-out boundary erase
+                          (dev 4 / hold 3)
+- BY OP-INDEX (the actual +1-widen lever = a specific dynamic carry/round):
+  DIFFUSE and NON-REPEATING. DEV: 54 faults across 54 DISTINCT op-indices (each
+  diverges exactly once). HOLDOUT: 35 across 34. The dev top-K diverging
+  op-index set captures **0% of HOLDOUT** for every K in {10,20,50,100,200}.
+  Which specific boundary carry diverges is data(nonce)-dependent, not a fixed
+  pocket.
+
+## DECISION: repair family REJECTED (diffuse / score-negative) -> fast screen
+
+A targeted +1 carry-width repair at "the top predeclared sites/indices" cannot
+work: the diverging op-indices do not repeat across nonces (0% held-out), so any
+op-index-selected widen fitted on dev buys ~nothing out-of-sample. The only way
+to zero this channel is to widen the truncation WINDOW globally at lines
+1547/1783/1898 (`replay_chunk_compare` / `replay_flag_compare`) for ALL
+boundaries — i.e. the exact width/comparison channel that is Q<=1274 / T-bound
+and already exhausted (r100 frontier; ~1,261 T of room here, far too little for a
+global window widen). No repair was emitted: it would be score-negative and is
+not a bounded few-site edit. This CONFIRMS the frozen predictor verdict with a
+direct per-site measurement rather than source-semantics alone.
+
+## Fast phase screen (step 5) — factorization favorable; build is next lane step
+
+Phase parity for a lane = XOR over the boundary-erase sites of
+(divergence_bit & rng_bit), rng drawn per Hmr in fiat-shamir order. The
+divergence_bit at each site = (true boundary carry) XOR (truncated-window
+comparison) — this is the SAME truncated-vs-exact boundary-carry comparison the
+qualified classical model already computes for its approximate-boundary-repair
+census (approx=2290). So the divergence factors onto state the classical model
+tracks (walk registers at each chunk boundary); it does NOT need extra discarded
+carry state -> the step-5 falsifier resolves FAVORABLE. Construction: bolt a
+per-boundary rng draw (fiat-shamir order) + XOR-parity accumulator onto the
+qualified model; a lane is phase-clean iff the accumulated parity is 0.
+Predeclared validation: frozen 23 + disjoint 32 (rule above), mirror as oracle.
+NOT built here: it requires integrating into the external gpu-port predictor
+(task forbids mutating ecdsa-ops; ~$ and hours beyond this session). The mirror
+stands as the exact (not fast) phase oracle; the screen is the priced next step.
+
+## Verdict / next bounded action
+
+Steps 1-3 complete; step 4 (targeted repair) REJECTED with held-out data (0%
+capture, would require exhausted global window widen); step 5 (fast screen)
+scoped, factorization proven favorable, deferred to a predictor-integration lane.
+Falsifier that would REOPEN the repair: any clean-lane divergence at a site that
+is NOT a truncated-window boundary erase (would indicate a structural
+mis-cancellation fixable Clifford-only) — census shows 0/89 such (all 3 lines are
+truncation-window boundaries). Next bounded action: implement the parity
+accumulator inside the gpu-port-q1274-repair-r100 predictor (its own tree, not
+ecdsa-ops mutation) and validate against the mirror on frozen-23 + disjoint-32.
