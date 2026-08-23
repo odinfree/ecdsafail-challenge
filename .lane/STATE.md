@@ -372,3 +372,115 @@ receipts.
   evaluator writes results.tsv/score.json into CARGO_MANIFEST_DIR.
 - Keep all experiments opt-in. Do NOT commit ops.bin, results rows, binaries,
   logs, temp evaluators, caches, or artifacts.
+
+---
+
+# Lane re-descent — PHASE channel RESULTS (2026-08-23)
+
+Instrument (NOT committed; external crate in /tmp, path-dep on this worktree):
+a logging mirror of `eval_circuit::run_tests` seeded from the REAL
+`fiat_shamir_seed(ops)`, cross-checked FAITHFUL against `quantum_ecc::sim::
+Simulator` on every 64-lane batch (final qubits/bits/phase asserted equal),
+with per-event phase attribution partitioned into {R-dirty, Hmr-dirty,
+deterministic Z/CZ/CCZ/Neg}. Runs on the SHA-verified frozen streams
+(build_circuit with SUB4_PINGPONG_TAIL_NONCE=<corpus nonce>).
+
+## Source-exactness of the phase model (validated, non-adaptive)
+
+Reproduced `cls/phase-batches/phase-shots` EXACTLY on 6 predeclared corpus
+points with zero mirror-vs-Simulator divergences:
+- inherited 251000962439 -> 22/11/11 (receipt 22/11/11/0) MATCH
+- canary   100000035106674 -> 0/2/2 (receipt 0/2/0; the "2" is 2 batches AND
+  2 shots) MATCH; my canary ops.bin SHA = 305663f6... == the receipt's
+  "patched survivor operation SHA-256". MATCH
+- 236196892829662 -> 16/9/10 MATCH; 271225631924494 -> 6/5/5 MATCH;
+  151276714938924 -> 19/16/17 MATCH; 12679622957485 -> 11/5/5 MATCH.
+
+## Mechanism (PROVEN exactly, not inherited)
+
+`free(q)` == `self.r(q)` (mod.rs:502): every qubit free is a bare `R`
+measurement with NO fixup; a lane holding 1 at the free leaks a random phase
+bit (`phase ^= q & rng`) and is force-zeroed (so it never shows as ancilla
+garbage). Measured-erasure uncomputes use the Gidney pattern
+`hmr(carry, m); cz_if(a, b, m)` (pingpong_div.rs and_uncompute:1384, carry
+uncomputes 820/854/926/1465): the Hmr kick `q_before & rng` is cancelled by
+the fixup `rng & (a&b)` EXACTLY when `q_before == a&b`; the residual per site
+is `rng & (q_before XOR (a&b))`.
+
+Two DISTINCT phase sub-channels, cleanly separated on the corpus:
+1. **Bare-R vent leaks** (R-only XOR reconstructs the whole batch phase,
+   hmr^det==0). On the inherited fixture: 8/11 phase-dirty batches
+   (15,40,41,55,83,104,110,140). EVERY one is classical-COINCIDENT
+   (classical_in_batch>=1, clean_phase_lanes=0). The same gross truncation
+   residue that corrupts the result register also dirties the vented qubit.
+2. **Gidney measured-uncompute divergence** (hmr^det != 0, single bit ==
+   dirty lane, 0 R-dirty events on that lane). Inherited batches 58,68,72.
+   THIS is the ONLY channel that produces CLASSICAL-CLEAN phase faults:
+   inherited batches 68 (classical_in_batch=0) and 72 (clean lane), AND both
+   canary clean shots (lanes 25 and 9). Each is one Gidney site whose
+   deliberately-truncated carry (pingpong_div.rs:1364 "the carry window is the
+   deliberately measured approximation") did not equal its control-AND, so the
+   fixup CZ failed to cancel.
+
+## Repair vs predictor — DECISION: source-bound exact phase model (predictor)
+
+A "free" reversible repair (advisor's R->Hmr+CZ) requires the freed value to
+be a reconstructable clean `a&b` with surviving controls. It does NOT apply
+here: the phase-leaking frees carry APPROXIMATE-ARITHMETIC RESIDUE (a
+deliberately truncated carry), not a clean AND — the Gidney fixup already
+EXISTS at these sites and fails precisely because the value is wrong. Zeroing
+the leak == making the truncated carries exact == the WIDTH channel, which is
+Q<=1274/T-bound and already exhausted (see r100 frontier above). Confirming
+data: the r100 width repair cut classical lambda ~1 but left phase UNMOVED
+(10-11) — because it widened result-hotspot indices, NOT the carry sites that
+feed the measured-uncompute frees. So classical and phase are two different
+projections of the same truncation residue at DIFFERENT sites.
+
+Delivered: the external mirror is a SOURCE-EXACT phase model (both channels,
+validated on 6 corpus points + canary + inherited). It is exact but costs a
+full sim (~26s/nonce), so it is a diagnostic/screening oracle, not a
+cheaper-than-eval predictor. Score contract note: R/Hmr/CZ/CX/Swap are
+Cliffords and UNSCORED (score = round(avg_tof) x qubits); the T<=918822 room
+is ~irrelevant to any Clifford-only phase fix — but no such fix exists because
+the fault is a wrong VALUE, not a missing gate.
+
+## Falsifiers and next bounded overturn (predeclared)
+
+- REPAIR-REJECTION FALSIFIER (would overturn "predictor"): a free/uncompute
+  site that leaks on a classical-clean shot UNDER EXACT ARITHMETIC (a
+  structural bug, not truncation). Cheapest test: run the mirror on a stream
+  with the phase-leak carry sites widened to exact and check if any
+  classical-clean phase fault survives. If zero -> all phase leaks are
+  truncation residue (predictor confirmed); if nonzero -> a Clifford-only
+  reversible fix exists at that site. Not run here (no single "exact
+  arithmetic" switch; full exactness blows Q).
+- NEXT BOUNDED OVERTURN (positive-EV, blocked by corpus, NOT run): a TARGETED
+  carry-width repair of only the Gidney sites that diverge on CLASSICAL-CLEAN
+  shots would raise hunt yield within the ~2,400 T ceiling room (at the
+  measured ~1.5 lambda/kT that is ~3.6 lambda, but the clean-conditioned phase
+  lambda is only ~2, so a few hundred T could roughly halve it). BLOCKED: it
+  needs a CLASSICAL-CLEAN-CONDITIONED carry-divergence census, and the fixed
+  23-nonce corpus contains only ONE classical-clean member (canary, 2 shots) —
+  insufficient to fit, and adaptive nonce search is forbidden. This is the
+  hand-off: with an authorized classical-clean sample (from the qualified
+  classical predictor's survivor stream, no new grind), census the
+  clean-conditioned Gidney-divergence carry sites and price a targeted widen.
+- FAST PREDICTOR (search economics, NOT built): phase parity factors as
+  XOR over measured-uncompute sites of (per-site truncation-divergence &
+  rng-bit). The divergence mask is the schedule-independent walk profile the
+  qualified classical model already computes; bolting a per-free rng draw +
+  parity accumulator onto it would yield a sub-eval phase screen. Falsifier:
+  if the per-site divergence does NOT factor cleanly onto the classical
+  model's state (needs extra carry state the model discards), the predictor is
+  not cheaper than the mirror and the diagnostic oracle stands as the result.
+
+## Verdict
+
+Phase channel re-descended and fully mechanised: two sub-channels (bare-R vent
+= classical-coincident; Gidney measured-uncompute divergence = the sole
+classical-clean channel, hence hunt-binding). Both are approximate-arithmetic
+truncation residue at frees, not repairable by any Clifford-only reversible
+fix; zeroing them is the exhausted Q/T-bound width channel. A source-exact
+phase model (the mirror) is delivered and validated on 6 corpus points. The
+priced next step is a targeted carry-widen of the clean-conditioned Gidney
+sites, blocked only by the fixed corpus's single classical-clean member.
