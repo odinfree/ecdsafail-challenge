@@ -63,7 +63,7 @@ copy of the exact evaluator source:
 No circuit, simulator, seed, shot, or correctness logic changed.
 
 - original evaluator source SHA-256:
-  `b35314bc929ba6e6884304e70f926cd1a2cba7e316b01450349cc514701b83d2`;
+  `b35314bc47a5f8eecbf60459e6c76c9b43aa034eeb9b7ec3421655d74f9e890b`;
 - instrumented evaluator source SHA-256:
   `4e87d08dc10cb49ea46410c09796239601ba529deac87d0dc45d641337ede9fc`;
 - instrumentation patch SHA-256:
