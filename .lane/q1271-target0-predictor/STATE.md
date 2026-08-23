@@ -5,9 +5,9 @@
 - target operations: `12,919,161` / `590cb55d...`
 - target result: Q1271 / T915142.533 / nonce65700024945645 /
   `11/10/0`
-- phase: `TARGET BYTE-EXACT / TRUSTED FULL REPRODUCED / MODEL UNRUN / D32 HOLD`
+- phase: `INHERITED ORACLE EXACT / MODEL UNRUN / H64 ORACLE NEXT / D32 HOLD`
 - exact target: `12,919,161` / `590cb55d...`; Q1271 / T915142.533 /
   `11/10/0`
-- next: derive target trace and checkpoint, then seal trusted inherited plus
-  H64 complete masks before model output
+- next: seal trusted H64 complete masks before any model output
+- trace/inherited seal: `INHERITED_ORACLE_PASS.md`
 - provider/CUDA/range/hunt/submission/public: forbidden
