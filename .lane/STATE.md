@@ -53,7 +53,17 @@ The current universal gate is `Q * T < 1175485230`. Exact strict T ceilings are 
 
 ## Current phase
 
-`FULL_FIELD_ROUND3_PREFIX`
+`FULL_FIELD_ROUND3_CLOSED_HOLD` (bdf4845 lane).
+
+The round-3 falsifier is answered: the exact rounds-0..3 retained-word replay
+prefix is clean at Q1114 with one atomic-toggle flag (this lane, commit on
+`research/fable-clanker-round3-bdf4845`; see
+`.lane/ROUND3-RETAINED-WORD-BDF4845.md` and
+`.lane/PREDECLARATION-ROUND3-BDF4845.md`). Metrics are byte-identical to the
+prior `40d0170` a9af194 result, independently re-derived from the `384823f`
+round-2 base. Next gate is the nonzero-numerator production-splice ABI closure,
+already recorded KILLED on the 9805dee line (`34c1b50`) with the reference
+itself failing reverse cleanup.
 
 ## Current hypothesis
 

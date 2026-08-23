@@ -2953,6 +2953,28 @@ fn retained_denominator_replay_slice_selfcheck() {
 /// Full-field replay prefix with an optional raw phase-failure mode. The
 /// repaired mode normalizes round 1's `p` sentinel to canonical zero around
 /// round 2, restores it, and clears its one local flag.
+/// Atomic sentinel toggle used by the full-field replay prefix. It maps `x`'s
+/// `{0, p}` continuation representation to canonical zero, or restores it, using
+/// one local flag that is cleared before the call returns. Sign 1 is
+/// reconstructed from the retained word into `flag`, `p` is XORed into `x` under
+/// `flag`, and the same sign-1 oracle clears `flag`. The flag is therefore zero
+/// on entry and on exit, never overlapping the shared sign qubit.
+fn retained_normalization_toggle(
+    b: &mut B,
+    retained: &[QubitId],
+    oracle_scratch: &[QubitId; 2],
+    flag: QubitId,
+    x: &[QubitId],
+) {
+    retained_denominator_sign_1_to_7_oracle(b, retained, 1, oracle_scratch, flag);
+    for i in 0..N {
+        if SECP256K1_P.bit(i) {
+            b.cx(flag, x[i]);
+        }
+    }
+    retained_denominator_sign_1_to_7_oracle(b, retained, 1, oracle_scratch, flag);
+}
+
 fn retained_denominator_full_replay_selfcheck(raw_phase_probe: bool) {
     use crate::circuit::QubitOrBit;
     use sha3::{
@@ -2978,78 +3000,53 @@ fn retained_denominator_full_replay_selfcheck(raw_phase_probe: bool) {
 
     replay_halving_round(&mut candidate, 0, sign, &candidate_x, &candidate_y);
     let candidate_round0_checkpoint = candidate.ops.len();
-    let mut candidate_sign_checkpoints = [0usize; 2];
-    retained_denominator_sign_1_to_7_oracle(
-        &mut candidate,
-        &retained,
-        1,
-        &oracle_scratch,
-        sign,
-    );
+
+    // Round 1: reconstruct sign 1, replay, erase. The all-zero seed leaves `x`
+    // in the `{0, p}` continuation representation keyed by sign 1; `y` stays
+    // canonical zero. Round 1 needs no normalization.
+    let mut candidate_sign_checkpoints = [0usize; 3];
+    let mut candidate_normalization_checkpoints = [candidate_round0_checkpoint; 3];
+    retained_denominator_sign_1_to_7_oracle(&mut candidate, &retained, 1, &oracle_scratch, sign);
     replay_halving_round(&mut candidate, 1, sign, &candidate_x, &candidate_y);
-    retained_denominator_sign_1_to_7_oracle(
-        &mut candidate,
-        &retained,
-        1,
-        &oracle_scratch,
-        sign,
-    );
+    retained_denominator_sign_1_to_7_oracle(&mut candidate, &retained, 1, &oracle_scratch, sign);
     candidate_sign_checkpoints[0] = candidate.ops.len();
 
-    let candidate_normalization_checkpoint;
-    if !raw_phase_probe {
-        retained_denominator_sign_1_to_7_oracle(
-            &mut candidate,
-            &retained,
-            1,
-            &oracle_scratch,
-            normalization_flag,
-        );
-        for i in 0..N {
-            if SECP256K1_P.bit(i) {
-                candidate.cx(normalization_flag, candidate_x[i]);
-            }
+    // Rounds 2 and 3: one local flag performs an atomic sentinel toggle before
+    // and after each production replay cell. The flag is zero before the round's
+    // sign enters the shared sign qubit and zero again after the continuation is
+    // restored. No second concurrent flag, no round-indexed state.
+    for round in 2..=3usize {
+        let idx = round - 1;
+        if !raw_phase_probe {
+            retained_normalization_toggle(
+                &mut candidate,
+                &retained,
+                &oracle_scratch,
+                normalization_flag,
+                &candidate_x,
+            );
         }
-        candidate_normalization_checkpoint = candidate.ops.len();
-    } else {
-        candidate_normalization_checkpoint = candidate_sign_checkpoints[0];
-    }
+        candidate_normalization_checkpoints[idx] = candidate.ops.len();
 
-    retained_denominator_sign_1_to_7_oracle(
-        &mut candidate,
-        &retained,
-        2,
-        &oracle_scratch,
-        sign,
-    );
-    if raw_phase_probe {
-        retained_replay_round2_coherent_probe(&mut candidate, sign, &candidate_x, &candidate_y);
-    } else {
-        replay_halving_round(&mut candidate, 2, sign, &candidate_x, &candidate_y);
-    }
-    retained_denominator_sign_1_to_7_oracle(
-        &mut candidate,
-        &retained,
-        2,
-        &oracle_scratch,
-        sign,
-    );
-
-    if !raw_phase_probe {
-        for i in 0..N {
-            if SECP256K1_P.bit(i) {
-                candidate.cx(normalization_flag, candidate_x[i]);
-            }
+        retained_denominator_sign_1_to_7_oracle(&mut candidate, &retained, round, &oracle_scratch, sign);
+        if raw_phase_probe && round == 2 {
+            retained_replay_round2_coherent_probe(&mut candidate, sign, &candidate_x, &candidate_y);
+        } else {
+            replay_halving_round(&mut candidate, round, sign, &candidate_x, &candidate_y);
         }
-        retained_denominator_sign_1_to_7_oracle(
-            &mut candidate,
-            &retained,
-            1,
-            &oracle_scratch,
-            normalization_flag,
-        );
+        retained_denominator_sign_1_to_7_oracle(&mut candidate, &retained, round, &oracle_scratch, sign);
+
+        if !raw_phase_probe {
+            retained_normalization_toggle(
+                &mut candidate,
+                &retained,
+                &oracle_scratch,
+                normalization_flag,
+                &candidate_x,
+            );
+        }
+        candidate_sign_checkpoints[idx] = candidate.ops.len();
     }
-    candidate_sign_checkpoints[1] = candidate.ops.len();
 
     candidate.free(normalization_flag);
     candidate.free_vec(&oracle_scratch);
@@ -3088,27 +3085,46 @@ fn retained_denominator_full_replay_selfcheck(raw_phase_probe: bool) {
     let sign0 = walk_round(&mut reference, &mut u, &mut v, 0);
     let sign1 = walk_round(&mut reference, &mut u, &mut v, 1);
     let sign2 = walk_round(&mut reference, &mut u, &mut v, 2);
+    let sign3 = walk_round(&mut reference, &mut u, &mut v, 3);
     replay_halving_round(&mut reference, 0, sign0, &reference_x, &reference_y);
     replay_halving_round(&mut reference, 1, sign1, &reference_x, &reference_y);
     let reference_normalization_flag = reference.alloc_qubit();
-    if raw_phase_probe {
-        retained_replay_round2_coherent_probe(&mut reference, sign2, &reference_x, &reference_y);
-    } else {
-        reference.cx(sign1, reference_normalization_flag);
-        for i in 0..N {
-            if SECP256K1_P.bit(i) {
-                reference.cx(reference_normalization_flag, reference_x[i]);
+    // The reference uses the walk's own sign-1 qubit directly as the toggle
+    // control, applying the same atomic sentinel toggle around production replay
+    // rounds 2 and 3.
+    for (offset, &round_sign) in [sign2, sign3].iter().enumerate() {
+        let round = offset + 2;
+        if raw_phase_probe {
+            if round == 2 {
+                retained_replay_round2_coherent_probe(
+                    &mut reference,
+                    round_sign,
+                    &reference_x,
+                    &reference_y,
+                );
+            } else {
+                replay_halving_round(&mut reference, round, round_sign, &reference_x, &reference_y);
             }
-        }
-        replay_halving_round(&mut reference, 2, sign2, &reference_x, &reference_y);
-        for i in 0..N {
-            if SECP256K1_P.bit(i) {
-                reference.cx(reference_normalization_flag, reference_x[i]);
+        } else {
+            reference.cx(sign1, reference_normalization_flag);
+            for i in 0..N {
+                if SECP256K1_P.bit(i) {
+                    reference.cx(reference_normalization_flag, reference_x[i]);
+                }
             }
+            reference.cx(sign1, reference_normalization_flag);
+            replay_halving_round(&mut reference, round, round_sign, &reference_x, &reference_y);
+            reference.cx(sign1, reference_normalization_flag);
+            for i in 0..N {
+                if SECP256K1_P.bit(i) {
+                    reference.cx(reference_normalization_flag, reference_x[i]);
+                }
+            }
+            reference.cx(sign1, reference_normalization_flag);
         }
-        reference.cx(sign1, reference_normalization_flag);
     }
     reference.free(reference_normalization_flag);
+    walk_back_round(&mut reference, &mut u, &mut v, 3, sign3);
     walk_back_round(&mut reference, &mut u, &mut v, 2, sign2);
     walk_back_round(&mut reference, &mut u, &mut v, 1, sign1);
     grow_to(&mut reference, &mut u, &mut v, VALUE_WIDTH);
@@ -3188,6 +3204,44 @@ fn retained_denominator_full_replay_selfcheck(raw_phase_probe: bool) {
             }
             let mut candidate_cursor = candidate_round0_checkpoint;
             for (round_index, &checkpoint) in candidate_sign_checkpoints.iter().enumerate() {
+                // Rounds 2 and 3 (round_index 1, 2): validate the atomic
+                // sentinel toggle-in boundary. After it, the one local flag is
+                // back to zero and both replay registers are canonical zero for
+                // every shot, so the production replay cell runs on a clean
+                // field element.
+                if round_index >= 1 && !raw_phase_probe {
+                    let normalization_checkpoint =
+                        candidate_normalization_checkpoints[round_index];
+                    candidate_sim.apply_iter(
+                        candidate_ops[candidate_cursor..normalization_checkpoint].iter(),
+                    );
+                    assert_eq!(
+                        candidate_sim.qubit(normalization_flag),
+                        0,
+                        "toggle-in flag not cleared before round {} in batch {batch}",
+                        round_index + 1,
+                    );
+                    for shot in 0..64 {
+                        assert_eq!(
+                            candidate_sim.get_register(&candidate_x_reg, shot),
+                            U256::ZERO,
+                            "normalized x is not canonical zero before round {} in batch {batch} shot {shot}",
+                            round_index + 1,
+                        );
+                        assert_eq!(
+                            candidate_sim.get_register(&candidate_y_reg, shot),
+                            U256::ZERO,
+                            "normalized y not canonical zero before round {} in batch {batch} shot {shot}",
+                            round_index + 1,
+                        );
+                    }
+                    assert_eq!(
+                        candidate_sim.phase, 0,
+                        "normalization boundary phase dirty before round {} in batch {batch}",
+                        round_index + 1,
+                    );
+                    candidate_cursor = normalization_checkpoint;
+                }
                 candidate_sim.apply_iter(candidate_ops[candidate_cursor..checkpoint].iter());
                 assert_eq!(
                     candidate_sim.qubit(sign),
@@ -3224,43 +3278,6 @@ fn retained_denominator_full_replay_selfcheck(raw_phase_probe: bool) {
                     );
                 }
                 candidate_cursor = checkpoint;
-                if round_index == 0 && !raw_phase_probe {
-                    candidate_sim.apply_iter(
-                        candidate_ops[candidate_cursor..candidate_normalization_checkpoint].iter(),
-                    );
-                    let expected_flag = denominators.iter().enumerate().fold(
-                        0u64,
-                        |mask, (shot, denominator)| {
-                            if !denominator.bit(2) {
-                                mask | (1u64 << shot)
-                            } else {
-                                mask
-                            }
-                        },
-                    );
-                    assert_eq!(
-                        candidate_sim.qubit(normalization_flag),
-                        expected_flag,
-                        "normalization flag mismatch in batch {batch}",
-                    );
-                    for shot in 0..64 {
-                        assert_eq!(
-                            candidate_sim.get_register(&candidate_x_reg, shot),
-                            U256::ZERO,
-                            "normalized x is not canonical zero in batch {batch} shot {shot}",
-                        );
-                        assert_eq!(
-                            candidate_sim.get_register(&candidate_y_reg, shot),
-                            U256::ZERO,
-                            "normalized y changed before round 2 in batch {batch} shot {shot}",
-                        );
-                    }
-                    assert_eq!(
-                        candidate_sim.phase, 0,
-                        "normalization boundary phase dirty in batch {batch}",
-                    );
-                    candidate_cursor = candidate_normalization_checkpoint;
-                }
             }
             candidate_sim.apply_iter(candidate_ops[candidate_cursor..].iter());
             let candidate_x_values: Vec<U256> = (0..64)
@@ -3364,10 +3381,30 @@ fn retained_denominator_full_replay_selfcheck(raw_phase_probe: bool) {
         }
     }
 
+    // Per-round emitted Toffoli, split at the replay checkpoints. The atomic
+    // toggles are linear (CX only), so each range counts its production replay
+    // cell exactly.
+    let emitted_in = |lo: usize, hi: usize| -> usize {
+        candidate_ops[lo..hi]
+            .iter()
+            .filter(|op| matches!(op.kind, OperationType::CCX | OperationType::CCZ))
+            .count()
+    };
+    let round_emitted = [
+        emitted_in(0, candidate_round0_checkpoint),
+        emitted_in(candidate_round0_checkpoint, candidate_sign_checkpoints[0]),
+        emitted_in(candidate_sign_checkpoints[0], candidate_sign_checkpoints[1]),
+        emitted_in(candidate_sign_checkpoints[1], candidate_sign_checkpoints[2]),
+    ];
+
     eprintln!(
-        "TEDDY_RETAINED_FULL_REPLAY_NORMALIZED PASS rounds=0..2 reconstructed_signs=1..2 lanes=4096 low_residues=512 high_prefixes=8 candidate_peak_q={candidate_peak} candidate_abi_q={candidate_abi} candidate_extra_peak_q={} candidate_total_q={candidate_total_qubits} candidate_classical_bits={candidate_total_bits} candidate_ops={} candidate_emitted_t={candidate_emitted_toffoli} candidate_executed_t={:.3} reference_peak_q={reference_peak} reference_abi_q={reference_abi} reference_total_q={reference_total_qubits} reference_classical_bits={reference_total_bits} reference_ops={} reference_emitted_t={reference_emitted_toffoli} reference_executed_t={:.3} denominator_preserved=1 retained_word_preserved=1 replay_state_match=1 normalization_flag_peak=1 normalization_flag_final=0 phase=0 ancilla=0 persistent_carrier_bits=0 max_live_sign_bits=1 fixed_oracle_scratch_q=2",
+        "TEDDY_RETAINED_FULL_REPLAY_NORMALIZED PASS rounds=0..3 reconstructed_signs=1..3 lanes=4096 low_residues=512 high_prefixes=8 candidate_peak_q={candidate_peak} candidate_abi_q={candidate_abi} candidate_extra_peak_q={} candidate_total_q={candidate_total_qubits} candidate_classical_bits={candidate_total_bits} candidate_ops={} candidate_emitted_t={candidate_emitted_toffoli} candidate_round_emitted_t=0:{},1:{},2:{},3:{} candidate_executed_t={:.3} reference_peak_q={reference_peak} reference_abi_q={reference_abi} reference_total_q={reference_total_qubits} reference_classical_bits={reference_total_bits} reference_ops={} reference_emitted_t={reference_emitted_toffoli} reference_executed_t={:.3} denominator_preserved=1 retained_word_preserved=1 replay_state_match=1 normalization_flag_peak=1 normalization_flag_final=0 normalization_flag_cleared_before_sign=1 concurrent_normalization_flags=0 phase=0 ancilla=0 persistent_carrier_bits=0 max_live_sign_bits=1 fixed_oracle_scratch_q=2",
         candidate_peak - candidate_abi,
         candidate_ops.len(),
+        round_emitted[0],
+        round_emitted[1],
+        round_emitted[2],
+        round_emitted[3],
         candidate_executed_toffoli as f64 / 4096.0,
         reference_ops.len(),
         reference_executed_toffoli as f64 / 4096.0,
