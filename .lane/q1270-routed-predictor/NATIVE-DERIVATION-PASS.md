@@ -34,7 +34,7 @@ diagnostic, not a candidate circuit.
 
 ## Exact derivation
 
-The production source binds:
+The production source and diagnostic bind:
 
 - 704 base rounds and separate 696-round divide/multiply selection at lines
   6, 13, and 28;
@@ -43,8 +43,8 @@ The production source binds:
   `false`;
 - replay chunk 96, compare 20, replay fold 54, endpoint fold 20, and flag
   compare 22;
-- plan boundaries 340 and 628 and the production peak selector at lines
-  1287-1289;
+- default plan boundaries 340 and 628 and the production peak-selector
+  mechanism at lines 1287-1289;
 - production selector/sign-XOR lifecycle helpers at lines 557 and 565,
   target0/sign alias at line 1901, and doubled-out eviction at line 1971;
 - the square-ladder control at product-register line 41.
@@ -56,7 +56,12 @@ rescaled rows are `0:259`, `1:258`, `339:145`, `340:145`, `627:34`,
 `628:33`, `695:8`, and `699:8`. The active divide and multiply schedules each
 contain exactly 696 rows.
 
-The target-native controls are therefore fixed as:
+The diagnostic ran with only `SUB4_DUMP_WSCHED=1`. It did not activate or
+probe the target peaks, square ladder, or four lifecycle controls: their source
+defaults are different. Those eight values below are frozen configuration
+inputs from `PREDECL.md` SHA-256 `d2bced1e...7df9`, corroborated by the
+byte-exact target rebuild receipt SHA-256 `7a7f8257...95e9` and operation
+stream `ec4fadc0...eb63a`. They are not width-probe observations:
 
 - divide/multiply rounds: `696/696`;
 - divide/multiply peaks: `1270/1271`;
@@ -66,6 +71,10 @@ The target-native controls are therefore fixed as:
 - square ladder: `240`;
 - selector eviction, doubled-out eviction, target0/sign alias, and routed
   sign-XOR/add-out checkpoint: enabled.
+
+The native executable must require this explicit configuration identity and
+must fail closed if built or invoked against source defaults. A self-test that
+passes with the target configuration omitted is evidence for the wrong stream.
 
 ## External artifact receipt
 
@@ -93,7 +102,7 @@ self-check passed.
 ## Verdict
 
 `q1270_native_recurrence_v1` clears the source-identity, round, width,
-lifecycle-control, phase-geometry, and checkpoint-input gate. The next gate is
+explicit target-config, phase-geometry, and checkpoint-input gate. The next gate is
 an empty-file implementation of the target-native recurrence, host-state
 digest, and target phase composition, followed by two independent builds and
 complete inherited-mask equality. The unopened D32 and future F16 remain

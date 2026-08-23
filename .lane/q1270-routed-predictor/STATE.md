@@ -27,7 +27,8 @@
 - native derivation: phase/checkpoint byte-exact; 700/700 width rows and both
   696-round active schedules matched frozen source; widths
   `07e910b9...6f235`, active schedules `c49b95b0...a8bf5`, input seal
-  `c226f964...003a8`;
+  `c226f964...003a8`; target peaks/ladder/lifecycles are explicit config
+  bindings from predeclaration plus byte-exact rebuild, not diagnostic defaults;
 - model status: no donor source, binary, table, checkpoint, or output imported;
 - decision: `NATIVE DERIVATION PASS / EMPTY-FILE MODEL IMPLEMENTATION NEXT / NO HUNT`.
 
