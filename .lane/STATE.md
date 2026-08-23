@@ -53,19 +53,19 @@ The current universal gate is `Q * T < 1175485230`. Exact strict T ceilings are 
 
 ## Current phase
 
-`RELATIVE_PHASE_ABI_VALUE_KILL`
+`NUMERATOR_RESIDUAL_CARRIER_PREDECLARED`
 
 ## Current hypothesis
 
-`H11 KILL`: event-bound relative phase does not rescue the nonzero replay ABI. Candidate and raw reference match value and complete phase masks through rounds0..1 for denominator0, but after round2 all64 seed lanes have a continuation mismatch. The first failure is production entry seed `(d,c,n)=(1,0,1)`: coefficient remains exact while numerator differs. The single sentinel-normalization flag therefore encoded a zero-seed-only assumption.
+`H12`: X009's round-2 numerator loss may be expressible as one clean 256-bit residual computed from retained denominator plus coefficient/current numerator already live at the correction boundary. X010 first characterizes `raw_n-candidate_n` on the unchanged4,096-row corpus, then permits exactly one carrier to compute/correct/uncompute through at most round3. Prototype Q cap1370; no second carrier, predecessor copy, second flag, or round4.
 
 ## Current falsifier
 
-The first declared failing class is `KILL_NONZERO_NUMERATOR_ABI` at round2, denominator index0, seed index0, with complete mismatch mask `ffffffffffffffff`. Raw reference canary, denominator0 finite inverse/cleanup, candidate signs1..2, rounds0..1 value/relative-phase equality, Q1114/T960, one flag, and no carrier pass. Round2 phase, round3, candidate terminal cleanup, denominators1..63, and executed-T average are not results.
+H12 fails if the exact residual has a conflicting fiber on every allowed live key, one carrier cannot encode/correct it, uncompute needs a predecessor word no longer live, two full-width values overlap, Q>1370, a second flag/carrier appears, or any X009 value/inverse/relative-phase/restoration/cleanup gate fails. Full-tuple uniqueness on only the fixture is not a source-semantic formula. Carrier entropy/effective width and all T debt must be measured, not optimized.
 
 ## Next action
 
-Seal and push the terminal X009 KILL. No rounds1..3 production splice is authorized. Any changed-premise carrier experiment must be separately predeclared, price its explicit state debt, and preserve the frozen value/inverse/relative-phase/cleanup gates; do not repair X009, extend round4, optimize, grind, hunt, or touch a provider.
+Commit and push X010 before characterization or source edits. Then run Stage A over the complete frozen corpus and select only the first source-semantic mapping in the frozen oracle order. Implement Stage B only if one-carrier compute/correct/uncompute remains possible at Q<=1370. Stop on the first KILL; no round4, whole-circuit work, optimization, grind, hunt, or provider.
 
 ## Last verified result
 

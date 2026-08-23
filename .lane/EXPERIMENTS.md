@@ -276,6 +276,20 @@
 - Evidence: `.lane/TEDDY-NONZERO-ABI-RELATIVE-PHASE-PREDECLARATION.md`, `.lane/TEDDY-NONZERO-ABI-RELATIVE-PHASE-KILL.md`, immutable X008 fixture, and receipts.
 - Exact next action: stop X009. Any one-carrier changed premise is a new predeclared experiment with explicit Q/T/cleanup debt. No round4, optimization, grind, hunt, provider, or full-circuit claim.
 
+## X010 — one numerator-residual carrier saddle
+
+- Status: predeclared before characterization, source edit, or result.
+- Ancestor/source identity: clean pushed X009 `6b8d50f246b96171989dcca39186ebb1ea656847`, tree `a8962b7035d0753252e8b398313211444119fe10`; production SHA-256 `22c4820a9ba3b2356eb785d0d0d452b0939a643cb6c65241706554d19b7df376`; opt-in module SHA-256 `071699cc95dd3e09b95f9985f983d497399f17ec8c2efa527a073aa0510d66c5`; X009 receipt SHA-256 `a76756baa32ea86bd8fc8e71203365ae2598e0afa1b3be356caf252367e86565`.
+- Changed premise: permit exactly one zero-initialized256-bit numerator-residual carrier to bridge X009's round2 loss. No second carrier, predecessor copy, second flag, growing transcript, or round4.
+- Frozen corpus/authority: unchanged4,096 Cartesian rows SHA-256 `53b06714ffdf079be23b2d3e1d25706c0d2853ab08d13345588f9a505c9409b0`; raw production continuation/finite inverse and X009 event-bound relative phase remain authority.
+- Stage A: record `P1`, candidate/raw round2, raw round3, canonical-field and wrapping `raw_n-candidate_n`; test the frozen live-key subset order for conflicting fibers; measure distinct residuals/multiplicities, Shannon entropy, information lower bound, support/varying masks, active width, class split, and simple formula fits. Observation only.
+- Stage B: implement only the first source-semantic mapping from constant/sign-linear, affine XOR, direct reversible arithmetic, then finite-domain witness order. Allocate one256 carrier, correct bit-exact round2 numerator, and clear it immediately from corrected `R2` or after round3 from `R3`; kill if predecessor history or another full-width value is needed.
+- Q/T price: X009 base1028 + carrier256 = base1284; existing transient86 => hard Q1370. No score T ceiling for the first exact prototype; record emitted/executed/per-stage T and do not optimize.
+- Gates: complete4,096 per-round value/phase equality, per-denominator finite inverse, denominator/retained/sign/scratch/flag/carrier/ancilla cleanup, exactly one carrier, Q<=1370, deterministic repeat. KILL on one-carrier insufficiency, predecessor-history need, nonfunctional live key, or any inherited X009 failure.
+- Pass boundary: component saddle only. Measured carrier entropy/effective width names a later re-descent target; no production splice, round4, full circuit, provider/range/hunt/submission claim.
+- Evidence: `.lane/TEDDY-NUMERATOR-RESIDUAL-CARRIER-PREDECLARATION.md` plus immutable X008/X009 fixture and receipts.
+- Exact next action: push predeclaration, run full Stage A, then either KILL or implement the single selected Stage-B oracle. No second attempt or sweep.
+
 ## Experiment template
 
 - Status:
