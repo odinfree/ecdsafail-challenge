@@ -417,7 +417,7 @@ fn restore_wire_layout(
 }
 
 fn value_width(round: usize) -> usize {
-    const BREAK_1: usize = 30;
+    const BREAK_1: usize = 24;
     const BREAK_2: usize = 304;
     const SLOPE_1: usize = 17;
     const SLOPE_2: usize = 34;
