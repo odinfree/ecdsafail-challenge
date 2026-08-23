@@ -682,12 +682,16 @@ PP_HD void pp_s320_truncate_signed(PP_S320* a, int width) {
     }
 }
 
-// Classical fallback for a scheduled-width overflow. Unlike pp_walk_sig,
-// this follows the circuit's actual wrapping registers through every round.
-// It lets the final value check distinguish a real wrong answer from a rare
-// overflow that wraps back onto the correct quotient/product.
-PP_HD void pp_walk_sig_wrapped(const u64 a[4], int rounds, bool* u_neg_out,
-                               bool* v_neg_out, u64 signs[11], const u16* wtab) {
+PP_HD void pp_s320_pm1(PP_S320* a, bool negative) {
+    for (int i = 0; i < PP_LIMBS; i++) a->v[i] = negative ? ~0ULL : 0;
+    if (!negative) a->v[0] = 1;
+}
+
+// Forward fixed-width transducer. Unlike pp_walk_sig this intentionally
+// retains the wrapped state and never promotes a width violation to a verdict.
+PP_HD void pp_walk_wrapped_forward(const u64 a[4], int rounds, u64 signs[11],
+                                   PP_S320* u_out, PP_S320* v_out,
+                                   const u16* wtab) {
     PP_P4(Pv);
     PP_S320 p320 = pp_s320_from_u256(Pv);
     PP_S320 h = p320;
@@ -733,8 +737,69 @@ PP_HD void pp_walk_sig_wrapped(const u64 a[4], int rounds, bool* u_neg_out,
             if (sign == 1) signs[r / 64] |= 1ULL << (r % 64);
         }
     }
-    *u_neg_out = pp_s320_is_neg(&u);
-    *v_neg_out = pp_s320_is_neg(&v);
+    *u_out = u;
+    *v_out = v;
+}
+
+// Exact classical action of fused_lift_round0_reverse_sparse. Its constant
+// carry reaches bit 53 and is then dropped, matching
+// cadd_per_position_controls_trunc(last=52).
+PP_HD void pp_round0_reverse_sparse(PP_S320* v, bool a0) {
+    bool not_a1 = ((v->v[4] >> 2) & 1) != 0; // source wire v[258]
+    v->v[4] ^= ((u64)not_a1 << 2);           // clear the copied sign
+    pp_s320_shl1(v);
+    pp_s320_truncate_signed(v, PP_VALUE_WIDTH);
+
+    if (not_a1) {
+        for (int i = 0; i < 4; i++) v->v[i] = ~v->v[i];
+    }
+    int k = a0 ? 1 : (not_a1 ? 2 : 0);
+    if (k != 0) {
+        u64 low = v->v[0] & PP_MASK54;
+        u128 sum = (u128)low + (u128)k * PP_FC;
+        v->v[0] = (v->v[0] & ~PP_MASK54) | ((u64)sum & PP_MASK54);
+    }
+    if (not_a1) {
+        for (int i = 0; i < 4; i++) v->v[i] = ~v->v[i];
+    }
+
+    v->v[4] ^= (u64)a0;
+    v->v[4] ^= (u64)not_a1 << 1;
+    v->v[4] ^= (u64)not_a1 << 2;
+    pp_s320_truncate_signed(v, PP_VALUE_WIDTH);
+}
+
+// Complete source-equivalent walk/terminal-loan/walkback transducer. The
+// passenger loan R-resets every interior terminal bit after comparing it to
+// the sign, then restore reconstructs exactly +/-1. Walkback therefore starts
+// from those canonical values, not from the ideal GCD terminal state.
+PP_HD void pp_walk_wrapped_restore(const u64 a[4], int rounds, u64 signs[11],
+                                   bool* u_neg_out, bool* v_neg_out,
+                                   u64 restored_v[4], const u16* wtab) {
+    PP_S320 u, v;
+    pp_walk_wrapped_forward(a, rounds, signs, &u, &v, wtab);
+    bool u_neg = pp_s320_is_neg(&u);
+    bool v_neg = pp_s320_is_neg(&v);
+    *u_neg_out = u_neg;
+    *v_neg_out = v_neg;
+    pp_s320_pm1(&u, u_neg);
+    pp_s320_pm1(&v, v_neg);
+
+    for (int r = rounds - 1; r >= 1; r--) {
+        int w = pp_value_width_t(r, wtab);
+        pp_s320_truncate_signed(&u, w);
+        pp_s320_truncate_signed(&v, w);
+        bool sign = ((signs[r / 64] >> (r % 64)) & 1) != 0;
+        PP_S320* source = (r % 2 == 0) ? &u : &v;
+        PP_S320* target = (r % 2 == 0) ? &v : &u;
+        pp_s320_shl1(target);
+        pp_s320_truncate_signed(target, w);
+        if (sign) pp_s320_add(target, source); else pp_s320_sub(target, source);
+        pp_s320_truncate_signed(target, w);
+    }
+    pp_s320_truncate_signed(&v, PP_VALUE_WIDTH);
+    pp_round0_reverse_sparse(&v, (signs[0] & 1) != 0);
+    for (int i = 0; i < 4; i++) restored_v[i] = v.v[i];
 }
 
 PP_HD PP_WalkOut pp_walk(const u64 a[4], int rounds) {
@@ -1323,13 +1388,14 @@ PP_HD void pp_expected_add(const u64 tx[4], const u64 ty[4], const u64 ox[4],
     pp_fsub(ry, ty, ry);
 }
 
-// Slow overflow fallback: propagate the circuit's wrapped walk values through
-// the complete classical point-add shell and compare the actual output. The
-// caller supplies sign storage so CUDA keeps the same shared-memory layout.
-PP_HD bool pp_wrapped_output_correct(const u64 tx[4], const u64 ty[4],
-                                     const u64 ox[4], const u64 oy[4],
-                                     const u64 lam[4], u64 signs_d[11],
-                                     u64 signs_m[11], const u16* wtab) {
+// Overflow-only slow path. This follows the same register identities as the
+// circuit: each traversal's recovered denominator feeds the subsequent shell,
+// while replay mutates the numerator in place. No ideal denominator is
+// silently restored after a lossy walk.
+PP_HD bool pp_wrapped_shell_correct(const u64 tx[4], const u64 ty[4],
+                                    const u64 ox[4], const u64 oy[4],
+                                    const u64 lam[4], u64 signs_d[11],
+                                    u64 signs_m[11], const u16* wtab) {
     u64 rx[4], ry[4];
     pp_expected_add(tx, ty, ox, oy, lam, rx, ry);
 
@@ -1338,24 +1404,28 @@ PP_HD bool pp_wrapped_output_correct(const u64 tx[4], const u64 ty[4],
     pp_coord_sub_model(ty, oy, y2);
 
     bool du_neg, dv_neg;
-    pp_walk_sig_wrapped(x2, PP_ROUNDS_DIV, &du_neg, &dv_neg, signs_d, wtab);
+    u64 x2_after_div[4];
+    pp_walk_wrapped_restore(x2, PP_ROUNDS_DIV, signs_d, &du_neg, &dv_neg,
+                            x2_after_div, wtab);
     u64 xd[4], y2d[4];
     pp_divide_replay(y2, signs_d, du_neg, dv_neg, xd, y2d);
 
     u64 three[4], x2b[4], x2c[4];
     pp_fadd(ox, ox, three);
     pp_fadd(three, ox, three);
-    pp_mod_add_exact_model(three, x2, x2b);
+    pp_mod_add_exact_model(three, x2_after_div, x2b);
     pp_square_model(y2d, x2b, x2c);
 
     bool mu_neg, mv_neg;
-    pp_walk_sig_wrapped(x2c, PP_ROUNDS_MUL, &mu_neg, &mv_neg, signs_m, wtab);
+    u64 x2_after_mul[4];
+    pp_walk_wrapped_restore(x2c, PP_ROUNDS_MUL, signs_m, &mu_neg, &mv_neg,
+                            x2_after_mul, wtab);
     u64 xm[4], y2m[4];
     pp_multiply_replay(y2d, signs_m, mu_neg, mv_neg, xm, y2m);
 
     u64 y2f[4], x2f[4];
     pp_coord_sub_model(y2m, oy, y2f);
-    pp_coord_rsub_model(x2c, ox, x2f);
+    pp_coord_rsub_model(x2_after_mul, ox, x2f);
     return pp_eq(x2f, rx) && pp_eq(y2f, ry);
 }
 
@@ -1378,7 +1448,7 @@ PP_HD u32 pp_shot_fault_mask_s(const u64 tx[4], const u64 ty[4], const u64 ox[4]
     bool wd_fault, wd_term_ok, wd_u_neg, wd_v_neg;
     pp_walk_sig(x2, PP_ROUNDS_DIV, &wd_fault, &wd_term_ok, &wd_u_neg, &wd_v_neg, signs_d, wtab);
     if (wd_fault) {
-        return pp_wrapped_output_correct(tx, ty, ox, oy, lam, signs_d, signs_m, wtab)
+        return pp_wrapped_shell_correct(tx, ty, ox, oy, lam, signs_d, signs_m, wtab)
                    ? 0 : PP_F_WALK_DIV;
     }
     if (!wd_term_ok || pp_walkback_fold_fault(x2)) {
@@ -1406,7 +1476,7 @@ PP_HD u32 pp_shot_fault_mask_s(const u64 tx[4], const u64 ty[4], const u64 ox[4]
     bool wm_fault, wm_term_ok, wm_u_neg, wm_v_neg;
     pp_walk_sig(x2c, PP_ROUNDS_MUL, &wm_fault, &wm_term_ok, &wm_u_neg, &wm_v_neg, signs_m, wtab);
     if (wm_fault) {
-        return pp_wrapped_output_correct(tx, ty, ox, oy, lam, signs_d, signs_m, wtab)
+        return pp_wrapped_shell_correct(tx, ty, ox, oy, lam, signs_d, signs_m, wtab)
                    ? 0 : PP_F_WALK_MUL;
     }
     if (!wm_term_ok || pp_walkback_fold_fault(x2c)) {
