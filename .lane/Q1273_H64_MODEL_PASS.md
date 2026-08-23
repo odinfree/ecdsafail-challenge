@@ -1,6 +1,11 @@
 # Q1273 classical predictor H64 qualification
 
-Verdict: `CPU_EXACT / H64_MASK_PASS / CUDA_UNQUALIFIED`.
+Verdict: `H64_MASK_PASS / LATER_DISJOINT_MODEL_HOLD`.
+
+Important later result: after this H64 gate was sealed, an independently
+frozen D16 corpus exposed one predictor-only shot. See
+`Q1273_MODEL_HOLD.md`. The H64 measurement remains exact, but it is not proof
+of a globally exact model and it does not permit a CUDA handoff.
 
 The source-bound Q1273 CPU predictor reproduces the complete classical
 mismatch-shot indicator for the inherited stream and all 64 predeclared H64
@@ -82,7 +87,8 @@ binaries remain outside Git under
 - top-level H64 seal SHA-256:
   `97a4acfef1084d264c20fb13d3673f1a5adcdb284568fd81480f3ceca38704b6`.
 
-This gate qualifies the CPU classical model only. It does not authorize a
-range scan, provider action, nonce hunt, submission, or claim of CUDA parity.
-The next permissible action is an isolated Linux/CUDA comb8/comb16 parity run
-against the frozen inherited plus H64 masks, with all stream guards repeated.
+This gate qualified the CPU model only on the frozen inherited plus H64 corpus.
+It never authorized a range scan, provider action, nonce hunt, submission, or
+claim of CUDA parity. The later disjoint counterexample blocks the formerly
+planned Linux/CUDA handoff until a separately predeclared exact wrapped-state
+model passes a new holdout.
