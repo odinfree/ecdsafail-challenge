@@ -1,6 +1,6 @@
 # Re-descent lane state
 
-Updated: 2026-08-22T15:22:38Z
+Updated: 2026-08-23
 
 ## Identity
 
@@ -53,11 +53,11 @@ The current universal gate is `Q * T < 1175485230`. Exact strict T ceilings are 
 
 ## Current phase
 
-`FULL_FIELD_ROUND3_PREFIX`
+`FULL_FIELD_ROUND3_PREDECLARED`
 
 ## Current hypothesis
 
-`H9`: retaining one exact 256-bit original denominator word makes the bounded component map injective without a persistent per-round carrier. The full-field prefix now reconstructs/uses/uncomputes signs1/2 through production rounds0..2. Round1's `p` sentinel is reversibly normalized to canonical zero with one local flag, production round2 runs on canonical state, inverse normalization restores the continuation, and the retained sign1 oracle clears the flag. Across4,096 denominators the candidate is Q1114/T550.247 with replay match, phase0, ancilla0, flag0, max_live_sign_bits1, and carrier0. Round3 with the same single cleared flag is the next falsifier.
+`H9`: retaining one exact 256-bit original denominator word makes the bounded component map injective without a persistent per-round carrier. X007 is frozen before source import or result: extend the exact rounds0..2 witness through production round3 with the same one local sentinel-normalization flag, cleared between uses, one shared sign, and fixed two-qubit oracle scratch. The complete ordered4,096-denominator corpus has SHA-256 `9cbe05c8d2a2865318da958ce825163b9ac3052c142abd08c4026fff43076dbe`.
 
 ## Current falsifier
 
@@ -65,7 +65,7 @@ H9 fails if round3 needs a concurrent second normalization flag, cannot clear th
 
 ## Next action
 
-Hold the exact prefix-code and terminal-tail lanes at their measured boundaries. Teddy's sparse square overturn is exact at standalone Q1148. Commit `384823f` now proves a full-field replay prefix at Q1114, below that component target: rounds0..2, one local sentinel-normalization flag, exact continuation match, and full cleanup. Extend through production round3 with the same single flag cleared before the next sign. Record the binder and per-round T; KILL on concurrent flag, width growth, or phase debt. If clean, name the cheapest production divide-replay slice rather than continuing blind prefix depth. Do not optimize or grind before semantic correctness and cleanup. The separate MUL695 state-selective product route is CLOSED KILL after its fused cell restored Q1278 but missed the T ceiling by2745. Grind stays last.
+Push X007's source/fixture/Q-T predeclaration before source edits. Then import the exact `384823f` round0..2 witness as an isolated opt-in module, extend only through production round3, and stop on the first semantic or cleanup failure. KILL on a second concurrent flag, peak or retained-width growth, unavailable predecessor, dirty sign/scratch/flag, phase debt, or ancilla debt. If exact, name the cheapest production divide-replay slice/composition binder; do not continue to round4, optimize, grind, hunt, or touch a provider.
 
 ## Last verified result
 
