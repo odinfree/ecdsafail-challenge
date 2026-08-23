@@ -20,7 +20,10 @@ static const u64 PP_EXPECTED_OPS = 12933805ULL;
 static const char PP_EXPECTED_OPS_SHA256[] =
     "ee6448dbb23aa877123733724b109266e584f1ba14abf5c38b43b9ab6aa26cd1";
 // Derived once from the exact target artifact before any predictor result.
-static const u64 PP_EXPECTED_STATE_DIGEST = 0x2148e09f4c4293b2ULL;
+#ifndef PP_EXPECTED_STATE_DIGEST_VALUE
+#define PP_EXPECTED_STATE_DIGEST_VALUE 0x2148e09f4c4293b2ULL
+#endif
+static const u64 PP_EXPECTED_STATE_DIGEST = PP_EXPECTED_STATE_DIGEST_VALUE;
 
 // Portable SHA-256 used to bind the complete compressed ops.bin before any
 // corpus derivation. This avoids trusting a shell utility or an op-count-only
