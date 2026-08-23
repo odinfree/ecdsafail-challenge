@@ -23,10 +23,12 @@
   `07e4a192...ba20a`, aggregate classical/raw/clean/ancilla
   `1177/871/286/0`;
 - model family: `q1270_native_recurrence_v1`, empty implementation,
-  predeclaration pending commit;
+  predeclared at `4aaf5b8`;
+- native derivation: phase/checkpoint byte-exact; width/round probe implemented,
+  not yet run;
 - model status: no donor source, binary, table, checkpoint, or output imported;
 - decision: `MODEL FAMILY PREDECLARED / NATIVE DERIVATION NEXT / NO HUNT`.
 
-Next action: commit/push the model predeclaration, rerun the Q1270-native
-derivation identities, and implement the recurrence from empty target files.
-D32 remains unopened; F16 is frozen only after inherited+H64 model equality.
+Next action: commit/push the native derivation probe, seal its exact output,
+then implement the recurrence from empty target files. D32 remains unopened;
+F16 is frozen only after inherited+H64 model equality.
