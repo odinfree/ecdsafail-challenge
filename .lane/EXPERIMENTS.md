@@ -223,16 +223,19 @@
 
 ## X007 — retained-denominator production round 3
 
-- Status: predeclared before source import or result.
+- Status: exact component HOLD; bounded experiment complete.
 - Ancestor/source identity: checked-out lane `3370f66563966152040918cae97a964bacfcc427`, tree `fc60bb168d31a3b75ad2b42f44b06c4a332945ce`; exact round0..2 witness `384823f9c50c4bb450e03770f8451bd4f336674d`, tree `88bed584d45d9d0bcc74add7d0bbb070995c1a52`.
 - Hypothesis: the exact retained-denominator full-field replay can extend through production round3 with the same one local sentinel-normalization flag, cleared between uses, one shared sign, fixed two-qubit oracle scratch, and no persistent carrier or predecessor state.
 - Frozen corpus: 4,096 unique denominators in `.lane/fixtures/TEDDY-ROUND3-DENOMINATORS.hex`, SHA-256 `9cbe05c8d2a2865318da958ce825163b9ac3052c142abd08c4026fff43076dbe`.
-- Smallest source/config change: import the exact round0..2 witness as an opt-in isolated module, add round3 plus cleanup checkpoints, and leave the checked-out production emitter byte-identical by default.
+- Smallest source/config change: imported the exact retained replay source as opt-in isolated `pingpong_retained_round3.rs`, added round3 plus cleanup checkpoints, and left checked-out production `pingpong_div.rs` unchanged. The default emitter remains byte-identical at15,730,117 ops / SHA-256 `843558da6f504e3f8f2f41cae1edeccdf0cfed9e0dc216f8e880ebc1752e7b75`.
 - Expected invariant movement: rounds0..3 exact with peak Q<=1114, transient replay<=86, normalization flags peak1/final0, max live signs1, carrier0, phase0, ancilla0.
-- Prototype debt cap: existing Q1114/T550.247 executed/T583 emitted; round3 total cap Q1114/T1200.247 executed/T1283 emitted. No score claim.
-- Kill: concurrent second flag, width/retained-state growth, unavailable predecessor, dirty sign/scratch/flag, phase debt, or ancilla debt. Stop on the first failure; no repair ladder.
-- Evidence: `.lane/TEDDY-RETAINED-ROUND3-PREDECLARATION.md` and the frozen complete fixture.
-- Exact next action: push this predeclaration, then import and extend the exact witness without opening any prior round3 result.
+- Exact Q/T result: Q1114 on ABI768, extra peak346, 13,659 candidate ops, emitted T960 split round0:65/round1:141/round2:377/round3:377, average executed T894.054. Round3 delta over the frozen round0..2 witness is +0Q/+377 emitted/+343.807 executed T; all frozen caps pass.
+- Full correctness result: 4,096/4,096 exact denominator and retained-word preservation plus candidate/reference replay-state equality. Shared sign, two oracle scratch, one flag, phase, and all non-output ancillas finish zero; concurrent flags0, carrier0, max live sign1. Two direct reruns have identical receipt SHA-256 `79c6d568e6a7a772aa3deb7696114421d9dff92fb1392a98e987d8bf2fe7a9e6`.
+- Minimality/negative: the raw sentinel panics after round2 with nonzero phase `220407001544196359`. A forced round3 toggle remains exact but adds508 linear candidate ops and changes no Q/T/cleanup field, so it is killed as unnecessary. Round3 is flag-free.
+- Peak-owner movement: none; Q remains1114. The round2 `signed_mod_add_pm_halve_fused` production cell first binds base Q1028 +86 transient. Round3 reuses that exact space at no width growth.
+- Verdict: continue invariant, HOLD composition. This is the exact zero-seed rounds0..3 divide prefix, not a live nonzero-numerator or full-ABI replacement.
+- Evidence: `.lane/TEDDY-RETAINED-ROUND3-PREDECLARATION.md`, `.lane/TEDDY-RETAINED-ROUND3.md`, and the frozen complete fixture.
+- Exact next action: stop X007. A separate changed-premise lane may test nonzero-numerator ABI closure; do not open round4, optimize, grind, hunt, or touch a provider here.
 
 ## Experiment template
 

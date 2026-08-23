@@ -22,6 +22,10 @@ pub(crate) use rounds::*;
 
 pub mod trailmix_ludicrous;
 mod pingpong_div;
+// Source-bound, opt-in retained-denominator replay witness. It is never used by
+// the production emitter unless the explicit self-test gate below is selected.
+mod pingpong_retained_round3;
+mod pp_profile;
 mod single_ccx_fanout;
 mod m60_dead_t10;
 mod d2_deep_strip;
@@ -2542,6 +2546,10 @@ pub fn build() -> Vec<Op> {
         return Vec::new();
     }
     if std::env::var_os("SUB4_LEGACY_POINT_ADD").is_none() {
+        if std::env::var_os("SUB4_TEDDY_RETAINED_ROUND3_SELFTEST").is_some() {
+            pingpong_retained_round3::retained_denominator_multisign_selfcheck();
+            return Vec::new();
+        }
         if std::env::var_os("SUB4_PINGPONG_POINT_ADD_SELFTEST").is_some() {
             pingpong_div::pingpong_point_add_simulator_selfcheck();
             return Vec::new();

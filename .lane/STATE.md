@@ -53,19 +53,19 @@ The current universal gate is `Q * T < 1175485230`. Exact strict T ceilings are 
 
 ## Current phase
 
-`FULL_FIELD_ROUND3_PREDECLARED`
+`FULL_FIELD_ROUND3_EXACT_HOLD`
 
 ## Current hypothesis
 
-`H9`: retaining one exact 256-bit original denominator word makes the bounded component map injective without a persistent per-round carrier. X007 is frozen before source import or result: extend the exact rounds0..2 witness through production round3 with the same one local sentinel-normalization flag, cleared between uses, one shared sign, and fixed two-qubit oracle scratch. The complete ordered4,096-denominator corpus has SHA-256 `9cbe05c8d2a2865318da958ce825163b9ac3052c142abd08c4026fff43076dbe`.
+`H9` survives X007: retaining one exact 256-bit original denominator word makes the bounded component map injective without a persistent per-round carrier through production round3. The exact rounds0..3 witness passes the frozen ordered4,096-denominator corpus at Q1114 with the same one local sentinel-normalization flag used at round2 only; round3 is flag-free and adds no width. The corpus SHA-256 is `9cbe05c8d2a2865318da958ce825163b9ac3052c142abd08c4026fff43076dbe`.
 
 ## Current falsifier
 
-H9 fails if round3 needs a concurrent second normalization flag, cannot clear the one local flag before reconstructing the next sign, grows live state with round count, assumes unavailable predecessor state, or leaves phase/ancilla debt. Extra fixed scratch and T regression are explicit prototype debt rather than automatic KILL. The exact Q1114 full-field prefix is HOLD but does not yet prove production replay replacement. Context-specific free-outer-key, local-terminal, checkpoint, radix, coefficient-absorption, and materializing-decoder negatives remain closed unless a changed premise is named.
+None of X007's semantic kill gates fired: concurrent flags0, carrier0, denominator/retained preserved, replay-state match, shared sign/scratch/flag0, phase0, ancilla0. The raw unnormalized source fails deterministically after round2 with phase debt, binding the one atomic toggle. The exact Q1114 zero-seed prefix is HOLD because it does not exercise a live nonzero numerator or close the production ABI; it does not yet prove production replay replacement. Context-specific free-outer-key, local-terminal, checkpoint, radix, coefficient-absorption, and materializing-decoder negatives remain closed unless a changed premise is named.
 
 ## Next action
 
-Push X007's source/fixture/Q-T predeclaration before source edits. Then import the exact `384823f` round0..2 witness as an isolated opt-in module, extend only through production round3, and stop on the first semantic or cleanup failure. KILL on a second concurrent flag, peak or retained-width growth, unavailable predecessor, dirty sign/scratch/flag, phase debt, or ancilla debt. If exact, name the cheapest production divide-replay slice/composition binder; do not continue to round4, optimize, grind, hunt, or touch a provider.
+Seal X007 as a terminal exact component HOLD. Its first Q binder is the round2 `signed_mod_add_pm_halve_fused` cell at base Q1028 plus86 transient qubits; the flag-free round3 cell reuses the same space at +377 emitted / +343.807 average executed T and +0Q. A future changed-premise lane may audit nonzero-numerator ABI closure, but this lane must not continue to round4, optimize, grind, hunt, or touch a provider.
 
 ## Last verified result
 
@@ -90,6 +90,7 @@ Push X007's source/fixture/Q-T predeclaration before source edits. Then import t
 - Fable scaling audit commits `3e68e90`/`f841bcc`: exact production truth tables through sign14 measure ANF terms2,2,5,11,25,57,115,244,481,1001,2013,4041,8177,16433. This KILLs literal expanded-monomial enumeration as a full698-sign score route. It does not prove a Boolean-circuit lower bound or a scratch-width lower bound; sign6's restored dirty bridges directly falsify that stronger claim. Bounded retained-word replay slices remain HOLD.
 - Sign7/replay commit `d4f08d2`: exact low9 sign7 ANF has115 terms/degree7 and passes4,096 target-width cases at candidate Q522/T4000 with two allocated scratch, at most three restored retained dirty bridges, phase0, ancilla0, carrier0, max_live_sign_bits1. The first real two-round F7 replay consumer passes the same4,096 inputs at Q521/T0 with only six intended coefficient continuation bits live. Naive full-field round2 leaves deterministic phase debt; reversible round1-sentinel normalization is the changed-premise reopen.
 - Full-field normalization commit `384823f`: production rounds0..2 pass4,096 denominators at candidate Q1114 on ABI768, extra peak346, 8,622 ops, emitted T583, executed T550.247; reference Q1546/T3089.817. One local flag reconstructs sign1, maps the round1 `p` sentinel to canonical zero for round2, restores the continuation, and clears through the same retained sign oracle. Denominator/retained preserved, replay state match, sign/scratch/flag0, phase0, ancilla0, carrier0, max_live_sign_bits1. Raw unnormalized mode fails deterministically, binding the fix.
+- X007 round3 receipt `.lane/TEDDY-RETAINED-ROUND3.md`: exact production rounds0..3 on the same frozen4,096 denominators at Q1114/ABI768/extra346, 13,659 ops, emitted T960 split65/141/377/377, executed T894.054; reference Q1546/T3945.219. The single flag is used only around round2, round3 is flag-free, and denominator/retained/replay/sign/scratch/flag/phase/ancilla/carrier gates all pass. Default production remains15,730,117 ops at SHA-256 `843558da6f504e3f8f2f41cae1edeccdf0cfed9e0dc216f8e880ebc1752e7b75`. Verdict exact component HOLD; nonzero-numerator ABI closure is not proved.
 - Protected-leader cache HOLD commit `a05cca3`: exact `a9af194` cycle has21 clean rows and no average below919784.5; promoted nonce57002259501 at919785.268 remains best. Do not rebuild until a newer read-only cache cycle contains a necessarily new strict beat.
 
 ## Credit and shipping note
