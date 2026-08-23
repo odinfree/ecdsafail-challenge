@@ -3430,7 +3430,7 @@ fn retained_denominator_full_replay_selfcheck(raw_phase_probe: bool) {
 /// exercise the production entry ABI (`coefficient=0,numerator!=0`) and the
 /// remaining 32 exercise the stronger general transducer ABI.
 pub(crate) fn retained_nonzero_abi_selfcheck() {
-    retained_nonzero_abi_selfcheck_inner(false, false);
+    retained_nonzero_abi_selfcheck_inner(false, false, false);
 }
 
 /// X009 changed-premise form of [`retained_nonzero_abi_selfcheck`]. The raw
@@ -3438,25 +3438,149 @@ pub(crate) fn retained_nonzero_abi_selfcheck() {
 /// consume the corresponding post-walk suffix so full phase masks can be
 /// compared without pretending the inherited raw phase debt is zero.
 pub(crate) fn retained_nonzero_abi_relative_phase_selfcheck() {
-    retained_nonzero_abi_selfcheck_inner(true, false);
+    retained_nonzero_abi_selfcheck_inner(true, false, false);
 }
 
 /// X010 Stage-A observation mode. It runs the same bound raw/candidate miter
 /// through round 3 but records, rather than repairs, every round-2 numerator
 /// residual on the frozen corpus.
 pub(crate) fn retained_numerator_residual_characterize() {
-    retained_nonzero_abi_selfcheck_inner(true, true);
+    retained_nonzero_abi_selfcheck_inner(true, true, false);
 }
 
-fn retained_nonzero_abi_selfcheck_inner(relative_phase: bool, characterize_residual: bool) {
+/// X010 Stage-B one-carrier falsifier selected by the dependency gate. The
+/// carrier is computed from exact source replay cells, corrects the round-2
+/// numerator, and is immediately uncomputed without retaining predecessor
+/// state.
+pub(crate) fn retained_numerator_residual_carrier_selfcheck() {
+    retained_nonzero_abi_selfcheck_inner(true, false, true);
+}
+
+fn retained_round2_with_recomputed_sign(
+    b: &mut B,
+    retained: &[QubitId],
+    oracle_scratch: &[QubitId; 2],
+    sign: QubitId,
+    source: &[QubitId],
+    target: &[QubitId],
+    inverse: bool,
+) {
+    retained_denominator_sign_1_to_7_oracle(b, retained, 2, oracle_scratch, sign);
+    if inverse {
+        replay_doubling_round(b, 2, sign, source, target);
+    } else {
+        replay_halving_round(b, 2, sign, source, target);
+    }
+    retained_denominator_sign_1_to_7_oracle(b, retained, 2, oracle_scratch, sign);
+}
+
+fn retained_numerator_residual_compute(
+    b: &mut B,
+    retained: &[QubitId],
+    oracle_scratch: &[QubitId; 2],
+    sign: QubitId,
+    normalization_flag: QubitId,
+    coefficient: &[QubitId],
+    residual: &[QubitId],
+) {
+    retained_round2_with_recomputed_sign(
+        b,
+        retained,
+        oracle_scratch,
+        sign,
+        coefficient,
+        residual,
+        false,
+    );
+    retained_normalization_toggle(
+        b,
+        retained,
+        oracle_scratch,
+        normalization_flag,
+        coefficient,
+    );
+    retained_round2_with_recomputed_sign(
+        b,
+        retained,
+        oracle_scratch,
+        sign,
+        coefficient,
+        residual,
+        true,
+    );
+    retained_normalization_toggle(
+        b,
+        retained,
+        oracle_scratch,
+        normalization_flag,
+        coefficient,
+    );
+    mod_halve_pm(b, residual);
+}
+
+fn retained_numerator_residual_uncompute(
+    b: &mut B,
+    retained: &[QubitId],
+    oracle_scratch: &[QubitId; 2],
+    sign: QubitId,
+    normalization_flag: QubitId,
+    coefficient: &[QubitId],
+    residual: &[QubitId],
+) {
+    mod_double_pm(b, residual);
+    retained_normalization_toggle(
+        b,
+        retained,
+        oracle_scratch,
+        normalization_flag,
+        coefficient,
+    );
+    retained_round2_with_recomputed_sign(
+        b,
+        retained,
+        oracle_scratch,
+        sign,
+        coefficient,
+        residual,
+        false,
+    );
+    retained_normalization_toggle(
+        b,
+        retained,
+        oracle_scratch,
+        normalization_flag,
+        coefficient,
+    );
+    retained_round2_with_recomputed_sign(
+        b,
+        retained,
+        oracle_scratch,
+        sign,
+        coefficient,
+        residual,
+        true,
+    );
+}
+
+fn retained_nonzero_abi_selfcheck_inner(
+    relative_phase: bool,
+    characterize_residual: bool,
+    construct_residual: bool,
+) {
     use crate::circuit::QubitOrBit;
     use sha3::{
         digest::{ExtendableOutput, Update, XofReader},
         Shake256,
     };
 
+    assert!(
+        !(characterize_residual && construct_residual),
+        "X010 observation and construction modes are mutually exclusive",
+    );
     let receipt_prefix = if characterize_residual {
         "TEDDY_NUMERATOR_RESIDUAL_CHARACTERIZE"
+    } else if construct_residual {
+        "TEDDY_NUMERATOR_RESIDUAL_CARRIER"
     } else if relative_phase {
         "TEDDY_NONZERO_ABI_RELATIVE"
     } else {
@@ -3568,9 +3692,12 @@ fn retained_nonzero_abi_selfcheck_inner(relative_phase: bool, characterize_resid
     let scratch_vec = candidate.alloc_qubits(2);
     let scratch = [scratch_vec[0], scratch_vec[1]];
     let normalization_flag = candidate.alloc_qubit();
+    let residual_carrier = construct_residual.then(|| candidate.alloc_qubits(N));
 
     let mut candidate_round_checkpoints = [0usize; 4];
     let mut candidate_sign_ready_checkpoints = [0usize; 3];
+    let mut candidate_carrier_checkpoints = [0usize; 4];
+    let mut candidate_carrier_cumulative_peaks = [0u32; 4];
     candidate.set_phase("teddy_nonzero_round0_replay");
     replay_halving_round(
         &mut candidate,
@@ -3647,6 +3774,43 @@ fn retained_nonzero_abi_selfcheck_inner(relative_phase: bool, characterize_resid
         normalization_flag,
         &candidate_coefficient,
     );
+    if let Some(residual) = &residual_carrier {
+        candidate_carrier_checkpoints[0] = candidate.ops.len();
+        candidate_carrier_cumulative_peaks[0] = candidate.peak_qubits;
+        candidate.set_phase("teddy_numerator_residual_compute");
+        retained_numerator_residual_compute(
+            &mut candidate,
+            &retained,
+            &scratch,
+            sign,
+            normalization_flag,
+            &candidate_coefficient,
+            residual,
+        );
+        candidate_carrier_checkpoints[1] = candidate.ops.len();
+        candidate_carrier_cumulative_peaks[1] = candidate.peak_qubits;
+        candidate.set_phase("teddy_numerator_residual_correct");
+        mod_add_qq_lowq(
+            &mut candidate,
+            &candidate_numerator,
+            residual,
+            SECP256K1_P,
+        );
+        candidate_carrier_checkpoints[2] = candidate.ops.len();
+        candidate_carrier_cumulative_peaks[2] = candidate.peak_qubits;
+        candidate.set_phase("teddy_numerator_residual_uncompute");
+        retained_numerator_residual_uncompute(
+            &mut candidate,
+            &retained,
+            &scratch,
+            sign,
+            normalization_flag,
+            &candidate_coefficient,
+            residual,
+        );
+        candidate_carrier_checkpoints[3] = candidate.ops.len();
+        candidate_carrier_cumulative_peaks[3] = candidate.peak_qubits;
+    }
     candidate_round_checkpoints[2] = candidate.ops.len();
 
     candidate.set_phase("teddy_nonzero_round3_sign");
@@ -3676,6 +3840,9 @@ fn retained_nonzero_abi_selfcheck_inner(relative_phase: bool, characterize_resid
     candidate_round_checkpoints[3] = candidate.ops.len();
 
     candidate.set_phase("teddy_nonzero_cleanup");
+    if let Some(residual) = &residual_carrier {
+        candidate.free_vec(residual);
+    }
     candidate.free(normalization_flag);
     candidate.free_vec(&scratch);
     candidate.free(sign);
@@ -3707,15 +3874,59 @@ fn retained_nonzero_abi_selfcheck_inner(relative_phase: bool, characterize_resid
         emitted_in(candidate_round_checkpoints[1], candidate_round_checkpoints[2]),
         emitted_in(candidate_round_checkpoints[2], candidate_round_checkpoints[3]),
     ];
+    let candidate_carrier_emitted = if construct_residual {
+        [
+            emitted_in(
+                candidate_carrier_checkpoints[0],
+                candidate_carrier_checkpoints[1],
+            ),
+            emitted_in(
+                candidate_carrier_checkpoints[1],
+                candidate_carrier_checkpoints[2],
+            ),
+            emitted_in(
+                candidate_carrier_checkpoints[2],
+                candidate_carrier_checkpoints[3],
+            ),
+        ]
+    } else {
+        [0usize; 3]
+    };
     assert_eq!(candidate_abi, 3 * N as u32, "candidate ABI changed");
+    let candidate_q_cap = if construct_residual { 1370 } else { 1114 };
+    if construct_residual {
+        eprintln!(
+            "{receipt_prefix}_BUILD rows=4096 candidate_abi_q={candidate_abi} candidate_base_q=1284 candidate_peak_q={candidate_peak} candidate_peak_phase={candidate_peak_phase} candidate_q_cap={candidate_q_cap} candidate_ops={} candidate_emitted_t={candidate_emitted_toffoli} candidate_round_emitted_t=0:{},1:{},2:{},3:{} carrier_stage_emitted_t=compute:{},correct:{},uncompute:{} carrier_cumulative_peak_q=before_compute:{},after_compute:{},after_correct:{},after_uncompute:{} carrier_bits=256 carrier_count=1 predecessor_bits=0 second_carrier_bits=0 normalization_flags=1 concurrent_flags=0 correction_primitive=mod_add_qq_lowq",
+            candidate_ops.len(),
+            candidate_round_emitted[0],
+            candidate_round_emitted[1],
+            candidate_round_emitted[2],
+            candidate_round_emitted[3],
+            candidate_carrier_emitted[0],
+            candidate_carrier_emitted[1],
+            candidate_carrier_emitted[2],
+            candidate_carrier_cumulative_peaks[0],
+            candidate_carrier_cumulative_peaks[1],
+            candidate_carrier_cumulative_peaks[2],
+            candidate_carrier_cumulative_peaks[3],
+        );
+    }
+    if candidate_peak > candidate_q_cap {
+        eprintln!(
+            "{receipt_prefix} FAIL class=KILL_Q_CAP candidate_peak_q={candidate_peak} candidate_peak_phase={candidate_peak_phase} candidate_q_cap={candidate_q_cap} excess_q={} semantic_rows_run=0 relative_phase_rows_run=0 cleanup_rows_run=0 second_construction_authorized=0",
+            candidate_peak - candidate_q_cap,
+        );
+    }
     assert!(
-        candidate_peak <= 1114,
-        "KILL_Q_CAP candidate peak {candidate_peak} exceeds 1114",
+        candidate_peak <= candidate_q_cap,
+        "KILL_Q_CAP candidate peak {candidate_peak} phase {candidate_peak_phase} exceeds {candidate_q_cap}",
     );
-    assert!(
-        candidate_emitted_toffoli <= 960,
-        "KILL_T_CAP candidate emitted T {candidate_emitted_toffoli} exceeds 960",
-    );
+    if !construct_residual {
+        assert!(
+            candidate_emitted_toffoli <= 960,
+            "KILL_T_CAP candidate emitted T {candidate_emitted_toffoli} exceeds 960",
+        );
+    }
 
     // Raw production-forward authority. Its walk signs remain live while the
     // four unchanged replay cells execute; the walk is then exactly reversed

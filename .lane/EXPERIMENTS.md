@@ -278,7 +278,7 @@
 
 ## X010 — one numerator-residual carrier saddle
 
-- Status: Stage-A and dependency/entropy gates complete; exactly one direct source-cell Stage-B construction selected and not yet tested.
+- Status: terminal `KILL_Q_CAP`; bounded X010 complete.
 - Ancestor/source identity: clean pushed X009 `6b8d50f246b96171989dcca39186ebb1ea656847`, tree `a8962b7035d0753252e8b398313211444119fe10`; production SHA-256 `22c4820a9ba3b2356eb785d0d0d452b0939a643cb6c65241706554d19b7df376`; opt-in module SHA-256 `071699cc95dd3e09b95f9985f983d497399f17ec8c2efa527a073aa0510d66c5`; X009 receipt SHA-256 `a76756baa32ea86bd8fc8e71203365ae2598e0afa1b3be356caf252367e86565`.
 - Changed premise: permit exactly one zero-initialized256-bit numerator-residual carrier to bridge X009's round2 loss. No second carrier, predecessor copy, second flag, growing transcript, or round4.
 - Frozen corpus/authority: unchanged4,096 Cartesian rows SHA-256 `53b06714ffdf079be23b2d3e1d25706c0d2853ab08d13345588f9a505c9409b0`; raw production continuation/finite inverse and X009 event-bound relative phase remain authority.
@@ -290,8 +290,11 @@
 - Stage-A result: direct release run exits0 with exactly4,096 rows and64 denominator batches. Raw forward is injective64/64 per denominator, finite inverse4096/4096, and cleanup exact. Candidate observation is Q1114/ops13,659/emitted T960/executed T894.242; reference Q1546/ops40,605/emitted T4,010/executed T3,944.242. No carrier was allocated and no correction was applied. Complete record SHA-256 `7ce27cc97c07d8303c5c0f1f5b86c91c26377a0349225a85425b67a3b62b90b9`.
 - Dependency/entropy result:127 field and wrapping values, entropy4.488941556776 bits/information floor7, but full256-bit support and variation. Field/wrap agree3065 and differ1031. Constant/sign-linear/affine-XOR fail. The direct half-difference matches3980 rows;116 exact source-fold branches add108 `+2^53` and8 `-2^53`. `(sign1,sign2,c1)` is collision-free on the frozen corpus. Two runs produce the same semantic analysis SHA-256 `a1d394d6851b1f27f7bfa41168a43ec42b5943a7f15448bc932ee1255bcf9080`.
 - Selected Stage-B oracle: compute `H(D_sign2(N_d(c1), F_sign2(c1,0)))` in the sole zero256 carrier using exact existing replay cells; add it modulo p to the candidate numerator; immediately uncompute by the paired source reverse. This uses retained `d`/live `c1`, no `n1` predecessor or second word. It remains only a falsifier until exact value/phase/Q/cleanup gates pass.
-- Evidence: `.lane/TEDDY-NUMERATOR-RESIDUAL-CARRIER-PREDECLARATION.md`, `.lane/TEDDY-NUMERATOR-RESIDUAL-STAGE-A.md`, `.lane/TEDDY-NUMERATOR-RESIDUAL-DEPENDENCY.md`, analyzer, plus immutable X008/X009 fixture and receipts.
-- Exact next action: implement only the selected direct source-cell oracle and stop on first build/Q/value/relative-phase/cleanup failure. No lookup fallback, second attempt, or sweep.
+- Stage-B result: release build passes. Static base Q1284; inherited round2 reaches Q1370, source-cell carrier compute reaches Q1371, and `mod_add_qq_lowq` correction owns Q1544. This is the first ordered KILL, before simulation. Full static shape43,584 ops/emitted T4,646, round split65/141/4,063/377; carrier stages819/2,048/819. Exactly one carrier, predecessor0, second carrier0, one existing flag.
+- Gate boundary: semantic rows0, relative-phase rows0, cleanup rows0, no executed-T average, no claim that the selected expression is value-exact. Two direct normalized KILL receipts are identical at SHA-256 `148513dcd03efa7f3189b07a99c4897845d7458e0dfa58a6585bd4b0b91934e2`.
+- Verdict: KILL X010. The residual's entropy is small but effective width256; the sole selected direct construction breaches Q by one before correction and by174 at the correction binder. No production splice is named.
+- Evidence: `.lane/TEDDY-NUMERATOR-RESIDUAL-CARRIER-PREDECLARATION.md`, `.lane/TEDDY-NUMERATOR-RESIDUAL-STAGE-A.md`, `.lane/TEDDY-NUMERATOR-RESIDUAL-DEPENDENCY.md`, `.lane/TEDDY-NUMERATOR-RESIDUAL-CARRIER-KILL.md`, analyzer, plus immutable X008/X009 fixture and receipts.
+- Exact next action: stop. A smaller correction primitive or changed cap requires a fresh predeclaration; no lookup fallback, second construction, round4, full circuit, provider, range, hunt, submission, or public note follows.
 
 ## Experiment template
 
