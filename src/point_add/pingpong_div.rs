@@ -3011,13 +3011,19 @@ fn retained_denominator_full_replay_selfcheck(raw_phase_probe: bool) {
     retained_denominator_sign_1_to_7_oracle(&mut candidate, &retained, 1, &oracle_scratch, sign);
     candidate_sign_checkpoints[0] = candidate.ops.len();
 
-    // Rounds 2 and 3: one local flag performs an atomic sentinel toggle before
-    // and after each production replay cell. The flag is zero before the round's
-    // sign enters the shared sign qubit and zero again after the continuation is
-    // restored. No second concurrent flag, no round-indexed state.
+    // Round 2 needs the one-flag atomic sentinel toggle: its `p` sentinel is the
+    // SOURCE of the fused modular add, and feeding it raw leaves phase debt (the
+    // raw probe reproduces that). Round 3 is odd, so its source is the canonical
+    // `y=0` and the `p` sentinel is only the halve TARGET; the fused halve maps
+    // `p -> p` reversibly and leaves no debt, so round 3 needs no flag at all.
+    // Default is therefore the minimal flag-free round 3; set
+    // `SUB4_PP_R3_FORCE_TOGGLE=1` to apply the (provably unnecessary) round-3
+    // toggle and reproduce the looser 40d0170 receipt.
+    let skip_r3_toggle = std::env::var_os("SUB4_PP_R3_FORCE_TOGGLE").is_none();
     for round in 2..=3usize {
         let idx = round - 1;
-        if !raw_phase_probe {
+        let use_toggle = !raw_phase_probe && !(round == 3 && skip_r3_toggle);
+        if use_toggle {
             retained_normalization_toggle(
                 &mut candidate,
                 &retained,
@@ -3036,7 +3042,7 @@ fn retained_denominator_full_replay_selfcheck(raw_phase_probe: bool) {
         }
         retained_denominator_sign_1_to_7_oracle(&mut candidate, &retained, round, &oracle_scratch, sign);
 
-        if !raw_phase_probe {
+        if use_toggle {
             retained_normalization_toggle(
                 &mut candidate,
                 &retained,
@@ -3094,8 +3100,9 @@ fn retained_denominator_full_replay_selfcheck(raw_phase_probe: bool) {
     // rounds 2 and 3.
     for (offset, &round_sign) in [sign2, sign3].iter().enumerate() {
         let round = offset + 2;
-        if raw_phase_probe {
-            if round == 2 {
+        let ref_use_toggle = !raw_phase_probe && !(round == 3 && skip_r3_toggle);
+        if !ref_use_toggle {
+            if raw_phase_probe && round == 2 {
                 retained_replay_round2_coherent_probe(
                     &mut reference,
                     round_sign,
@@ -3209,7 +3216,7 @@ fn retained_denominator_full_replay_selfcheck(raw_phase_probe: bool) {
                 // back to zero and both replay registers are canonical zero for
                 // every shot, so the production replay cell runs on a clean
                 // field element.
-                if round_index >= 1 && !raw_phase_probe {
+                if round_index >= 1 && !raw_phase_probe && !(round_index == 2 && skip_r3_toggle) {
                     let normalization_checkpoint =
                         candidate_normalization_checkpoints[round_index];
                     candidate_sim.apply_iter(
@@ -3397,8 +3404,10 @@ fn retained_denominator_full_replay_selfcheck(raw_phase_probe: bool) {
         emitted_in(candidate_sign_checkpoints[1], candidate_sign_checkpoints[2]),
     ];
 
+    let round3_flag_free = skip_r3_toggle as u8;
+    let normalization_toggle_rounds = if skip_r3_toggle { "2" } else { "2,3" };
     eprintln!(
-        "TEDDY_RETAINED_FULL_REPLAY_NORMALIZED PASS rounds=0..3 reconstructed_signs=1..3 lanes=4096 low_residues=512 high_prefixes=8 candidate_peak_q={candidate_peak} candidate_abi_q={candidate_abi} candidate_extra_peak_q={} candidate_total_q={candidate_total_qubits} candidate_classical_bits={candidate_total_bits} candidate_ops={} candidate_emitted_t={candidate_emitted_toffoli} candidate_round_emitted_t=0:{},1:{},2:{},3:{} candidate_executed_t={:.3} reference_peak_q={reference_peak} reference_abi_q={reference_abi} reference_total_q={reference_total_qubits} reference_classical_bits={reference_total_bits} reference_ops={} reference_emitted_t={reference_emitted_toffoli} reference_executed_t={:.3} denominator_preserved=1 retained_word_preserved=1 replay_state_match=1 normalization_flag_peak=1 normalization_flag_final=0 normalization_flag_cleared_before_sign=1 concurrent_normalization_flags=0 phase=0 ancilla=0 persistent_carrier_bits=0 max_live_sign_bits=1 fixed_oracle_scratch_q=2",
+        "TEDDY_RETAINED_FULL_REPLAY_NORMALIZED PASS rounds=0..3 reconstructed_signs=1..3 lanes=4096 low_residues=512 high_prefixes=8 candidate_peak_q={candidate_peak} candidate_abi_q={candidate_abi} candidate_extra_peak_q={} candidate_total_q={candidate_total_qubits} candidate_classical_bits={candidate_total_bits} candidate_ops={} candidate_emitted_t={candidate_emitted_toffoli} candidate_round_emitted_t=0:{},1:{},2:{},3:{} candidate_executed_t={:.3} reference_peak_q={reference_peak} reference_abi_q={reference_abi} reference_total_q={reference_total_qubits} reference_classical_bits={reference_total_bits} reference_ops={} reference_emitted_t={reference_emitted_toffoli} reference_executed_t={:.3} denominator_preserved=1 retained_word_preserved=1 replay_state_match=1 normalization_flag_peak=1 normalization_flag_final=0 normalization_flag_cleared_before_sign=1 concurrent_normalization_flags=0 normalization_toggle_rounds={normalization_toggle_rounds} round3_flag_free={round3_flag_free} phase=0 ancilla=0 persistent_carrier_bits=0 max_live_sign_bits=1 fixed_oracle_scratch_q=2",
         candidate_peak - candidate_abi,
         candidate_ops.len(),
         round_emitted[0],
