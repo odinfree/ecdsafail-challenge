@@ -19,7 +19,7 @@ predictor-only shots.  Disjoint32 remains blinded.
 
 ## Next bounded action
 
-Commit and push the failed exact port.  Then predeclare and run a bounded
-first-divergence diagnosis on the two revealed shots.  Permit at most one
-general source-semantic correction and keep the frozen disjoint32 unopened
-until that correction is committed.
+Commit and push `.lane/MISSING-CHANNEL-PREDECLARATION.md`, then run its bounded
+first-divergence trace on the two revealed shots.  Permit at most one general
+source-semantic correction and keep the frozen disjoint32 unopened until that
+correction is committed.
