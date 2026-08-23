@@ -47,5 +47,40 @@ SUB4_PP_PEAK=1272
 SUB4_SQUARE_LADDER=242
 ```
 
-All other `SUB4_*` variables are unset.  Full 9,024-shot measurement remains
-unopened at this commit.  Generated binaries and `ops.bin` are excluded.
+All other `SUB4_*` variables are unset.  Full 9,024-shot measurement remained
+unopened at structural commit `73422709ed70ba9725b3cb592770bcf197df4cdb`.
+Generated binaries and `ops.bin` are excluded.
+
+### Terminal measurement
+
+The exact three-variable candidate rebuilt to 12,904,643 operations, compressed
+artifact size 50,846,670 bytes, SHA-256
+`ea19759d80a4bc1492a5e98c966e70ee79d5aa40211e6cc480b08cf032c8a0f1`.
+The unchanged evaluator loaded Q1272 / 957,916 bits and completed all 9,024
+shots:
+
+- exact average executed Toffoli: `914783.521`;
+- rounded T: `914784`;
+- rounded score: `1,163,605,248`;
+- strict margin below live score `1,163,831,339`: `226,091`;
+- classical / phase / ancilla: `23 / 8 / 0`;
+- first failure: classical mismatch at shot 292;
+- exact appended evaluator-row SHA-256 before restoration:
+  `8723d525d7a4502c921c374d0e675bcca786d58c3b80b85f9de06ea29f036d86`.
+
+A pair of independent unchanged evaluator appends reproduced the same
+Q/T/op count, full `23/8/0` channels, and first mismatch.  The first was an
+accidental bare `--help` invocation (the evaluator does not consume that flag),
+and the second was the explicit named confirmation.  Their row SHA-256 values
+are `ec5574ae0dea4739b5189c80532b0a6a28622cbda7b8ecc1e58bc783b39ef1f6`
+and `b403c8982fab24b84af564f03fe382fdb279ac72dbac3ad579e8e8ace73f614e`.
+No evaluator process remained active at receipt sealing.
+
+The tracked `results.tsv` was restored byte-exact to its pre-evaluation SHA-256
+`eea840222afd2424445550252f25795d63eb4bc3904b8c87f0213b5f22abc810`;
+the generated evaluator row is represented only by this durable receipt.
+
+Verdict: `SCORE_GO / VALIDATION_DIRTY`.  The saddle clears the frozen Q1272
+score ceiling by 177 rounded Toffoli, but `23/8/0` forbids submission and makes
+source-bound predictor qualification the next binder.  No hunt, provider,
+range, fleet, or submission action was taken.

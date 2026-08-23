@@ -2,8 +2,10 @@
 
 - branch: `research/q1272-promoted-selector-rebase`
 - base: `4eb93cb33bbf6a93229fe166b8d511c5e52ee253`
-- decision: `STRUCTURAL_PORT_SEALED / MEASUREMENT_PENDING`
-- structural commit: pending this commit
+- decision: `SCORE_GO / VALIDATION_DIRTY / NO HUNT`
+- structural commit / tree:
+  `73422709ed70ba9725b3cb592770bcf197df4cdb` /
+  `fe77bddfb49b426312b1cca3d009b150cd06fd89`
 - semantic edit: exact hash-bound transplant of donor `14608572` selector
   lifecycle plus focused miter only
 - target `pingpong_div.rs` / `mod.rs` SHA-256:
@@ -13,7 +15,13 @@
   identical Toffoli, `+4 CX +1 R`, peak `573 -> 572`
 - square component: PASS, Q1272
 - ping-pong component: PASS, Q1272
+- candidate artifact: 12,904,643 ops, SHA-256
+  `ea19759d80a4bc1492a5e98c966e70ee79d5aa40211e6cc480b08cf032c8a0f1`
+- unchanged full 9,024-shot evaluation: Q1272, T914783.521 (rounded
+  914784), classical/phase/ancilla `23/8/0`
+- projected rounded score: `1,163,605,248`, a strict improvement of
+  `226,091` over the measured live score `1,163,831,339`
 - Q1272 rounded-T ceiling: `914961`
-- next gate: forced candidate rebuild and unchanged full 9,024-shot measurement;
-  kill if Q differs from 1272 or rounded T exceeds 914961
+- next gate: fresh source-bound classical and conditional-phase predictor
+  qualification before any search; this lane does not hunt
 - provider/range/hunt/submission: forbidden
