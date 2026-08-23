@@ -1,81 +1,134 @@
-# Q1272 fused-fold selector-eviction implementation lane
+# Q1271 operandless fused-fold descent
 
-Predeclared: 2026-08-23, before any candidate source edit, build, or output.
+Predeclared: 2026-08-23, before the PEAK1271/LADDER241 baseline build and
+before any operandless candidate edit or output.
 
 ## Scope and identity
 
-- Work only in this isolated worktree and branch.
-- Exact base: `9e8c948e012ba92ccf2ab8cedfa77c6b8ead9f08`.
-- Source model: hard-coded B1=24 inherited from `6f6da43`.
-- Frozen geometry: `SUB4_PP_PEAK=1272`,
-  `SUB4_SQUARE_LADDER=242`; all rounds, R1/R2, widths, slopes, BREAK_2,
-  replay windows, and tape depth remain unchanged.
-- Protected D1272 artifact: 12,904,991 operations, SHA-256
-  `0ce4aac781957c12b2fb2217cb116a68fe77e74ad810a73cfd1a1f4450fa0e20`,
-  measured Q1273/T914726.434 and 25/20/0.
-- Live threshold frozen by dispatch for a Q1272 strict beat: rounded
-  T <= 919105. Reopen live before any final score claim.
+- Isolated worktree:
+  `/Users/olifreuler/Documents/Codex/2026-08-21/par/work/b523-q1271-operandless-fold`.
+- Branch: `research/b523-q1271-operandless-fold`.
+- Exact base/source seal:
+  `14608572e84daf89397768c43ac0d812c714c3bd`, tree
+  `d56979a2d5b4ac32bb429dd5858211d3bb7eb196`.
+- Protected Q1272 candidate geometry:
+  `SUB4_PP_PEAK=1272 SUB4_SQUARE_LADDER=242
+  SUB4_PP_FOLD_SELECTOR_EVICT=1`.
+- Protected Q1272 identity: 12,908,488 operations, SHA-256
+  `678c149f65ce00cd44caada6a534817e8b69f993913c509a8b396b6f526c22f0`,
+  Q1272/T914727.660, full `18/13/0`.
+- Live anchor reopened immediately before the base seal: source `b523ecf`,
+  score 1,169,101,620. The dispatched strict Q1271 rounded-T ceiling is
+  919,828.
 
-No predictor, nonce corpus, range, scan, hunt, provider action, submission,
-public note, or incumbent edit. Exploratory source may be permissive, but every
-reported result uses the exact gates below.
+No network, provider, remote, predictor, range, nonce hunt, submission,
+public note, incumbent edit, or second structural family is authorized.
+Generated operations, results, binaries, logs, and temporary evaluators stay
+outside Git.
 
-## Overturn ledger
+## Overturn ledger and exchange rate
 
-| assumption | wall it creates | overturn observation | cheapest falsifier |
+| assumption | wall | overturn | cheapest falsifier |
 |---|---|---|---|
-| The derived `sign_and_parity` selector must remain live from `plus_2f` construction through the complete 53-bit fused fold | terminal division replay is 1,214 fixed wires + 59 fold wires = Q1273 | erase that derived selector immediately after `plus_2f`, run the fold with 58 scratch wires, and reconstruct the selector only for `plus_2f` uncompute | one opt-in lifecycle edit plus focused selector/fold miter and allocator census |
-| Long-lived replay/tape-derived state is cheaper to retain than to reconstruct | the tape/fold saddle cannot descend even though the selector is a two-CX function of still-live controls | exact recomputation preserves value, phase, and ancilla while exchanging a few Clifford gates for one peak qubit | compare protected opt-out identity, 64-lane exact component/point-add tests, then owner profile |
+| `fused_fold_maskfree` needs one roving materialized operand qubit across all 51 internal carry positions | after selector eviction, the requested PEAK1271/LADDER241 row may remain at Q1272 | distribute the selector XOR algebra directly into the carry and reverse-phase corrections, retaining no operand wire | first freeze the exact Q1271 owner census, then an env-gated exhaustive small-width/multi-selector miter and a measured full owner profile |
 
-This is the single authorized family. Do not respond to a failure by changing
-fold width, rounds, R1/R2, tape length, another selector, or arithmetic
-semantics. Freeze the first failure and close the family.
+At T about 914,728, one qubit is worth about 720 T at constant product. The
+live Q1271 gate permits roughly +5,100 rounded T over the protected Q1272 row.
 
-## Frozen implementation
+For secp256k1 `f = 0x1000003d1`, fold width 53 has 51 internal positions,
+all selector-nonempty, with selector multiplicity sum 58. Relative to the
+roving-operand path, the prescribed forward GF(2) expansion statically adds
+`2*58 = 116` emitted CCX per fused-fold call. Reverse correction adds only
+classically conditioned CZ operations, not Toffoli. Using the previously
+measured 698 live fused calls, the first-order price is therefore about
++80,968 emitted/executed T, far above the score headroom, while removing about
+423 Clifford operations per call. This is a deliberately hostile static price
+falsifier; the exact implementation is still measured once because it tests
+whether removing the operand changes the binding composition and validates the
+algebraic family. No tuning may follow a price failure.
 
-Add one default-off env opt-in, named
-`SUB4_PP_FOLD_SELECTOR_EVICT=1`, only in
-`signed_mod_add_pm_halve_fused`:
+## Stage A: freeze the unmodified Q1271 co-binders
 
-1. construct `sign_and_parity` and `plus_2f` exactly as protected;
-2. immediately reverse the two CX operations that created
-   `sign_and_parity`, prove/free the zero qubit, and enter
-   `fused_fold_maskfree` without it live;
-3. after the fold, allocate a zero qubit and reconstruct
-   `sign_and_parity` from the same still-live controls;
-4. use it to measurement-uncompute `plus_2f`, then reverse/free it exactly as
-   protected cleanup already does;
-5. change no Toffoli-bearing arithmetic and add no Hmr/CZ/R except the normal
-   proven-zero allocator release required by the lifecycle.
+Before Claude or any source edit:
 
-The expected exchange is one peak qubit for zero executed Toffoli and a small
-fixed Clifford increment. At T about 914.7k, one qubit is worth about 719 T at
-constant product; the live Q1272 gate leaves about 4,379 rounded-T headroom.
+1. clean release-build the unchanged sealed source;
+2. build with exactly
+   `SUB4_PP_PEAK=1271 SUB4_SQUARE_LADDER=241
+   SUB4_PP_FOLD_SELECTOR_EVICT=1`;
+3. record operation count, complete operation SHA, measured Q, unchanged full
+   9,024-shot T and channels;
+4. run `PP_PROFILE=1 PROFILE_ACTIVE_TIMELINE=1`, record every peak owner,
+   exact peak operation index and phase;
+5. rerun a bounded B0 census around that exact peak and record every live
+   source owner summing to the measured Q.
 
-## Gate order
+This stage is characterization, not a gate fitted after the candidate. Its
+receipt is committed and pushed before Claude starts.
 
-Stop at the first failure.
+## Single authorized candidate family
 
-1. Clean release build.
-2. Protected opt-out reproduction: exact operation count/SHA above and Q1273.
-3. Focused exact selector/fold falsifier covering all reachable control arms,
-   including value equality, full phase mask 0, and every non-output ancilla 0.
-   A new env-gated micro-selftest is allowed but must be durable only if useful.
-4. Candidate operation count/SHA and allocator census. Required owner result:
-   complete circuit Q1272, with `pp_div_replay` <=1272 and square/multiply
-   owners <=1272. Record the exact source-line live set.
-5. Existing product-square selftest and complete 64-lane point-add selftest:
-   exact values, phase 0, ancilla 0, owner peaks Q1272.
-6. Unchanged full 9,024-shot evaluator. Require ancilla 0 and rounded
-   T <= 919105; record classical/phase counts and the first reported failure.
-   A dirty architecture remains `HOLD_HUNT`, never a submission candidate.
-7. Restore tracked generated files; exclude `ops.bin`, binaries, caches, logs,
-   temporary evaluators, and generated result/score rows. Commit and push only
-   durable source and evidence with a clean/upstream branch.
+Add one default-off env flag, named `SUB4_PP_FOLD_OPERANDLESS=1`, only inside
+`fused_fold_maskfree`. Keep the selector-empty branch byte-for-byte protected.
+For selector-nonempty positions, remove the allocated roving `operand` qubit
+and use this exact GF(2) expansion.
 
-## Model lane
+Let `S = xor(selectors)`, previous carry `p`, and pre-toggle accumulator bit
+`a`. The current carry delta is
 
-Implementation is assigned to Claude Fable 5 at high effort, with Opus as the
-fallback model. The task must receive Matt/Teddy's structural direction:
-remove or reconstruct live tape-derived state instead of narrowing another
-ladder. Credit is provenance, not a substitute for the exact gates above.
+```text
+(S xor p)(a xor p) xor p = S*a xor S*p xor p*a.
+```
+
+Forward at each selector-nonempty position:
+
+1. for every selector `c`, emit `CCX(c,a,carry)` and
+   `CCX(c,p,carry)`;
+2. emit `CCX(p,a,carry)`;
+3. emit `CX(p,a)`.
+
+Reverse at each selector-nonempty position, after `carry ^= p` and `Hmr`:
+
+1. correct `(S xor p)&acc` with `cz_if(p,acc,m)` and one
+   `cz_if(c,acc,m)` for every selector `c`;
+2. emit `CX(c,acc)` for every selector `c`.
+
+No other arithmetic, fold width, rounds, R1/R2, BREAK values, tape/replay
+geometry, selector lifecycle, carry schedule, erasure, or source default may
+change. Candidate geometry combines the existing selector eviction with
+`PEAK1271/LADDER241` and this operandless flag.
+
+## Claude implementation lane
+
+Use Claude Fable 5 at high effort, with Opus fallback and maximum modeled cost
+$20. Claude receives the exact Stage-A receipt plus the algebra above. It may
+edit only the bounded source/selftest/evidence files in this worktree. Claude
+must not commit, push, use network/provider resources, hunt, submit, or modify
+tracked generated files permanently; Codex independently reviews and seals.
+
+## Frozen gate order
+
+Stop at the first failure and remove any failed candidate source while
+retaining durable evidence.
+
+1. Protected opt-out reproduction: exact Q1272 count/SHA/Q/T/channels above.
+2. Focused exhaustive/miter gate covering widths small enough for exhaustive
+   input states plus the real 53-bit multi-selector schedule: protected and
+   operandless lane values identical, classical model exact, full phase mask
+   zero, every non-input ancilla zero, selector-empty path exercised, every
+   selector multiplicity exercised, and exact op deltas attributed.
+3. Clean candidate artifact and complete owner/census profile. Require measured
+   Q <=1271; every square, divide replay, multiply replay/walkback, and new fold
+   owner must be <=1271. If the walk binder does not descend automatically,
+   freeze its exact live set and stop with no rescue edit.
+4. Require exact average T with rounded T <=919,828. A static or measured price
+   failure stops before broader composition work.
+5. Existing product-square and complete point-add 64-lane selftests: exact
+   values, phase zero, ancilla zero, Q<=1271.
+6. Unchanged full 9,024-shot evaluator: Q<=1271, rounded T<=919,828, ancilla
+   zero; record classical and phase counts and first reported failure. A dirty
+   result remains `HOLD_HUNT` and is never a submission candidate.
+7. Restore `results.tsv`, remove generated artifacts/build products, review the
+   complete diff and provenance, append exact Claude cost to
+   `/Users/olifreuler/ecdsa-ops/SPEND.md`, then commit/push only useful clean
+   source/evidence. If the family fails, commit/push the terminal falsification
+   without failed source.
