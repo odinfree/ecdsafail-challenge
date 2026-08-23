@@ -29,9 +29,12 @@
   `07e910b9...6f235`, active schedules `c49b95b0...a8bf5`, input seal
   `c226f964...003a8`; target peaks/ladder/lifecycles are explicit config
   bindings from predeclaration plus byte-exact rebuild, not diagnostic defaults;
+- native model source: target-only recurrence/host/CLI implemented; two strict
+  C++20 builds byte-identical at `38e95b03...f5b7f`; SHAKE, checkpoint, width,
+  and inherited shot-0 divide/multiply unit PASS;
 - model status: no donor source, binary, table, checkpoint, or output imported;
-- decision: `NATIVE DERIVATION PASS / EMPTY-FILE MODEL IMPLEMENTATION NEXT / NO HUNT`.
+- decision: `NATIVE BUILD PASS / COMPLETE-MASK QUALIFICATION HOLD-UNRUN / NO HUNT`.
 
-Next action: implement the recurrence from empty target files, build it twice,
-and require complete inherited-mask equality. D32 remains unopened; F16 is
-frozen only after inherited+H64 model equality.
+Next action: add bounded complete-mask output and require all 141 inherited
+classical and clean-phase words exactly. D32 remains unopened; F16 is frozen
+only after inherited+H64 model equality.
