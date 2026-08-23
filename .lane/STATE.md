@@ -53,7 +53,7 @@ The current universal gate is `Q * T < 1175485230`. Exact strict T ceilings are 
 
 ## Current phase
 
-`NUMERATOR_RESIDUAL_STAGE_A_COMPLETE`
+`NUMERATOR_RESIDUAL_STAGE_B_SELECTED`
 
 ## Current hypothesis
 
@@ -65,7 +65,7 @@ H12 fails if the exact residual has a conflicting fiber on every allowed live ke
 
 ## Next action
 
-Stage A completed all4,096 frozen rows at candidate Q1114 with no carrier or correction. Seal that observation, then execute the declared dependency/entropy/effective-width and source-formula gate. Implement Stage B only if the first surviving mapping is source-semantic and one-carrier compute/correct/uncompute remains possible at Q<=1370. Stop on the first KILL; no round4, whole-circuit work, optimization, grind, hunt, or provider.
+Implement exactly the selected direct source-cell carrier composition from `.lane/TEDDY-NUMERATOR-RESIDUAL-DEPENDENCY.md`, modularly correct the round-2 numerator, and immediately run its paired inverse. Stop at the first build/Q/value/relative-phase/cleanup KILL. If the first row survives, run the complete frozen4,096 gate and deterministic repeat. No lookup fallback, second construction, round4, whole-circuit work, optimization, grind, hunt, or provider.
 
 ## Last verified result
 
@@ -94,6 +94,7 @@ Stage A completed all4,096 frozen rows at candidate Q1114 with no carrier or cor
 - X008 nonzero-ABI receipt `.lane/TEDDY-NONZERO-ABI-KILL.md`: terminal `KILL_PHASE_DEBT_REFERENCE`. The exact release miter prices the retained candidate at Q1114/ABI768/13,659 ops/emitted T960, with the round2 fused replay cell as binder, one flag, and no carrier. Before candidate execution, unchanged raw forward has phase mask `000000400000004f` after round2 for the first frozen denominator batch; first dirty input is production seed0 `(d,c,n)=(1,0,1)`. Finite inverse and candidate parity were not run. Two direct receipts are identical at SHA-256 `46762dce4f3c7a907e6e2277dc4254e108bb6cc79e5802b1d944fa2d01ed9878`.
 - X009 relative-phase receipt `.lane/TEDDY-NONZERO-ABI-RELATIVE-PHASE-KILL.md`: terminal `KILL_NONZERO_NUMERATOR_ABI`. Event-bound replay randomness reproduces the X008 raw canary; denominator0 raw forward/inverse/cleanup and candidate rounds0..1 value/phase parity pass. Round2 then mismatches all64 seeds (`ffffffffffffffff`), first at production `(d,c,n)=(1,0,1)`; coefficient is exact and numerator differs. Round2 relative phase and all later gates are not claimed. Two normalized receipts are identical at SHA-256 `0563479d2663232a2e8291c0184a8be9d9ac414be69ff246042e321e83675591`.
 - X010 Stage-A receipt `.lane/TEDDY-NUMERATOR-RESIDUAL-STAGE-A.md`: complete observation-only 4,096-row census under unchanged corpus/source/event bindings. Raw forward injectivity is64/64 per denominator, finite inverse4096/4096, and raw cleanup exact. Candidate Q1114/ops13,659/emitted T960/executed T894.242; reference Q1546/ops40,605/emitted T4,010/executed T3,944.242. Complete record SHA-256 `7ce27cc97c07d8303c5c0f1f5b86c91c26377a0349225a85425b67a3b62b90b9`; carrier0/correction0. Dependency/entropy/source-formula gate remains open; no candidate parity or splice is claimed.
+- X010 dependency gate `.lane/TEDDY-NUMERATOR-RESIDUAL-DEPENDENCY.md`: two complete runs have identical normalized record SHA-256 `7ce27cc97...` and semantic analysis SHA-256 `a1d394d6...`. Residual has127 values/entropy4.488941556776/information lower bound7 but full256-bit support and variation. Constant, sign-linear, affine-XOR, and simplified arithmetic are KILL; the latter misses116 rows by exactly +/-2^53. `(sign1,sign2,c1)` has no conflicting fiber. Exactly one direct source-cell compute/correct/inverse construction is selected; value, Q, phase, and cleanup remain unproved.
 - Protected-leader cache HOLD commit `a05cca3`: exact `a9af194` cycle has21 clean rows and no average below919784.5; promoted nonce57002259501 at919785.268 remains best. Do not rebuild until a newer read-only cache cycle contains a necessarily new strict beat.
 
 ## Credit and shipping note
