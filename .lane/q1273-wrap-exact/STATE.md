@@ -16,7 +16,8 @@
   phase `17/17` with 87 clean-phase faults; negatives `17/17`
 - combined manifest SHA-256:
   `c1088ca0e3bf0d9215f63b6823bf490d408ba46e2cf3271d35c40b449d5fe847`
-- next gate: source-bound scan-disabled CUDA transport and CPU/CUDA/trusted
-  fixture parity; scanning remains forbidden
-- parallel bounded gate: fixed H64 combined-density characterization is
-  predeclared; nonce extension and hunting remain forbidden
+- fixed H64 density: terminal `64/64`, joint lambda `18.359375`, predicted
+  zero `0/64`; manifest `986d1c97376590450cca3c6856598ef045fff7cff67f563f2aa868ba3ea443f4`
+- live displacement: promoted `4eb93cb`, Q1273/T914243; this Q1273 stream and
+  its CUDA/hunt path are score-dead
+- next gate: none in this lane; rebase structural work onto promoted source
