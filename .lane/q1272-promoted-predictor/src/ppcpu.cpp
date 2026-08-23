@@ -3,6 +3,7 @@
 // CLI mirrors the ppfilter oracle output formats for diffing:
 //   ppcpu scan FROM COUNT [THREADS]     -> "NONCE pred_cls=0" lines
 //   ppcpu faultshots NONCE              -> "IDX MASK" lines (mask != 0)
+//   ppcpu faultshots-file FILE          -> Rust-compatible full-mask rows
 //   ppcpu shot NONCE IDX                -> corpus dump for one shot
 //   ppcpu breakdown NONCE               -> per-cause counts
 //   ppcpu statedigest                    -> loaded prefix/tail identity
@@ -115,7 +116,7 @@ static bool derive_multiply_den(const PP_Shot& s, u64 x2c[4]) {
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        fprintf(stderr, "usage: ppcpu scan FROM COUNT [THREADS] | faultshots NONCE | diagnostics NONCE | shot NONCE IDX | breakdown NONCE | statedigest\n");
+        fprintf(stderr, "usage: ppcpu scan FROM COUNT [THREADS] | faultshots NONCE | faultshots-file FILE | diagnostics NONCE | shot NONCE IDX | breakdown NONCE | statedigest\n");
         return 2;
     }
     std::string mode = argv[1];
@@ -194,6 +195,61 @@ int main(int argc, char** argv) {
     std::vector<u64> comb;
     pp_build_comb(comb);
     fprintf(stderr, "ppcpu: comb ready\n");
+
+    if (mode == "faultshots-file") {
+        if (argc != 3) {
+            fprintf(stderr, "ppcpu: faultshots-file requires one nonce file\n");
+            return 2;
+        }
+        FILE* nonces = fopen(argv[2], "r");
+        if (!nonces) {
+            fprintf(stderr, "ppcpu: cannot open nonce file %s\n", argv[2]);
+            return 2;
+        }
+        bool have_prev = false;
+        u64 prev = 0;
+        size_t rows = 0;
+        for (;;) {
+            unsigned long long parsed = 0;
+            int rc = fscanf(nonces, "%llu", &parsed);
+            if (rc == EOF) break;
+            if (rc != 1) {
+                fprintf(stderr, "ppcpu: malformed nonce file\n");
+                fclose(nonces);
+                return 2;
+            }
+            u64 nonce = (u64)parsed;
+            if (have_prev && nonce <= prev) {
+                fprintf(stderr, "ppcpu: nonce file is not strictly increasing\n");
+                fclose(nonces);
+                return 2;
+            }
+            have_prev = true;
+            prev = nonce;
+            std::vector<PP_Shot> shots;
+            pp_derive_corpus(&prefix, nonce, comb.data(), shots);
+            u64 words[(PP_NUM_TESTS + 63) / 64] = {0};
+            size_t faults = 0;
+            for (size_t i = 0; i < shots.size(); i++) {
+                u32 m = pp_shot_fault_mask(shots[i].tx, shots[i].ty, shots[i].ox,
+                                           shots[i].oy, shots[i].lam);
+                if (m != 0) {
+                    words[i / 64] |= 1ULL << (i % 64);
+                    faults++;
+                }
+            }
+            printf("%llu %zu ", (unsigned long long)nonce, faults);
+            for (u64 word : words) printf("%016llx", (unsigned long long)word);
+            printf("\n");
+            rows++;
+        }
+        fclose(nonces);
+        if (rows == 0) {
+            fprintf(stderr, "ppcpu: empty nonce file\n");
+            return 2;
+        }
+        return 0;
+    }
 
     if (mode == "faultshots") {
         u64 nonce = strtoull(argv[2], 0, 10);
