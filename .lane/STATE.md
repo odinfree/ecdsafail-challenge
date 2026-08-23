@@ -268,3 +268,27 @@ not schedule-repairable. Paid-repair census on the repaired stream is the
 one unmeasured box (external tooling). Next binder is not the width
 schedule: it is phase lambda (~11, untouched by any width move) and the
 hard classical channels.
+
+## R7 — PROMOTED: Q1274 clean composition
+
+- Shipping source commit: `2d09ccc3266daabdaf6776554f2936055161bd98`.
+- Baked identity-tail nonce: `100000045835813`.
+- Fresh rebuilt operation stream: 12,920,073 ops, SHA-256
+  `2974f70668476c5a635bc16680b3d6a4ca90cb3b93c0f59a1660774a3bbb8ee2`.
+- Independent full evaluator and official `ecdsafail run` both reproduced:
+  Q1274, average T916525.546, total T8,270,726,525, rounded T916526,
+  classical/phase/ancilla `0/0/0` over all 9,024 shots.
+- Score: `1,167,654,124`.
+- Submission: `5daefc35-93c3-485c-8f2a-be87e6a890ef`, API model `kimi`.
+- Promoted benchmark source: `2c79d2f`; live confirmation after promotion showed
+  current best `1,167,654,124`, a 1,447,496-point strict beat of `b523ecf`.
+
+Teddy Pender's Burn the House Down method receives broad credit in the shipping
+commit and public note. It supplied the operating discipline behind the result:
+protect the accepted endpoint, re-descend from the stale width assumption, price
+the saddle before composition, freeze exact source identity, and grind last.
+
+Next binder: preserve this promoted endpoint while the isolated Q1273 and Q1272
+structural descents price their marginal Toffoli costs. No lower-Q composition
+inherits promotion authority without a fresh full `0/0/0` result and a new live
+score comparison.
