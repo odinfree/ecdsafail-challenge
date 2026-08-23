@@ -2537,6 +2537,10 @@ pub fn build() -> Vec<Op> {
         return Vec::new();
     }
     if std::env::var_os("SUB4_LEGACY_POINT_ADD").is_none() {
+        if std::env::var_os("SUB4_PP_TARGET0_SIGN_ALIAS_SELFTEST").is_some() {
+            pingpong_div::target0_sign_alias_selftest();
+            return Vec::new();
+        }
         if std::env::var_os("SUB4_PINGPONG_POINT_ADD_SELFTEST").is_some() {
             pingpong_div::pingpong_point_add_simulator_selfcheck();
             return Vec::new();

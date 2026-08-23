@@ -1517,7 +1517,7 @@ pub(crate) fn add_chunked_measured(
     acc: &[QubitId],
     carry_out: Option<QubitId>,
 ) {
-    add_chunked_measured_with(b, addend, acc, carry_out, false);
+    add_chunked_measured_with(b, addend, acc, carry_out, false, None);
 }
 
 /// [`add_chunked_measured`] under an explicit live-ladder budget.
@@ -1530,14 +1530,25 @@ pub(crate) fn add_chunked_measured_budgeted(
 ) {
     let saved = ladder_target_now();
     set_ladder(budget);
-    add_chunked_measured_with(b, addend, acc, carry_out, false);
+    add_chunked_measured_with(b, addend, acc, carry_out, false, None);
     LADDER_TARGET.with(|c| c.set(saved));
 }
 
 /// Like [`add_chunked_measured`] but allocates the carry-out wire itself,
 /// only when the last chunk starts, and returns it.
 fn add_chunked_measured_late_carry(b: &mut B, addend: &[QubitId], acc: &[QubitId]) -> QubitId {
-    add_chunked_measured_with(b, addend, acc, None, true).expect("late carry-out allocated")
+    add_chunked_measured_with(b, addend, acc, None, true, None)
+        .expect("late carry-out allocated")
+}
+
+fn add_chunked_measured_late_carry_avoiding(
+    b: &mut B,
+    addend: &[QubitId],
+    acc: &[QubitId],
+    avoid: QubitId,
+) -> QubitId {
+    add_chunked_measured_with(b, addend, acc, None, true, Some(avoid))
+        .expect("late carry-out allocated")
 }
 
 fn add_chunked_measured_with(
@@ -1546,6 +1557,7 @@ fn add_chunked_measured_with(
     acc: &[QubitId],
     carry_out: Option<QubitId>,
     late_carry_out: bool,
+    final_carry_avoid: Option<QubitId>,
 ) -> Option<QubitId> {
     let n = addend.len();
     let final_carry = carry_out.is_some() || late_carry_out;
@@ -1573,6 +1585,20 @@ fn add_chunked_measured_with(
         let last = index + 1 == bounds.len();
         let next = if last {
             if final_carry.is_none() && late_carry_out {
+                if let Some(avoid) = final_carry_avoid {
+                    let avoid_id: u32 = avoid.0.try_into().expect("qubit id fits u32");
+                    if let Some(position) = b.free_qubits.iter().position(|&q| q == avoid_id) {
+                        let top = b.free_qubits.len() - 1;
+                        if position == top {
+                        let replacement = b
+                            .free_qubits
+                            .iter()
+                            .position(|&q| q != avoid_id)
+                            .expect("another returned carry slot exists");
+                        b.free_qubits.swap(replacement, top);
+                        }
+                    }
+                }
                 final_carry = Some(b.alloc_qubit());
             }
             final_carry
@@ -1863,13 +1889,44 @@ fn signed_mod_double_add_pm_fused(
     for &q in target {
         b.cx(sign, q);
     }
+    let alias_target0_sign =
+        std::env::var("SUB4_PP_ALIAS_TARGET0_SIGN").ok().as_deref() == Some("1");
+    assert!(
+        !alias_target0_sign || std::env::var_os("SUB4_PP_LEGACY_CHUNK_ORDER").is_none(),
+        "target0/sign alias requires the late-carry chunk order"
+    );
+    let mut aliased_target = Vec::new();
+    let add_target = if alias_target0_sign {
+        // Rotation left target[0]=0, then the conditional complement copied
+        // `sign` into it.  Lend that redundant wire across the main add and
+        // let `sign` carry the sum bit zero temporarily.
+        b.cx(sign, target[0]);
+        b.free(target[0]);
+        aliased_target.reserve_exact(N);
+        aliased_target.push(sign);
+        aliased_target.extend_from_slice(&target[1..]);
+        aliased_target.as_slice()
+    } else {
+        target
+    };
     let add_out = if std::env::var_os("SUB4_PP_LEGACY_CHUNK_ORDER").is_some() {
         let add_out = b.alloc_qubit();
-        add_chunked_measured(b, source, target, Some(add_out));
+        add_chunked_measured(b, source, add_target, Some(add_out));
         add_out
     } else {
-        add_chunked_measured_late_carry(b, source, target)
+        if alias_target0_sign {
+            add_chunked_measured_late_carry_avoiding(b, source, add_target, target[0])
+        } else {
+            add_chunked_measured_late_carry(b, source, add_target)
+        }
     };
+    if alias_target0_sign {
+        // The temporary accumulator LSB is old_sign XOR source[0].  Restore
+        // the output wire first, then recover the untouched sign control.
+        b.reacquire(target[0]);
+        b.cx(sign, target[0]);
+        b.cx(source[0], sign);
+    }
 
     // In the complemented subtraction frame the correction multiple is
     // d+o when sign=0 and o-d when sign=1, hence {-1,0,+1,+2}.
@@ -2478,6 +2535,129 @@ pub(crate) fn pingpong_simulator_selfcheck() {
             assert_eq!(sim.qubit(q), 0, "dirty ancilla {q:?} in {direction:?}");
         }
     }
+}
+
+/// Exact protected-versus-aliased miter for the temporary target[0]/sign
+/// lifecycle in the fused doubling cell.
+#[allow(dead_code)]
+pub(crate) fn target0_sign_alias_selftest() {
+    use crate::circuit::QubitOrBit;
+    use sha3::{
+        digest::{ExtendableOutput, Update, XofReader},
+        Shake256,
+    };
+
+    let build = |aliased: bool| {
+        let saved = std::env::var("SUB4_PP_ALIAS_TARGET0_SIGN").ok();
+        if aliased {
+            std::env::set_var("SUB4_PP_ALIAS_TARGET0_SIGN", "1");
+        } else {
+            std::env::remove_var("SUB4_PP_ALIAS_TARGET0_SIGN");
+        }
+        let mut b = B::new();
+        let sign = b.alloc_qubit();
+        let source = b.alloc_qubits(N);
+        let target = b.alloc_qubits(N);
+        set_ladder(61);
+        signed_mod_double_add_pm_fused(&mut b, sign, &source, &target);
+        clear_chunks();
+        match saved {
+            Some(value) => std::env::set_var("SUB4_PP_ALIAS_TARGET0_SIGN", value),
+            None => std::env::remove_var("SUB4_PP_ALIAS_TARGET0_SIGN"),
+        }
+        let num_qubits = b.next_qubit as usize;
+        let num_bits = b.next_bit as usize;
+        let peak = b.peak_qubits;
+        (b.take_ops(), sign, source, target, num_qubits, num_bits, peak)
+    };
+
+    let (protected, sign_p, source_p, target_p, nq_p, nb_p, peak_p) = build(false);
+    let (aliased, sign_a, source_a, target_a, nq_a, nb_a, peak_a) = build(true);
+    assert_eq!((sign_p, &source_p, &target_p), (sign_a, &source_a, &target_a));
+
+    let count = |ops: &[Op], kind: OperationType| {
+        ops.iter().filter(|operation| operation.kind == kind).count()
+    };
+    let toffoli = |ops: &[Op]| count(ops, OperationType::CCX) + count(ops, OperationType::CCZ);
+    assert_eq!(toffoli(&protected), toffoli(&aliased));
+    assert_eq!(count(&protected, OperationType::Hmr), count(&aliased, OperationType::Hmr));
+    assert_eq!(count(&protected, OperationType::CZ), count(&aliased, OperationType::CZ));
+    assert_eq!(count(&aliased, OperationType::CX), count(&protected, OperationType::CX) + 3);
+    assert_eq!(count(&aliased, OperationType::R), count(&protected, OperationType::R) + 1);
+    assert_eq!(peak_a + 1, peak_p, "alias must lend exactly one live wire");
+
+    let mut input_seed = Shake256::default();
+    input_seed.update(b"target0 sign alias exact miter inputs");
+    let mut input_reader = input_seed.finalize_xof();
+    let mut representatives: Vec<Option<(U256, U256, bool)>> = vec![None; 16];
+    let mut extras = Vec::<(U256, U256, bool)>::new();
+    let mut draw = 0usize;
+    while representatives.iter().any(Option::is_none) || extras.len() < 48 {
+        let mut bytes = [[0u8; 32]; 2];
+        XofReader::read(&mut input_reader, &mut bytes[0]);
+        XofReader::read(&mut input_reader, &mut bytes[1]);
+        let source = U256::from_le_bytes(bytes[0]) % SECP256K1_P;
+        let target = U256::from_le_bytes(bytes[1]) % SECP256K1_P;
+        let sign = draw.is_multiple_of(2);
+        draw += 1;
+        let shifted: U256 = target << 1usize;
+        let add_target = if sign { !shifted } else { shifted };
+        let (_, add_out) = add_target.overflowing_add(source);
+        let arm = (usize::from(sign) << 3)
+            | (usize::from(source.bit(0)) << 2)
+            | (usize::from(target.bit(N - 1)) << 1)
+            | usize::from(add_out);
+        if representatives[arm].is_none() {
+            representatives[arm] = Some((source, target, sign));
+        } else if extras.len() < 48 {
+            extras.push((source, target, sign));
+        }
+    }
+    let mut lanes: Vec<(U256, U256, bool)> = representatives
+        .into_iter()
+        .map(|lane| lane.expect("all 16 arms covered"))
+        .collect();
+    lanes.extend(extras);
+    assert_eq!(lanes.len(), 64);
+
+    let run = |ops: &[Op], sign: QubitId, source: &[QubitId], target: &[QubitId], nq: usize, nb: usize| {
+        let mut sim_seed = Shake256::default();
+        sim_seed.update(b"target0 sign alias exact miter simulation");
+        let mut sim_reader = sim_seed.finalize_xof();
+        let mut sim = Simulator::new(nq, nb, &mut sim_reader);
+        let source_reg: Vec<QubitOrBit> = source.iter().copied().map(QubitOrBit::Qubit).collect();
+        let target_reg: Vec<QubitOrBit> = target.iter().copied().map(QubitOrBit::Qubit).collect();
+        for (shot, &(source_value, target_value, lane_sign)) in lanes.iter().enumerate() {
+            sim.set_register(&source_reg, source_value, shot);
+            sim.set_register(&target_reg, target_value, shot);
+            if lane_sign {
+                *sim.qubit_mut(sign) |= 1u64 << shot;
+            }
+        }
+        sim.apply_iter(ops.iter());
+        let mut outputs = Vec::with_capacity(64);
+        for (shot, &(source_value, _, lane_sign)) in lanes.iter().enumerate() {
+            assert_eq!(sim.get_register(&source_reg, shot), source_value, "source shot {shot}");
+            assert_eq!((sim.qubit(sign) >> shot) & 1, u64::from(lane_sign), "sign shot {shot}");
+            outputs.push(sim.get_register(&target_reg, shot));
+        }
+        let phase = sim.phase;
+        *sim.qubit_mut(sign) = 0;
+        for &q in source.iter().chain(target.iter()) {
+            *sim.qubit_mut(q) = 0;
+        }
+        for q in 0..nq as u64 {
+            assert_eq!(sim.qubit(QubitId(q)), 0, "dirty ancilla q{q}");
+        }
+        (outputs, phase)
+    };
+
+    let protected_result = run(&protected, sign_p, &source_p, &target_p, nq_p, nb_p);
+    let aliased_result = run(&aliased, sign_a, &source_a, &target_a, nq_a, nb_a);
+    assert_eq!(protected_result, aliased_result, "value or relative-phase divergence");
+    eprintln!(
+        "TARGET0_SIGN_ALIAS_SELFTEST: PASS (64/64 exact miter, 16/16 arms, phase equal, ancilla 0, Toffoli equal, +3 CX +1 R, peak {peak_p}->{peak_a})"
+    );
 }
 
 /// Focused exact falsifier for the `SUB4_PP_FOLD_SELECTOR_EVICT` lifecycle.
