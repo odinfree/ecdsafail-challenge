@@ -1788,6 +1788,14 @@ pub fn mod_sub_vented(circ: &mut B, x: &[QubitId], y: &[QubitId]) {
     for q in &y[..LSBS] {
         circ.x(*q);
     }
+    if circ.phase == "tlm_coord_y_sub_final"
+        && std::env::var("TLM_FINAL_Y_SUB_BOUNDARY_CARRY")
+            .ok()
+            .as_deref()
+            == Some("1")
+    {
+        propagate_sub_f_window_boundary(circ, &anc, y, LSBS);
+    }
     controlled_add_carry_msbs_conditional(circ, None, &y[..n], &x[..n], msbs(), &anc);
     circ.zero_and_free(anc);
 }
@@ -1854,6 +1862,174 @@ fn toggle_geq_small_const(circ: &mut B, a: &[QubitId], threshold: usize, target:
         .map(|(i, &q)| (q, (threshold >> i) & 1 != 0))
         .collect();
     toggle_pattern_mcx(circ, &equality, target);
+}
+
+/// Toggle `target` iff `ctrl && a >= threshold`.
+///
+/// The terms emitted by the threshold decomposition are disjoint, so adding
+/// `ctrl` to each term preserves the exact XOR implementation while avoiding
+/// a second materialized predicate bit.
+fn toggle_geq_small_const_controlled(
+    circ: &mut B,
+    ctrl: &QubitId,
+    a: &[QubitId],
+    threshold: usize,
+    target: &QubitId,
+) {
+    assert!(threshold < (1usize << a.len()));
+    for j in (0..a.len()).rev() {
+        if (threshold >> j) & 1 != 0 {
+            continue;
+        }
+        let mut pattern = Vec::with_capacity(a.len() - j + 1);
+        for k in (j + 1)..a.len() {
+            pattern.push((a[k], (threshold >> k) & 1 != 0));
+        }
+        pattern.push((a[j], true));
+        pattern.push((*ctrl, true));
+        toggle_pattern_mcx(circ, &pattern, target);
+    }
+    let mut equality: Vec<(QubitId, bool)> = a
+        .iter()
+        .enumerate()
+        .map(|(i, &q)| (q, (threshold >> i) & 1 != 0))
+        .collect();
+    equality.push((*ctrl, true));
+    toggle_pattern_mcx(circ, &equality, target);
+}
+
+/// Complete the carry that `sub_f_window` deliberately truncates at `lsbs`.
+///
+/// After the low window has computed `z = a - ctrl*f (mod 2^lsbs)`, its
+/// missing borrow is recoverable from the unchanged control and the result:
+///
+///     borrow = ctrl && z >= 2^lsbs - f.
+///
+/// One coherent qubit holds that Boolean only while a controlled decrement is
+/// applied to the untouched high suffix. The predicate is then recomputed
+/// from the still-live low result and the qubit is returned to |0>.
+fn propagate_sub_f_window_boundary(
+    circ: &mut B,
+    ctrl: &QubitId,
+    reg: &[QubitId],
+    lsbs: usize,
+) {
+    assert!(lsbs < usize::BITS as usize, "boundary threshold must fit usize");
+    assert!(lsbs < reg.len(), "boundary propagation needs a high suffix");
+    let threshold = (1usize << lsbs) - F_SECP256K1 as usize;
+    let borrow = circ.alloc_qubit();
+    toggle_geq_small_const_controlled(circ, ctrl, &reg[..lsbs], threshold, &borrow);
+
+    // X; CINC; X is a controlled decrement of the high suffix, including
+    // propagation through an arbitrary run of zeroes and modular wraparound.
+    for q in &reg[lsbs..] {
+        circ.x(*q);
+    }
+    super::mcx::cinc_khattar_gidney(circ, &reg[lsbs..], &borrow);
+    for q in &reg[lsbs..] {
+        circ.x(*q);
+    }
+
+    toggle_geq_small_const_controlled(circ, ctrl, &reg[..lsbs], threshold, &borrow);
+    circ.zero_and_free(borrow);
+}
+
+pub(super) fn final_y_boundary_carry_selfcheck() {
+    use crate::circuit::{analyze_ops, QubitOrBit};
+    use crate::sim::Simulator;
+    use alloy_primitives::U256;
+    use sha3::{
+        digest::{ExtendableOutput, Update},
+        Shake256,
+    };
+
+    let mut circ = B::new_for_test();
+    let ctrl = circ.alloc_qubit();
+    let reg = circ.alloc_qubits(256);
+    let f = F_SECP256K1.to_le_bytes();
+    sub_f_window(&mut circ, &ctrl, &reg, LSBS, &f);
+    propagate_sub_f_window_boundary(&mut circ, &ctrl, &reg, LSBS);
+    circ.declare_qubit_register(&[ctrl]);
+    circ.declare_qubit_register(&reg);
+    let peak = circ.peak_qubits;
+    let ops = circ.take_ops();
+
+    let f = U256::from(F_SECP256K1);
+    let window = U256::from(1) << LSBS;
+    let cases = [
+        (false, U256::ZERO),
+        (false, U256::MAX),
+        (false, f.wrapping_sub(U256::from(1))),
+        (true, U256::ZERO),
+        (true, U256::from(1)),
+        (true, f.wrapping_sub(U256::from(1))),
+        (true, f),
+        (true, f.wrapping_add(U256::from(1))),
+        (true, window.wrapping_sub(U256::from(1))),
+        (true, window),
+        (true, window << 1),
+        (true, U256::from(1) << 100),
+        (true, U256::MAX),
+    ];
+    let live = (1u64 << cases.len()) - 1;
+    let (num_qubits, num_bits, _, registers) = analyze_ops(ops.iter());
+    let mut seed = Shake256::default();
+    seed.update(b"final-y-boundary-carry-selfcheck-v1");
+    let mut reader = seed.finalize_xof();
+    let mut sim = Simulator::new(
+        num_qubits as usize,
+        num_bits as usize,
+        &mut reader,
+    );
+    for (shot, &(enabled, value)) in cases.iter().enumerate() {
+        sim.set_register(&registers[0], U256::from(enabled as u8), shot);
+        sim.set_register(&registers[1], value, shot);
+    }
+    sim.apply_iter(ops.iter());
+    for (shot, &(enabled, value)) in cases.iter().enumerate() {
+        let expected = if enabled { value.wrapping_sub(f) } else { value };
+        assert_eq!(
+            sim.get_register(&registers[0], shot),
+            U256::from(enabled as u8)
+        );
+        assert_eq!(
+            sim.get_register(&registers[1], shot),
+            expected,
+            "boundary case {shot}"
+        );
+    }
+    assert_eq!(
+        sim.phase & live,
+        0,
+        "boundary selfcheck left phase garbage"
+    );
+    for register in &registers {
+        for wire in register {
+            if let QubitOrBit::Qubit(q) = *wire {
+                *sim.qubit_mut(q) &= !live;
+            }
+        }
+    }
+    for q in 0..num_qubits {
+        assert_eq!(
+            sim.qubit(QubitId(q)) & live,
+            0,
+            "boundary scratch q{q} dirty"
+        );
+    }
+    let emitted_t = ops
+        .iter()
+        .filter(|op| {
+            matches!(
+                op.kind,
+                crate::circuit::OperationType::CCX | crate::circuit::OperationType::CCZ
+            )
+        })
+        .count();
+    eprintln!(
+        "TLM_FINAL_Y_SUB_BOUNDARY_SELFTEST_OK cases={} emitted_t={} peak_q={}",
+        cases.len(), emitted_t, peak
+    );
 }
 
 fn toggle_geq_p_minus_low3(circ: &mut B, y: &[QubitId], c: &[QubitId], target: &QubitId) {

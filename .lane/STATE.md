@@ -184,3 +184,22 @@ binary, ops stream, log, or result row is retained in Git. E-001c remains a
 held structural component, not a predictor or hunt stream. A future turn must
 predeclare a real boundary-carry representation; further window shifting is a
 measured anti-lever.
+
+## Independent boundary-carry audit
+
+The isolated `research/q1272-e004-boundary-audit` lane derived and measured the
+real representation requested above. The missing state is one logical borrow:
+`anc && post_low53 >= 0x1ffffefffffc2f`. An opt-in computes that Boolean,
+decrements the complete 203-bit high suffix, and uncomputes it. It preserves
+global Q1272 and the four existing co-binders.
+
+The candidate artifact is 12,943,345 operations at SHA `4618d4af...` and
+same-seed fixed64 T918043.41 with `0/0/0`, versus held T916117.12. Its exact
+full T918104.700 rounds to 918105, below the refreshed Q1272 strict limit
+920267. The focused 13-case boundary/ripple/wrap selftest is value-, phase-,
+and ancilla-clean. The unchanged candidate full draw remains dirty at
+`11/12/0`; no hunt or submission is authorized.
+
+The decisive next action is the two-lane pinned test on held nonce
+`444000000032`, shots 7997/7996. Full proof, measurements, commands, and the
+handoff contract are in `.lane/E004-BOUNDARY-AUDIT.md`.

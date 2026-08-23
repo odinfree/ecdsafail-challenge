@@ -15,6 +15,10 @@ pub(crate) fn product_register_square_selfcheck() {
     square::product_register_selfcheck();
 }
 
+pub(crate) fn final_y_boundary_carry_selfcheck() {
+    arith::final_y_boundary_carry_selfcheck();
+}
+
 pub use schedule::PAD;
 
 use super::B;
