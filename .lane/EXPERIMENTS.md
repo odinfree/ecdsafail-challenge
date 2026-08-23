@@ -239,7 +239,7 @@
 
 ## X008 — retained replay nonzero coefficient/numerator ABI
 
-- Status: predeclared before semantic source edit or result.
+- Status: terminal `KILL_PHASE_DEBT_REFERENCE`; bounded experiment complete.
 - Ancestor/source identity: clean pushed X007 `21caaa1789b3a14c367aa574ee7ae0326ad6c5bc`, tree `dc543da2bbf5861c5ca2a7e76cc60456f91454d6`; preserved production replay SHA-256 `22c4820a9ba3b2356eb785d0d0d452b0939a643cb6c65241706554d19b7df376`; opt-in retained module SHA-256 `13e8d210e85be9f9ad8397b411c302941ea00eadb4a971e2cd5232e4c3494680`.
 - Hypothesis: X007's one-retained-word, one-flag rounds0..3 divide replay exposes the exact unchanged production coefficient/numerator continuation for nonzero numerator inputs and admits an explicit finite inverse ABI on the frozen seed image.
 - Frozen corpus: independent64 denominators x64 seed pairs =4,096 ordered rows. Seeds0..31 are production ABI `(coefficient=0,numerator!=0)`; seeds32..63 set both coefficient/numerator nonzero. Fixture `.lane/fixtures/TEDDY-NONZERO-ABI-CORPUS.tsv` SHA-256 `53b06714ffdf079be23b2d3e1d25706c0d2853ab08d13345588f9a505c9409b0`; denominator/seed hashes `bd1c937e2aa188106bc156929b19f536f6b5933510221371e42d1cbaeedeea2d` / `4a48e4569fd7ad7df277e9624f06a58b2b453cf8629c76eb07db24052d305d39`.
@@ -248,8 +248,14 @@
 - Expected invariant: exact4,096/4,096 continuation and finite-inverse equality, denominator/retained preserved, sign/scratch/flag0 at checkpoints, flags peak1/concurrent0, carrier0, phase0, ancilla0, candidate Q<=1114; round2 fused cell remains first binder.
 - Prototype debt cap: candidate ABI768, fixed retained/sign/scratch/flag base1028, transient<=86, total Q<=1114. Candidate emitted T<=960 split65/141/377/377; average executed T<=960, at most+65.946 over X007's zero-seed receipt. References priced separately.
 - Kill: production seed0..31 mismatch => `KILL_NONZERO_NUMERATOR_ABI`; strict seed32..63-only mismatch => `KILL_GENERAL_TRANSDUCER_ABI`; duplicate raw-forward image => `KILL_FORWARD_ABI_NONINJECTIVE`. Also kill on extra256-bit carrier, second flag, Q>1114, unavailable predecessor, dirty sign/scratch/flag, phase, or ancilla. No repair ladder.
-- Evidence: `.lane/TEDDY-NONZERO-ABI-PREDECLARATION.md`, frozen complete fixture, and its hash-checking generator.
-- Exact next action: commit/push amendment0, then implement raw-forward finite-inverse closure and candidate parity. If exact, name but do not implement the rounds1..3 whole-production divide splice; do not extend round4.
+- Smallest source/config change: add opt-in `SUB4_TEDDY_NONZERO_ABI_SELFTEST=1`, parse and assert the complete frozen Cartesian fixture, build the raw production-forward reference first, and build the retained candidate without changing protected `pingpong_div.rs` or the default emitter.
+- Q/T prototype price: candidate Q1114 on ABI768, extra346, 13,659 ops, emitted T960 split65/141/377/377. The existing round2 `signed_mod_add_pm_halve_fused` is the first Q binder. One normalization flag, concurrent flags0, and persistent carriers0. Reference Q1546/40,605 ops/emitted T4010. Candidate executed T is not a result because candidate simulation never begins.
+- First exact result: raw reference walk and rounds0..1 are phase clean in the first denominator batch. Immediately after raw replay round2, phase mask is `000000400000004f`; first dirty lane is denominator index0 / seed index0 / `(d,c,n)=(1,0,1)`, inside the production entry class. The same full mask covers seeds `{0,1,2,3,6,38}`.
+- Gate coverage: compile PASS; corpus shape/Cartesian order/canonicality/seed-class assertions PASS; static Q/T/flag/carrier gates PASS. Absolute reference phase FAIL. Per the stop-first contract, reference rounds3/cleanup, finite-inverse collision/round-trip checks, retained sign/value/phase/cleanup parity, and candidate executed T are NOT RUN and are not claimed.
+- Determinism: two direct reruns produce identical `TEDDY_` receipt lines at SHA-256 `46762dce4f3c7a907e6e2277dc4254e108bb6cc79e5802b1d944fa2d01ed9878`.
+- Verdict: KILL H10's isolated absolute-phase closure. Preserve X007 only as an exact all-zero-seed component; X008 authorizes no whole-production splice.
+- Evidence: `.lane/TEDDY-NONZERO-ABI-PREDECLARATION.md`, `.lane/TEDDY-NONZERO-ABI-KILL.md`, frozen complete fixture, and its hash-checking generator.
+- Exact next action: stop X008. A separate predeclared relative-phase experiment may compare complete candidate/reference phase masks on the same frozen corpus while retaining exact value/inverse/restoration/cleanup gates. No repair ladder, round4, optimization, grind, hunt, or provider.
 
 ## Experiment template
 

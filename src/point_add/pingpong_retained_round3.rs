@@ -3420,6 +3420,680 @@ fn retained_denominator_full_replay_selfcheck(raw_phase_probe: bool) {
     );
 }
 
+/// X008: exact nonzero coefficient/numerator ABI falsifier for the retained
+/// rounds-0-through-3 divide replay.
+///
+/// The unchanged production walk supplies the reference signs and its raw
+/// replay continuation is the sole oracle. The retained candidate uses the
+/// one X007 local sentinel-normalization flag only around round 2. The frozen
+/// fixture is a 64-denominator by 64-seed Cartesian product; its first 32 seeds
+/// exercise the production entry ABI (`coefficient=0,numerator!=0`) and the
+/// remaining 32 exercise the stronger general transducer ABI.
+pub(crate) fn retained_nonzero_abi_selfcheck() {
+    use crate::circuit::QubitOrBit;
+    use sha3::{
+        digest::{ExtendableOutput, Update},
+        Shake256,
+    };
+
+    const CORPUS: &str =
+        include_str!("../../.lane/fixtures/TEDDY-NONZERO-ABI-CORPUS.tsv");
+
+    let rows: Vec<(U256, U256, U256)> = CORPUS
+        .lines()
+        .enumerate()
+        .map(|(line_index, line)| {
+            let mut fields = line.split('\t');
+            let denominator = U256::from_str_radix(
+                fields
+                    .next()
+                    .unwrap_or_else(|| panic!("missing denominator on corpus line {}", line_index + 1)),
+                16,
+            )
+            .unwrap_or_else(|_| panic!("malformed denominator on corpus line {}", line_index + 1));
+            let coefficient = U256::from_str_radix(
+                fields
+                    .next()
+                    .unwrap_or_else(|| panic!("missing coefficient on corpus line {}", line_index + 1)),
+                16,
+            )
+            .unwrap_or_else(|_| panic!("malformed coefficient on corpus line {}", line_index + 1));
+            let numerator = U256::from_str_radix(
+                fields
+                    .next()
+                    .unwrap_or_else(|| panic!("missing numerator on corpus line {}", line_index + 1)),
+                16,
+            )
+            .unwrap_or_else(|_| panic!("malformed numerator on corpus line {}", line_index + 1));
+            assert!(
+                fields.next().is_none(),
+                "extra field on corpus line {}",
+                line_index + 1,
+            );
+            (denominator, coefficient, numerator)
+        })
+        .collect();
+    assert_eq!(rows.len(), 4096, "X008 corpus row count changed");
+
+    let denominators: Vec<U256> = (0..64).map(|index| rows[index * 64].0).collect();
+    let seeds: Vec<(U256, U256)> = rows[..64]
+        .iter()
+        .map(|&(_, coefficient, numerator)| (coefficient, numerator))
+        .collect();
+    for (denominator_index, &denominator) in denominators.iter().enumerate() {
+        assert!(
+            denominator > U256::ZERO && denominator < SECP256K1_P,
+            "noncanonical denominator at index {denominator_index}",
+        );
+        for (seed_index, &(coefficient, numerator)) in seeds.iter().enumerate() {
+            let row = rows[denominator_index * 64 + seed_index];
+            assert_eq!(
+                row,
+                (denominator, coefficient, numerator),
+                "X008 corpus is not denominator-major Cartesian order at denominator {denominator_index} seed {seed_index}",
+            );
+            assert!(
+                coefficient < SECP256K1_P && numerator < SECP256K1_P,
+                "noncanonical seed at index {seed_index}",
+            );
+            assert_ne!(numerator, U256::ZERO, "zero numerator at seed {seed_index}");
+            if seed_index < 32 {
+                assert_eq!(
+                    coefficient,
+                    U256::ZERO,
+                    "production-ABI seed {seed_index} has nonzero coefficient",
+                );
+            } else {
+                assert_ne!(
+                    coefficient,
+                    U256::ZERO,
+                    "general-transducer seed {seed_index} has zero coefficient",
+                );
+            }
+        }
+    }
+    for left in 0..64 {
+        for right in left + 1..64 {
+            assert_ne!(
+                denominators[left], denominators[right],
+                "duplicate denominator indices {left} and {right}",
+            );
+            assert_ne!(
+                seeds[left], seeds[right],
+                "duplicate seed indices {left} and {right}",
+            );
+        }
+    }
+
+    // Candidate: ABI768 + retained256 + one sign + scratch2 + one local flag.
+    clear_walk_peak();
+    clear_chunks();
+    let mut candidate = B::new();
+    let candidate_denominator = candidate.alloc_qubits(N);
+    let candidate_coefficient = candidate.alloc_qubits(N);
+    let candidate_numerator = candidate.alloc_qubits(N);
+    let candidate_abi = candidate.active_qubits;
+    let retained = candidate.alloc_qubits(N);
+    for index in 0..N {
+        candidate.cx(candidate_denominator[index], retained[index]);
+    }
+    let sign = candidate.alloc_qubit();
+    let scratch_vec = candidate.alloc_qubits(2);
+    let scratch = [scratch_vec[0], scratch_vec[1]];
+    let normalization_flag = candidate.alloc_qubit();
+
+    let mut candidate_round_checkpoints = [0usize; 4];
+    let mut candidate_sign_ready_checkpoints = [0usize; 3];
+    candidate.set_phase("teddy_nonzero_round0_replay");
+    replay_halving_round(
+        &mut candidate,
+        0,
+        sign,
+        &candidate_coefficient,
+        &candidate_numerator,
+    );
+    candidate_round_checkpoints[0] = candidate.ops.len();
+
+    candidate.set_phase("teddy_nonzero_round1_sign");
+    retained_denominator_sign_1_to_7_oracle(
+        &mut candidate,
+        &retained,
+        1,
+        &scratch,
+        sign,
+    );
+    candidate_sign_ready_checkpoints[0] = candidate.ops.len();
+    candidate.set_phase("teddy_nonzero_round1_replay");
+    replay_halving_round(
+        &mut candidate,
+        1,
+        sign,
+        &candidate_coefficient,
+        &candidate_numerator,
+    );
+    retained_denominator_sign_1_to_7_oracle(
+        &mut candidate,
+        &retained,
+        1,
+        &scratch,
+        sign,
+    );
+    candidate_round_checkpoints[1] = candidate.ops.len();
+
+    candidate.set_phase("teddy_nonzero_round2_normalize_in");
+    retained_normalization_toggle(
+        &mut candidate,
+        &retained,
+        &scratch,
+        normalization_flag,
+        &candidate_coefficient,
+    );
+    candidate.set_phase("teddy_nonzero_round2_sign");
+    retained_denominator_sign_1_to_7_oracle(
+        &mut candidate,
+        &retained,
+        2,
+        &scratch,
+        sign,
+    );
+    candidate_sign_ready_checkpoints[1] = candidate.ops.len();
+    candidate.set_phase("teddy_nonzero_round2_signed_mod_add_pm_halve_fused");
+    replay_halving_round(
+        &mut candidate,
+        2,
+        sign,
+        &candidate_coefficient,
+        &candidate_numerator,
+    );
+    retained_denominator_sign_1_to_7_oracle(
+        &mut candidate,
+        &retained,
+        2,
+        &scratch,
+        sign,
+    );
+    candidate.set_phase("teddy_nonzero_round2_normalize_out");
+    retained_normalization_toggle(
+        &mut candidate,
+        &retained,
+        &scratch,
+        normalization_flag,
+        &candidate_coefficient,
+    );
+    candidate_round_checkpoints[2] = candidate.ops.len();
+
+    candidate.set_phase("teddy_nonzero_round3_sign");
+    retained_denominator_sign_1_to_7_oracle(
+        &mut candidate,
+        &retained,
+        3,
+        &scratch,
+        sign,
+    );
+    candidate_sign_ready_checkpoints[2] = candidate.ops.len();
+    candidate.set_phase("teddy_nonzero_round3_replay");
+    replay_halving_round(
+        &mut candidate,
+        3,
+        sign,
+        &candidate_coefficient,
+        &candidate_numerator,
+    );
+    retained_denominator_sign_1_to_7_oracle(
+        &mut candidate,
+        &retained,
+        3,
+        &scratch,
+        sign,
+    );
+    candidate_round_checkpoints[3] = candidate.ops.len();
+
+    candidate.set_phase("teddy_nonzero_cleanup");
+    candidate.free(normalization_flag);
+    candidate.free_vec(&scratch);
+    candidate.free(sign);
+    for index in 0..N {
+        candidate.cx(candidate_denominator[index], retained[index]);
+    }
+    candidate.free_vec(&retained);
+    assert_eq!(candidate.active_qubits, candidate_abi);
+    clear_chunks();
+
+    let candidate_peak = candidate.peak_qubits;
+    let candidate_peak_phase = candidate.peak_phase;
+    let candidate_total_qubits = candidate.next_qubit as usize;
+    let candidate_total_bits = candidate.next_bit as usize;
+    let candidate_ops = candidate.take_ops();
+    let candidate_emitted_toffoli = candidate_ops
+        .iter()
+        .filter(|op| matches!(op.kind, OperationType::CCX | OperationType::CCZ))
+        .count();
+    let emitted_in = |lo: usize, hi: usize| -> usize {
+        candidate_ops[lo..hi]
+            .iter()
+            .filter(|op| matches!(op.kind, OperationType::CCX | OperationType::CCZ))
+            .count()
+    };
+    let candidate_round_emitted = [
+        emitted_in(0, candidate_round_checkpoints[0]),
+        emitted_in(candidate_round_checkpoints[0], candidate_round_checkpoints[1]),
+        emitted_in(candidate_round_checkpoints[1], candidate_round_checkpoints[2]),
+        emitted_in(candidate_round_checkpoints[2], candidate_round_checkpoints[3]),
+    ];
+    assert_eq!(candidate_abi, 3 * N as u32, "candidate ABI changed");
+    assert!(
+        candidate_peak <= 1114,
+        "KILL_Q_CAP candidate peak {candidate_peak} exceeds 1114",
+    );
+    assert!(
+        candidate_emitted_toffoli <= 960,
+        "KILL_T_CAP candidate emitted T {candidate_emitted_toffoli} exceeds 960",
+    );
+
+    // Raw production-forward authority. Its walk signs remain live while the
+    // four unchanged replay cells execute; the walk is then exactly reversed
+    // solely to discharge non-output ancilla.
+    clear_walk_peak();
+    clear_chunks();
+    let mut reference = B::new();
+    let reference_denominator = reference.alloc_qubits(N);
+    let reference_coefficient = reference.alloc_qubits(N);
+    let reference_numerator = reference.alloc_qubits(N);
+    let reference_abi = reference.active_qubits;
+    let mut u = load_const(&mut reference, N, SECP256K1_P);
+    u.extend(reference.alloc_qubits(VALUE_WIDTH - N));
+    let mut v = reference.alloc_qubits(VALUE_WIDTH);
+    for index in 0..N {
+        reference.cx(reference_denominator[index], v[index]);
+    }
+    reference.set_phase("teddy_nonzero_reference_walk");
+    let sign0 = walk_round(&mut reference, &mut u, &mut v, 0);
+    let sign1 = walk_round(&mut reference, &mut u, &mut v, 1);
+    let sign2 = walk_round(&mut reference, &mut u, &mut v, 2);
+    let sign3 = walk_round(&mut reference, &mut u, &mut v, 3);
+    let reference_walk_checkpoint = reference.ops.len();
+    let reference_signs = [sign1, sign2, sign3];
+    let mut reference_round_checkpoints = [0usize; 4];
+    for (round, &round_sign) in [sign0, sign1, sign2, sign3].iter().enumerate() {
+        reference.set_phase(match round {
+            0 => "teddy_nonzero_reference_round0_replay",
+            1 => "teddy_nonzero_reference_round1_replay",
+            2 => "teddy_nonzero_reference_round2_replay",
+            3 => "teddy_nonzero_reference_round3_replay",
+            _ => unreachable!(),
+        });
+        replay_halving_round(
+            &mut reference,
+            round,
+            round_sign,
+            &reference_coefficient,
+            &reference_numerator,
+        );
+        reference_round_checkpoints[round] = reference.ops.len();
+    }
+    reference.set_phase("teddy_nonzero_reference_cleanup");
+    walk_back_round(&mut reference, &mut u, &mut v, 3, sign3);
+    walk_back_round(&mut reference, &mut u, &mut v, 2, sign2);
+    walk_back_round(&mut reference, &mut u, &mut v, 1, sign1);
+    grow_to(&mut reference, &mut u, &mut v, VALUE_WIDTH);
+    fused_lift_round0_reverse_full(&mut reference, &v, sign0);
+    for index in 0..N {
+        reference.cx(reference_denominator[index], v[index]);
+        if SECP256K1_P.bit(index) {
+            reference.x(u[index]);
+        }
+    }
+    reference.free_vec(&v);
+    reference.free_vec(&u);
+    assert_eq!(reference.active_qubits, reference_abi);
+    clear_walk_peak();
+    clear_chunks();
+
+    let reference_peak = reference.peak_qubits;
+    let reference_peak_phase = reference.peak_phase;
+    let reference_total_qubits = reference.next_qubit as usize;
+    let reference_total_bits = reference.next_bit as usize;
+    let reference_ops = reference.take_ops();
+    let reference_emitted_toffoli = reference_ops
+        .iter()
+        .filter(|op| matches!(op.kind, OperationType::CCX | OperationType::CCZ))
+        .count();
+
+    eprintln!(
+        "TEDDY_NONZERO_ABI_BUILD rows=4096 denominators=64 seeds=64 production_seeds=32 stress_seeds=32 candidate_peak_q={candidate_peak} candidate_peak_phase={candidate_peak_phase} candidate_abi_q={candidate_abi} candidate_ops={} candidate_emitted_t={candidate_emitted_toffoli} candidate_round_emitted_t=0:{},1:{},2:{},3:{} reference_peak_q={reference_peak} reference_peak_phase={reference_peak_phase} reference_abi_q={reference_abi} reference_ops={} reference_emitted_t={reference_emitted_toffoli} normalization_flags=1 concurrent_flags=0 persistent_carrier_bits=0",
+        candidate_ops.len(),
+        candidate_round_emitted[0],
+        candidate_round_emitted[1],
+        candidate_round_emitted[2],
+        candidate_round_emitted[3],
+        reference_ops.len(),
+    );
+
+    let to_register = |qubits: &[QubitId]| {
+        qubits
+            .iter()
+            .copied()
+            .map(QubitOrBit::Qubit)
+            .collect::<Vec<_>>()
+    };
+    let candidate_denominator_reg = to_register(&candidate_denominator);
+    let candidate_coefficient_reg = to_register(&candidate_coefficient);
+    let candidate_numerator_reg = to_register(&candidate_numerator);
+    let candidate_retained_reg = to_register(&retained);
+    let reference_denominator_reg = to_register(&reference_denominator);
+    let reference_coefficient_reg = to_register(&reference_coefficient);
+    let reference_numerator_reg = to_register(&reference_numerator);
+
+    let first_shot = |mask: u64| -> usize {
+        assert_ne!(mask, 0);
+        mask.trailing_zeros() as usize
+    };
+    let seed_kill = |seed_index: usize| -> &'static str {
+        if seed_index < 32 {
+            "KILL_NONZERO_NUMERATOR_ABI"
+        } else {
+            "KILL_GENERAL_TRANSDUCER_ABI"
+        }
+    };
+
+    let mut candidate_executed_toffoli = 0u64;
+    let mut reference_executed_toffoli = 0u64;
+    for (denominator_index, &denominator) in denominators.iter().enumerate() {
+        // First establish the independent raw-forward image, phase closure,
+        // finite inverse, and walk cleanup. Candidate comparison is forbidden
+        // until this authority has passed for the denominator batch.
+        let mut reference_shake = Shake256::default();
+        reference_shake.update(b"Teddy Pender X008 raw forward reference");
+        reference_shake.update(&(denominator_index as u64).to_le_bytes());
+        let mut reference_reader = reference_shake.finalize_xof();
+        let mut reference_sim = Simulator::new(
+            reference_total_qubits,
+            reference_total_bits,
+            &mut reference_reader,
+        );
+        for (shot, &(coefficient, numerator)) in seeds.iter().enumerate() {
+            reference_sim.set_register(&reference_denominator_reg, denominator, shot);
+            reference_sim.set_register(&reference_coefficient_reg, coefficient, shot);
+            reference_sim.set_register(&reference_numerator_reg, numerator, shot);
+        }
+        reference_sim.apply_iter(reference_ops[..reference_walk_checkpoint].iter());
+        if reference_sim.phase != 0 {
+            let shot = first_shot(reference_sim.phase);
+            eprintln!(
+                "TEDDY_NONZERO_ABI FAIL class=KILL_PHASE_DEBT_REFERENCE stage=walk denominator_index={denominator_index} seed_index={shot} denominator={denominator:x} coefficient={:x} numerator={:x} phase_mask={:016x}",
+                seeds[shot].0,
+                seeds[shot].1,
+                reference_sim.phase,
+            );
+            panic!("KILL_PHASE_DEBT_REFERENCE at raw production walk");
+        }
+        let reference_sign_masks = reference_signs.map(|round_sign| reference_sim.qubit(round_sign));
+        let mut reference_outputs = vec![vec![(U256::ZERO, U256::ZERO); 64]; 4];
+        let mut reference_cursor = reference_walk_checkpoint;
+        for round in 0..4 {
+            let checkpoint = reference_round_checkpoints[round];
+            reference_sim.apply_iter(reference_ops[reference_cursor..checkpoint].iter());
+            if reference_sim.phase != 0 {
+                let shot = first_shot(reference_sim.phase);
+                eprintln!(
+                    "TEDDY_NONZERO_ABI FAIL class=KILL_PHASE_DEBT_REFERENCE stage=round{round} denominator_index={denominator_index} seed_index={shot} denominator={denominator:x} coefficient={:x} numerator={:x} phase_mask={:016x}",
+                    seeds[shot].0,
+                    seeds[shot].1,
+                    reference_sim.phase,
+                );
+                panic!("KILL_PHASE_DEBT_REFERENCE after raw production round {round}");
+            }
+            for shot in 0..64 {
+                reference_outputs[round][shot] = (
+                    reference_sim.get_register(&reference_coefficient_reg, shot),
+                    reference_sim.get_register(&reference_numerator_reg, shot),
+                );
+            }
+            reference_cursor = checkpoint;
+        }
+
+        // The declared finite inverse is the inverse table of the raw forward
+        // image on this exact 64-seed domain. Reject collisions, then prove all
+        // image-to-seed lookups restore the frozen inputs.
+        for left in 0..64 {
+            for right in left + 1..64 {
+                if reference_outputs[3][left] == reference_outputs[3][right] {
+                    eprintln!(
+                        "TEDDY_NONZERO_ABI FAIL class=KILL_FORWARD_ABI_NONINJECTIVE denominator_index={denominator_index} denominator={denominator:x} left_seed={left} right_seed={right} image_coefficient={:x} image_numerator={:x}",
+                        reference_outputs[3][left].0,
+                        reference_outputs[3][left].1,
+                    );
+                    panic!("KILL_FORWARD_ABI_NONINJECTIVE");
+                }
+            }
+        }
+        for seed_index in 0..64 {
+            let image = reference_outputs[3][seed_index];
+            let inverse_index = reference_outputs[3]
+                .iter()
+                .position(|&candidate_image| candidate_image == image)
+                .expect("raw forward image missing from its inverse table");
+            assert_eq!(
+                seeds[inverse_index], seeds[seed_index],
+                "raw forward finite inverse did not restore seed {seed_index}",
+            );
+        }
+
+        reference_sim.apply_iter(reference_ops[reference_cursor..].iter());
+        assert_eq!(
+            reference_sim.phase, 0,
+            "KILL_PHASE_DEBT_REFERENCE after cleanup at denominator {denominator_index}",
+        );
+        for shot in 0..64 {
+            assert_eq!(
+                reference_sim.get_register(&reference_denominator_reg, shot),
+                denominator,
+                "reference denominator changed at denominator {denominator_index} seed {shot}",
+            );
+            assert_eq!(
+                reference_sim.get_register(&reference_coefficient_reg, shot),
+                reference_outputs[3][shot].0,
+                "reference cleanup changed coefficient at denominator {denominator_index} seed {shot}",
+            );
+            assert_eq!(
+                reference_sim.get_register(&reference_numerator_reg, shot),
+                reference_outputs[3][shot].1,
+                "reference cleanup changed numerator at denominator {denominator_index} seed {shot}",
+            );
+        }
+        reference_executed_toffoli += reference_sim.stats.toffoli_gates;
+        for wire in reference_denominator_reg
+            .iter()
+            .chain(&reference_coefficient_reg)
+            .chain(&reference_numerator_reg)
+        {
+            if let QubitOrBit::Qubit(q) = *wire {
+                *reference_sim.qubit_mut(q) = 0;
+            }
+        }
+        for q in 0..reference_total_qubits as u64 {
+            assert_eq!(
+                reference_sim.qubit(QubitId(q)),
+                0,
+                "KILL_ANCILLA_DEBT_REFERENCE q{q} denominator_index={denominator_index}",
+            );
+        }
+
+        let mut candidate_shake = Shake256::default();
+        candidate_shake.update(b"Teddy Pender X008 retained candidate");
+        candidate_shake.update(&(denominator_index as u64).to_le_bytes());
+        let mut candidate_reader = candidate_shake.finalize_xof();
+        let mut candidate_sim = Simulator::new(
+            candidate_total_qubits,
+            candidate_total_bits,
+            &mut candidate_reader,
+        );
+        for (shot, &(coefficient, numerator)) in seeds.iter().enumerate() {
+            candidate_sim.set_register(&candidate_denominator_reg, denominator, shot);
+            candidate_sim.set_register(&candidate_coefficient_reg, coefficient, shot);
+            candidate_sim.set_register(&candidate_numerator_reg, numerator, shot);
+        }
+
+        let mut candidate_cursor = 0usize;
+        for round in 0..4 {
+            if round > 0 {
+                let sign_checkpoint = candidate_sign_ready_checkpoints[round - 1];
+                candidate_sim.apply_iter(candidate_ops[candidate_cursor..sign_checkpoint].iter());
+                let sign_mask = candidate_sim.qubit(sign);
+                if sign_mask != reference_sign_masks[round - 1] {
+                    let mismatch = sign_mask ^ reference_sign_masks[round - 1];
+                    let shot = first_shot(mismatch);
+                    eprintln!(
+                        "TEDDY_NONZERO_ABI FAIL class=KILL_UNAVAILABLE_PREDECESSOR stage=sign{round} denominator_index={denominator_index} seed_index={shot} denominator={denominator:x} candidate_sign={} reference_sign={} mismatch_mask={mismatch:016x}",
+                        (sign_mask >> shot) & 1,
+                        (reference_sign_masks[round - 1] >> shot) & 1,
+                    );
+                    panic!("KILL_UNAVAILABLE_PREDECESSOR sign {round}");
+                }
+                assert_eq!(
+                    candidate_sim.qubit(normalization_flag),
+                    0,
+                    "KILL_DIRTY_FLAG before round {round}",
+                );
+                for &q in &scratch {
+                    assert_eq!(
+                        candidate_sim.qubit(q),
+                        0,
+                        "KILL_DIRTY_SCRATCH before round {round}",
+                    );
+                }
+                candidate_cursor = sign_checkpoint;
+            }
+
+            let checkpoint = candidate_round_checkpoints[round];
+            candidate_sim.apply_iter(candidate_ops[candidate_cursor..checkpoint].iter());
+            if candidate_sim.phase != 0 {
+                let shot = first_shot(candidate_sim.phase);
+                eprintln!(
+                    "TEDDY_NONZERO_ABI FAIL class=KILL_PHASE_DEBT_CANDIDATE stage=round{round} denominator_index={denominator_index} seed_index={shot} seed_class={} denominator={denominator:x} coefficient={:x} numerator={:x} phase_mask={:016x}",
+                    if shot < 32 { "production" } else { "stress" },
+                    seeds[shot].0,
+                    seeds[shot].1,
+                    candidate_sim.phase,
+                );
+                panic!("KILL_PHASE_DEBT_CANDIDATE after round {round}");
+            }
+            assert_eq!(
+                candidate_sim.qubit(sign),
+                0,
+                "KILL_DIRTY_SIGN after round {round}",
+            );
+            assert_eq!(
+                candidate_sim.qubit(normalization_flag),
+                0,
+                "KILL_DIRTY_FLAG after round {round}",
+            );
+            for &q in &scratch {
+                assert_eq!(
+                    candidate_sim.qubit(q),
+                    0,
+                    "KILL_DIRTY_SCRATCH after round {round}",
+                );
+            }
+
+            let mut mismatch_mask = 0u64;
+            for shot in 0..64 {
+                let candidate_output = (
+                    candidate_sim.get_register(&candidate_coefficient_reg, shot),
+                    candidate_sim.get_register(&candidate_numerator_reg, shot),
+                );
+                if candidate_output != reference_outputs[round][shot] {
+                    mismatch_mask |= 1u64 << shot;
+                }
+                assert_eq!(
+                    candidate_sim.get_register(&candidate_denominator_reg, shot),
+                    denominator,
+                    "candidate denominator changed after round {round} denominator {denominator_index} seed {shot}",
+                );
+                assert_eq!(
+                    candidate_sim.get_register(&candidate_retained_reg, shot),
+                    denominator,
+                    "candidate retained word changed after round {round} denominator {denominator_index} seed {shot}",
+                );
+            }
+            if mismatch_mask != 0 {
+                let shot = first_shot(mismatch_mask);
+                let candidate_output = (
+                    candidate_sim.get_register(&candidate_coefficient_reg, shot),
+                    candidate_sim.get_register(&candidate_numerator_reg, shot),
+                );
+                let reference_output = reference_outputs[round][shot];
+                let class = seed_kill(shot);
+                eprintln!(
+                    "TEDDY_NONZERO_ABI FAIL class={class} stage=round{round} denominator_index={denominator_index} seed_index={shot} seed_class={} denominator={denominator:x} input_coefficient={:x} input_numerator={:x} candidate_coefficient={:x} candidate_numerator={:x} reference_coefficient={:x} reference_numerator={:x} mismatch_mask={mismatch_mask:016x}",
+                    if shot < 32 { "production" } else { "stress" },
+                    seeds[shot].0,
+                    seeds[shot].1,
+                    candidate_output.0,
+                    candidate_output.1,
+                    reference_output.0,
+                    reference_output.1,
+                );
+                panic!("{class} after round {round}");
+            }
+            candidate_cursor = checkpoint;
+        }
+
+        candidate_sim.apply_iter(candidate_ops[candidate_cursor..].iter());
+        assert_eq!(
+            candidate_sim.phase, 0,
+            "KILL_PHASE_DEBT_CANDIDATE after cleanup at denominator {denominator_index}",
+        );
+        for shot in 0..64 {
+            assert_eq!(
+                candidate_sim.get_register(&candidate_denominator_reg, shot),
+                denominator,
+                "candidate cleanup changed denominator {denominator_index} seed {shot}",
+            );
+            assert_eq!(
+                candidate_sim.get_register(&candidate_coefficient_reg, shot),
+                reference_outputs[3][shot].0,
+                "candidate cleanup changed coefficient at denominator {denominator_index} seed {shot}",
+            );
+            assert_eq!(
+                candidate_sim.get_register(&candidate_numerator_reg, shot),
+                reference_outputs[3][shot].1,
+                "candidate cleanup changed numerator at denominator {denominator_index} seed {shot}",
+            );
+        }
+        candidate_executed_toffoli += candidate_sim.stats.toffoli_gates;
+        for wire in candidate_denominator_reg
+            .iter()
+            .chain(&candidate_coefficient_reg)
+            .chain(&candidate_numerator_reg)
+        {
+            if let QubitOrBit::Qubit(q) = *wire {
+                *candidate_sim.qubit_mut(q) = 0;
+            }
+        }
+        for q in 0..candidate_total_qubits as u64 {
+            assert_eq!(
+                candidate_sim.qubit(QubitId(q)),
+                0,
+                "KILL_ANCILLA_DEBT_CANDIDATE q{q} denominator_index={denominator_index}",
+            );
+        }
+    }
+
+    eprintln!(
+        "TEDDY_NONZERO_ABI PASS rounds=0..3 rows=4096 denominators=64 production_seeds=32 stress_seeds=32 per_round_continuation=exact raw_forward_injective=64/64 finite_inverse=4096/4096 reconstructed_signs=1..3 candidate_peak_q={candidate_peak} candidate_peak_phase={candidate_peak_phase} candidate_abi_q={candidate_abi} candidate_extra_peak_q={} candidate_ops={} candidate_emitted_t={candidate_emitted_toffoli} candidate_round_emitted_t=0:{},1:{},2:{},3:{} candidate_executed_t={:.3} reference_peak_q={reference_peak} reference_peak_phase={reference_peak_phase} reference_abi_q={reference_abi} reference_ops={} reference_emitted_t={reference_emitted_toffoli} reference_executed_t={:.3} denominator_preserved=1 retained_word_preserved=1 coefficient_continuation=exact numerator_continuation=exact normalization_flags=1 concurrent_flags=0 sign=0 scratch=0 flag=0 phase=0 ancilla=0 persistent_carrier_bits=0 first_whole_production_splice=divide_some_plan_rounds1_through3",
+        candidate_peak - candidate_abi,
+        candidate_ops.len(),
+        candidate_round_emitted[0],
+        candidate_round_emitted[1],
+        candidate_round_emitted[2],
+        candidate_round_emitted[3],
+        candidate_executed_toffoli as f64 / 4096.0,
+        reference_ops.len(),
+        reference_executed_toffoli as f64 / 4096.0,
+    );
+}
+
 /// Heavy coherent add/subtract probe for raw divide replay round 2. It stops
 /// before halving because the seeded `p` sentinel already prevents its scratch
 /// reset from defining a clean canonical-field boundary.

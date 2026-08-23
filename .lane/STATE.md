@@ -53,19 +53,19 @@ The current universal gate is `Q * T < 1175485230`. Exact strict T ceilings are 
 
 ## Current phase
 
-`NONZERO_ABI_PREDECLARED`
+`NONZERO_ABI_ABSOLUTE_PHASE_KILL`
 
 ## Current hypothesis
 
-`H10`: X007's exact retained-word rounds0..3 mapping composes with the live production coefficient/numerator ABI, not only its all-zero seed. X008 is frozen before semantic execution on an independent64-denominator x64-seed Cartesian corpus (4,096 rows, SHA-256 `53b06714ffdf079be23b2d3e1d25706c0d2853ab08d13345588f9a505c9409b0`). Seeds0..31 use production `coefficient=0,numerator!=0`; seeds32..63 set both registers nonzero. The candidate must match unchanged raw-production continuation after every round; per-denominator raw forward images must be collision-free and their exact finite inverse must restore each seed.
+`H10 KILL`: X008's absolute-phase nonzero replay ABI cannot be established. The unchanged raw production-forward reference develops phase mask `000000400000004f` after round2 in the first frozen denominator batch (`d=1`); the first dirty lane is production-ABI seed0 `(coefficient=0,numerator=1)`. The predeclared stop-first gate fires before finite-inverse construction or retained-candidate parity. X007 remains exact only on its frozen all-zero replay seed.
 
 ## Current falsifier
 
-H10 fails immediately if the single sign1-keyed sentinel toggle changes a nonzero production-ABI continuation, if raw forward images collide on the frozen seed set, or if exactness needs Q>1114, an extra256-bit carrier, a second flag, unavailable predecessor state, dirty sign/scratch/flag, phase debt, or ancilla debt. The raw production reference must not share the candidate's normalization toggle. Archived commit `9fb89d3` proves the approximate fused reverse cell is not an arbitrary-seed oracle, so X008 uses the exact finite inverse of raw forward outputs instead of knowingly re-killing that shared primitive. X007 remains exact only on its frozen zero-seed corpus until X008 clears.
+The first declared failing class is `KILL_PHASE_DEBT_REFERENCE` at raw reference round2, denominator index0, seed index0. The complete first-batch phase mask covers seeds `{0,1,2,3,6,38}`. Static candidate gates pass at Q1114/T960 with the round2 fused cell as binder, one flag, no concurrent flag, and no persistent carrier, but executed T and semantic parity are not results because the authority gate blocks the candidate.
 
 ## Next action
 
-Push X008 pre-result amendment0, then build the unchanged raw-production forward miter, require collision-free finite inverse closure, and compare the retained candidate after rounds0/1/2/3. Stop on the first declared KILL class. If exact, name the rounds1..3 whole-production divide splice gate; do not implement it, extend to round4, optimize, grind, hunt, or touch a provider.
+Seal and push the terminal X008 KILL receipt. Any changed-premise relative-phase ABI test must be a new predeclared experiment that compares complete candidate/reference phase masks exactly and retains every value/inverse/restoration/cleanup/Q/state gate. Do not infer a production splice from X008, extend to round4, optimize, grind, hunt, or touch a provider.
 
 ## Last verified result
 
@@ -91,6 +91,7 @@ Push X008 pre-result amendment0, then build the unchanged raw-production forward
 - Sign7/replay commit `d4f08d2`: exact low9 sign7 ANF has115 terms/degree7 and passes4,096 target-width cases at candidate Q522/T4000 with two allocated scratch, at most three restored retained dirty bridges, phase0, ancilla0, carrier0, max_live_sign_bits1. The first real two-round F7 replay consumer passes the same4,096 inputs at Q521/T0 with only six intended coefficient continuation bits live. Naive full-field round2 leaves deterministic phase debt; reversible round1-sentinel normalization is the changed-premise reopen.
 - Full-field normalization commit `384823f`: production rounds0..2 pass4,096 denominators at candidate Q1114 on ABI768, extra peak346, 8,622 ops, emitted T583, executed T550.247; reference Q1546/T3089.817. One local flag reconstructs sign1, maps the round1 `p` sentinel to canonical zero for round2, restores the continuation, and clears through the same retained sign oracle. Denominator/retained preserved, replay state match, sign/scratch/flag0, phase0, ancilla0, carrier0, max_live_sign_bits1. Raw unnormalized mode fails deterministically, binding the fix.
 - X007 round3 receipt `.lane/TEDDY-RETAINED-ROUND3.md`: exact production rounds0..3 on the same frozen4,096 denominators at Q1114/ABI768/extra346, 13,659 ops, emitted T960 split65/141/377/377, executed T894.054; reference Q1546/T3945.219. The single flag is used only around round2, round3 is flag-free, and denominator/retained/replay/sign/scratch/flag/phase/ancilla/carrier gates all pass. Default production remains15,730,117 ops at SHA-256 `843558da6f504e3f8f2f41cae1edeccdf0cfed9e0dc216f8e880ebc1752e7b75`. Verdict exact component HOLD; nonzero-numerator ABI closure is not proved.
+- X008 nonzero-ABI receipt `.lane/TEDDY-NONZERO-ABI-KILL.md`: terminal `KILL_PHASE_DEBT_REFERENCE`. The exact release miter prices the retained candidate at Q1114/ABI768/13,659 ops/emitted T960, with the round2 fused replay cell as binder, one flag, and no carrier. Before candidate execution, unchanged raw forward has phase mask `000000400000004f` after round2 for the first frozen denominator batch; first dirty input is production seed0 `(d,c,n)=(1,0,1)`. Finite inverse and candidate parity were not run. Two direct receipts are identical at SHA-256 `46762dce4f3c7a907e6e2277dc4254e108bb6cc79e5802b1d944fa2d01ed9878`.
 - Protected-leader cache HOLD commit `a05cca3`: exact `a9af194` cycle has21 clean rows and no average below919784.5; promoted nonce57002259501 at919785.268 remains best. Do not rebuild until a newer read-only cache cycle contains a necessarily new strict beat.
 
 ## Credit and shipping note
