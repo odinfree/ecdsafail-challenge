@@ -2,7 +2,13 @@
 
 - branch: `research/q1273-wrapped-register-exact`
 - base: `41df51a37e0489b5e801faec9b3db588b2037c6a`
-- decision: `PREDECLARED`
+- decision: `GO_CPU_CLASSICAL / CUDA_HANDOFF_READY`
 - scan/provider/hunt/submission: forbidden
-- next gate: implement the frozen terminal-canonicalized finite-width register
-  transducer without opening D32 results
+- exact masks: inherited + H64 + D16 + blinded D32 = `113/113`, repeated
+  byte-identically with `1,594/1,594` classical faults
+- final summary SHA-256:
+  `51d9802bee64c6865b294b1e3ac7f40d6717ce258677ea7b9bbfa4a5841a413d`
+- final manifest SHA-256:
+  `fa458ea4af5766df3660380943e3fc83e502d379f2cd9945c3e4c38e2f22d93c`
+- next gate: predeclare and qualify the exact conditional phase composition;
+  preserve the qualified classical model and all complete-mask receipts
