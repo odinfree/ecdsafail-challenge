@@ -97,6 +97,40 @@ grep -qx 'final_predicate=classical_mask==0&&clean_phase_mask==0' \
     "$scratch/canary.1.receipt" || fail "receipt predicate missing"
 echo "   PASS repeated byte-identical empty output/receipt; canary {1753,5833} omitted"
 
+echo "== existing destination fail-closed gates"
+printf 'do-not-overwrite-output\n' >"$scratch/existing-output.out"
+existing_output_sha="$(sha "$scratch/existing-output.out")"
+set +e
+"$wrapper" --binary "$binary" --ops "$ops" --nonces "$scratch/canary.nonces" \
+    --output "$scratch/existing-output.out" --receipt "$scratch/existing-output.receipt" \
+    >"$scratch/existing-output.stdout" 2>"$scratch/existing-output.stderr"
+rc=$?
+set -e
+[[ "$rc" == 2 ]] || fail "existing output exit=$rc expected=2"
+[[ "$(sha "$scratch/existing-output.out")" == "$existing_output_sha" ]] ||
+    fail "existing output was modified"
+[[ ! -e "$scratch/existing-output.receipt" ]] ||
+    fail "existing-output rejection published receipt"
+[[ ! -s "$scratch/existing-output.stdout" ]] ||
+    fail "existing-output rejection leaked stdout"
+
+printf 'do-not-overwrite-receipt\n' >"$scratch/existing-receipt.receipt"
+existing_receipt_sha="$(sha "$scratch/existing-receipt.receipt")"
+set +e
+"$wrapper" --binary "$binary" --ops "$ops" --nonces "$scratch/canary.nonces" \
+    --output "$scratch/existing-receipt.out" --receipt "$scratch/existing-receipt.receipt" \
+    >"$scratch/existing-receipt.stdout" 2>"$scratch/existing-receipt.stderr"
+rc=$?
+set -e
+[[ "$rc" == 2 ]] || fail "existing receipt exit=$rc expected=2"
+[[ "$(sha "$scratch/existing-receipt.receipt")" == "$existing_receipt_sha" ]] ||
+    fail "existing receipt was modified"
+[[ ! -e "$scratch/existing-receipt.out" ]] ||
+    fail "existing-receipt rejection published output"
+[[ ! -s "$scratch/existing-receipt.stdout" ]] ||
+    fail "existing-receipt rejection leaked stdout"
+echo "   PASS existing output/receipt preserved; no peer artifact or stdout"
+
 echo "== exact-classical precondition rejects dirty input atomically"
 printf '251000962439\n100000035106674\n' >"$scratch/dirty.nonces"
 set +e

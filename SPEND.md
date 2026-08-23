@@ -21,3 +21,7 @@ Formula:
 The Codex recovery invoked no additional Claude session: **USD `0.000000`**.
 Total Claude spend attributable to this lane remains **USD `6.281134`**, below
 the USD `20` session cap.
+
+The finite-list postfilter packet invoked no Claude session and added exactly
+**USD `0.000000`**. Total Claude spend for the recovered phase-screen and
+postfilter work remains **USD `6.281134`**.

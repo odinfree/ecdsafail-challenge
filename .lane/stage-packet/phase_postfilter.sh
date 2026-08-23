@@ -149,11 +149,13 @@ binary_sha="$(sha "$binary")"
     printf 'cuda_phase=not-claimed\n'
 } >"$tmp_receipt"
 
-mv "$tmp_receipt" "$receipt_abs"
-if ! mv "$tmp_output" "$output_abs"; then
+ln "$tmp_receipt" "$receipt_abs" || fail 5 "receipt appeared concurrently; refusing to overwrite"
+rm -f "$tmp_receipt"
+if ! ln "$tmp_output" "$output_abs"; then
     rm -f "$receipt_abs"
-    fail 5 "could not publish output"
+    fail 5 "output appeared concurrently; refusing to overwrite"
 fi
+rm -f "$tmp_output"
 cat "$output_abs"
 echo "phase-postfilter: PASS input_rows=$input_count output_rows=$output_count output_sha256=$output_sha" >&2
 trap - EXIT

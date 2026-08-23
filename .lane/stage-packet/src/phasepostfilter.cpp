@@ -144,6 +144,9 @@ static int run_list(bool audit, const char* ops_path, const char* nonce_path) {
 
     size_t survivors = 0;
     for (const PP_AuditRow& row : rows) {
+        bool survivor = row.result.classical_faults == 0 &&
+                        row.result.clean_phase_shots.empty();
+        if (survivor) survivors++;
         if (audit) {
             printf("%llu\t%llu\t%zu\t{",
                    (unsigned long long)row.nonce,
@@ -154,10 +157,8 @@ static int run_list(bool audit, const char* ops_path, const char* nonce_path) {
                 printf("%zu", row.result.clean_phase_shots[i]);
             }
             printf("}\n");
-        } else if (row.result.classical_faults == 0 &&
-                   row.result.clean_phase_shots.empty()) {
+        } else if (survivor) {
             printf("%llu\n", (unsigned long long)row.nonce);
-            survivors++;
         }
     }
 

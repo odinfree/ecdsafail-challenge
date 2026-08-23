@@ -45,6 +45,7 @@ identity="$("$tmp" identity)"
 [[ "$identity" == "$expected_identity" ]] || fail "compiled identity mismatch"
 
 chmod 0755 "$tmp"
-mv "$tmp" "$output_abs"
+ln "$tmp" "$output_abs" || fail "output appeared concurrently; refusing to overwrite"
+rm -f "$tmp"
 trap - EXIT
 echo "phasepostfilter_linux_sha256=$(sha "$output_abs")"
