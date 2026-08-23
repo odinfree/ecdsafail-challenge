@@ -5,17 +5,22 @@
 - branch: `research/q1272-fixed-nonce-width-repair`
 - base: evidence `41dd0b4508527081b8d24255adf0579389f02453`, structural
   `73422709ed70ba9725b3cb592770bcf197df4cdb`
-- status: `PREDECLARED / SOURCE UNCHANGED / PREDICTOR IMPORT PENDING`
+- status: `TERMINAL KILL / 18 SOFT + 5 HARD / SOURCE UNCHANGED`
 - target: the exact inherited 23 classical failures at nonce `65700024945645`
 - sole family: sparse causal `+1` adjustments to sampled `WIDTH_SCHEDULE`
   indices
-- hard-fault gate: any hard failure is immediate `KILL`
+- hard-fault gate: fired on shots `292, 3094, 4897, 6692, 7956`
 - score gate: Q1272 and rounded T at most `914961` (`+177` over inherited
   rounded T914784)
-- full-evaluator gate: unopened until a committed source-bound model predicts
-  zero classical failures and score positivity; final channels must be `0/0/0`
-- next action: bind the committed exact `23/23` predictor packet, classify all
-  failures, and prove the minimum causal repair set before source edits
+- exact predictor gate: PASS complete inherited set `23/23`, canonical set SHA
+  `c46041ff454200ba4d2ab3cffcefb2b118e4afd839f674431762b24da37f8848`
+- causal gate: 18 first post-add excess-one width deficits plus five non-width
+  hard failures; independent diagnostic stdout SHA
+  `b35613a083650e3d9c21c7993a778c338e67dd55c1fad0a95dad1a718ba3c1fd`
+- minimum-set verdict: infeasible in the sole sparse `+1` family
+- circuit source edit / chained cover / candidate price / full evaluator: none;
+  stopped at the predeclared hard-fault gate
+- next action: none in this family
 - provider/range/hunt/submission/public note: forbidden
 
 ## E001 inherited selector saddle

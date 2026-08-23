@@ -689,6 +689,7 @@ fn u4_shl1(a: &U4) -> U4 {
 /// the exact source compiled into this binary instead of being copied here;
 /// that keeps a source edit from silently leaving the predictor on an old
 /// schedule.
+#[derive(Clone)]
 struct Model {
     rounds_div: usize,
     rounds_mul: usize,
@@ -700,6 +701,10 @@ struct Model {
     wid_div: Vec<usize>,
     wid_mul: Vec<usize>,
     masks: Vec<W5>, // indexed by width, 0..=VALUE_WIDTH
+    // Qualification-only sampled-table +1 perturbations.  These never alter
+    // the emitted stream; they let the fixed-nonce repair lane predict an
+    // explicitly named candidate before any circuit source edit.
+    width_plus1: Vec<usize>,
 }
 
 fn env_usize(name: &str, default: usize) -> usize {
@@ -732,6 +737,35 @@ fn embedded_width_schedule() -> Vec<usize> {
         .collect();
     assert_eq!(schedule.len(), 700, "target WIDTH_SCHEDULE length drifted");
     schedule
+}
+
+fn diagnostic_width_plus1() -> Vec<usize> {
+    let Ok(text) = std::env::var("PF_WIDTH_PLUS1") else {
+        return Vec::new();
+    };
+    if text.is_empty() {
+        eprintln!("pingpong_filter: PF_WIDTH_PLUS1 must not be empty");
+        std::process::exit(2);
+    }
+    let mut out = Vec::new();
+    for token in text.split(',') {
+        let Ok(index) = token.parse::<usize>() else {
+            eprintln!("pingpong_filter: non-canonical PF_WIDTH_PLUS1 index {token:?}");
+            std::process::exit(2);
+        };
+        if token != index.to_string() || index >= 700 {
+            eprintln!("pingpong_filter: PF_WIDTH_PLUS1 index {token:?} is outside 0..699 or non-canonical");
+            std::process::exit(2);
+        }
+        if out.last().is_some_and(|previous| *previous >= index) {
+            eprintln!(
+                "pingpong_filter: PF_WIDTH_PLUS1 indices must be unique and strictly ascending"
+            );
+            std::process::exit(2);
+        }
+        out.push(index);
+    }
+    out
 }
 
 fn validate_target_env() {
@@ -807,7 +841,11 @@ impl Model {
                 round * (704 - 1) / (r - 1)
             }
         };
-        let sampled = embedded_width_schedule();
+        let mut sampled = embedded_width_schedule();
+        let width_plus1 = diagnostic_width_plus1();
+        for &index in &width_plus1 {
+            sampled[index] = (sampled[index] + 1).min(VALUE_WIDTH);
+        }
         let value_width = |round: usize| -> usize {
             if round == 0 {
                 VALUE_WIDTH
@@ -839,7 +877,33 @@ impl Model {
             wid_div,
             wid_mul,
             masks,
+            width_plus1,
         }
+    }
+
+    fn with_added_width_index(&self, index: usize) -> Self {
+        assert!(index < 700);
+        let mut candidate = self.clone();
+        assert!(
+            candidate.width_plus1.is_empty(),
+            "width matrix requires the unperturbed exact model"
+        );
+        for round in 1..candidate.rounds_div {
+            let sampled = round * (704 - 1) / (candidate.rounds_div - 1);
+            if sampled == index {
+                candidate.wid_div[round] = (candidate.wid_div[round] + 1).min(VALUE_WIDTH);
+            }
+        }
+        for round in 1..candidate.rounds_mul {
+            // The circuit maps both traversals with the divide-round
+            // denominator; preserve that exact source rule.
+            let sampled = round * (704 - 1) / (candidate.rounds_div - 1);
+            if sampled == index {
+                candidate.wid_mul[round] = (candidate.wid_mul[round] + 1).min(VALUE_WIDTH);
+            }
+        }
+        candidate.width_plus1.push(index);
+        candidate
     }
 }
 
@@ -1912,6 +1976,137 @@ impl NonceScratch {
     }
 }
 
+#[derive(Clone, Copy)]
+struct WidthCase {
+    tx: U4,
+    ty: U4,
+    ox: U4,
+    oy: U4,
+    expected_x: U4,
+    expected_y: U4,
+    draw: usize,
+}
+
+fn width_cases(s: &NonceScratch) -> Vec<WidthCase> {
+    let n = s.tx.len();
+    let mut prefix = Vec::with_capacity(n);
+    let mut acc = ONE4;
+    for denominator in &s.dens {
+        prefix.push(acc);
+        acc = fe_mul(&acc, denominator);
+    }
+    let mut inv = fe_inv(&acc);
+    let mut inverses = vec![ZERO4; n];
+    for i in (0..n).rev() {
+        inverses[i] = fe_mul(&inv, &prefix[i]);
+        inv = fe_mul(&inv, &s.dens[i]);
+    }
+    (0..n)
+        .map(|i| {
+            let lam = fe_mul(&fe_sub(&s.oy[i], &s.ty[i]), &inverses[i]);
+            let expected_x = fe_sub(&fe_sub(&fe_sqr(&lam), &s.tx[i]), &s.ox[i]);
+            let expected_y = fe_sub(
+                &fe_mul(&lam, &fe_sub(&s.tx[i], &expected_x)),
+                &s.ty[i],
+            );
+            WidthCase {
+                tx: s.tx[i],
+                ty: s.ty[i],
+                ox: s.ox[i],
+                oy: s.oy[i],
+                expected_x,
+                expected_y,
+                draw: s.draws[i],
+            }
+        })
+        .collect()
+}
+
+fn width_case_faults(
+    m: &Model,
+    cases: &[WidthCase],
+    restrict_to: Option<&std::collections::BTreeSet<usize>>,
+) -> std::collections::BTreeSet<usize> {
+    let mut scratch = Scratch {
+        tape: vec![0u8; m.rounds_div.max(m.rounds_mul) + 8],
+        rec: None,
+    };
+    let mut faults = std::collections::BTreeSet::new();
+    for case in cases {
+        if restrict_to.is_some_and(|allowed| !allowed.contains(&case.draw)) {
+            continue;
+        }
+        let mut nphase = 0u64;
+        let (got_x, got_y) = point_add_classical(
+            &case.tx,
+            &case.ty,
+            &case.ox,
+            &case.oy,
+            m,
+            &mut scratch,
+            &mut nphase,
+        );
+        if got_x != case.expected_x || got_y != case.expected_y {
+            faults.insert(case.draw);
+        }
+    }
+    faults
+}
+
+fn comma_set(values: &std::collections::BTreeSet<usize>) -> String {
+    values
+        .iter()
+        .map(usize::to_string)
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn run_width_matrix(nonce: u64, cp: &Checkpoint, comb: &CombTable, m: &Model) {
+    if !m.width_plus1.is_empty() {
+        eprintln!("pingpong_filter: --width-matrix rejects external PF_WIDTH_PLUS1");
+        std::process::exit(2);
+    }
+    let mut nonce_scratch = NonceScratch::new(m.rounds_div.max(m.rounds_mul));
+    let (base_count, _, _) = screen_nonce(nonce, cp, comb, m, &mut nonce_scratch, false, false);
+    let cases = width_cases(&nonce_scratch);
+    let base_faults = width_case_faults(m, &cases, None);
+    assert_eq!(base_count, base_faults.len());
+    println!(
+        "BASE nonce={nonce} cases={} faults={} shots={}",
+        cases.len(),
+        base_faults.len(),
+        comma_set(&base_faults)
+    );
+    let sampled = embedded_width_schedule();
+    for index in 0..700 {
+        let candidate = m.with_added_width_index(index);
+        let remaining_base = width_case_faults(&candidate, &cases, Some(&base_faults));
+        let cleared: std::collections::BTreeSet<_> =
+            base_faults.difference(&remaining_base).copied().collect();
+        if cleared.is_empty() {
+            continue;
+        }
+        let candidate_faults = width_case_faults(&candidate, &cases, None);
+        let new_faults: std::collections::BTreeSet<_> =
+            candidate_faults.difference(&base_faults).copied().collect();
+        let affected_rounds = candidate
+            .wid_div
+            .iter()
+            .zip(&m.wid_div)
+            .filter(|(after, before)| after != before)
+            .count();
+        println!(
+            "INDEX index={index} width={} affected_rounds={affected_rounds} faults={} cleared={} new={} cleared_shots={} new_shots={}",
+            sampled[index],
+            candidate_faults.len(),
+            cleared.len(),
+            new_faults.len(),
+            comma_set(&cleared),
+            comma_set(&new_faults)
+        );
+    }
+}
+
 #[inline]
 fn u4_from_le(b: &[u8]) -> U4 {
     [
@@ -2119,6 +2314,7 @@ fn fault_mask_hex(mask: &[u64]) -> String {
 fn usage() -> ! {
     eprintln!("usage: pingpong_filter --from <nonce> --to <nonce> [--jobs N] [--verbose]");
     eprintln!("       --nonces <file> [--jobs N] [--faultshots]");
+    eprintln!("       --nonces <one-nonce-file> --width-matrix");
     eprintln!(
         "       [--selftest]                 run the built-in Fiat-Shamir + model KATs and exit"
     );
@@ -2140,6 +2336,7 @@ fn main() {
     let mut nonce_file: Option<String> = None;
     let mut dump: Option<String> = None;
     let mut faultshots = false;
+    let mut width_matrix = false;
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -2162,6 +2359,7 @@ fn main() {
                 nonce_file = args.get(i).cloned();
             }
             "--faultshots" => faultshots = true,
+            "--width-matrix" => width_matrix = true,
             "--dump-checkpoint" => {
                 i += 1;
                 dump = args.get(i).cloned();
@@ -2181,6 +2379,10 @@ fn main() {
     }
     if faultshots && nonce_file.is_none() {
         eprintln!("pingpong_filter: --faultshots requires --nonces <file>");
+        std::process::exit(2);
+    }
+    if width_matrix && nonce_file.is_none() {
+        eprintln!("pingpong_filter: --width-matrix requires --nonces <one-nonce-file>");
         std::process::exit(2);
     }
     let from = from.unwrap_or(0);
@@ -2229,8 +2431,8 @@ fn main() {
         // Printed so a stale copy of the circuit's tuned windows is visible
         // rather than silent.  See the comment in `Model::new`.
         eprintln!(
-            "model windows: rounds_div={} rounds_mul={} replay_fold={} endpoint_fold={} (must match pingpong_div.rs)",
-            m.rounds_div, m.rounds_mul, m.fold_w, m.endpoint_m - 34
+            "model windows: rounds_div={} rounds_mul={} replay_fold={} endpoint_fold={} width_plus1={:?} (base must match pingpong_div.rs)",
+            m.rounds_div, m.rounds_mul, m.fold_w, m.endpoint_m - 34, m.width_plus1
         );
     }
     let comb = CombTable::build();
@@ -2249,6 +2451,14 @@ fn main() {
             .split_whitespace()
             .filter_map(|t| t.parse::<u64>().ok())
             .collect();
+        if width_matrix {
+            if list.len() != 1 {
+                eprintln!("pingpong_filter: --width-matrix requires exactly one nonce");
+                std::process::exit(2);
+            }
+            run_width_matrix(list[0], &cp, &comb, &m);
+            return;
+        }
         let idx = AtomicU64::new(0);
         let out: Mutex<Vec<(u64, usize, usize, Vec<u64>)>> =
             Mutex::new(Vec::with_capacity(list.len()));

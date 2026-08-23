@@ -2,7 +2,7 @@
 
 ## E002 — exact Q1272 fixed-nonce sparse width repair
 
-Status: `PREDECLARED / NO SEMANTIC SOURCE EDIT / NO RESULT`.
+Status: `TERMINAL KILL / FIVE HARD FAULTS / NO SEMANTIC CIRCUIT EDIT`.
 
 The bounded falsifier is frozen in `.lane/E002-WIDTH-REPAIR-PREDECL.md`.
 It binds evidence commit `41dd0b4`, structural source `7342270`, operation SHA
@@ -10,9 +10,16 @@ It binds evidence commit `41dd0b4`, structural source `7342270`, operation SHA
 nonce `65700024945645`, inherited full result `23/8/0`, and the Q1272 ceiling
 T914961.  Only causal sparse `+1` sampled-width repairs are admissible.
 
-No candidate source edit or result exists.  The next gate is import of a
-committed exact-source predictor reproducing the complete classical set
-`23/23`, followed by hard/soft classification and an exact minimum-cover proof.
+The committed exact-source predictor reproduced the complete classical set
+`23/23`.  Independent causal diagnostics reproduced 18 first post-add
+excess-one width deficits and five hard faults: replay-multiply coefficient
+shots 292/3094/4897, replay-divide coefficient shot 6692, and multiply-terminal
+shot 7956.  The sole sparse `+1` family therefore has no finite covering set.
+
+The complete single-index model matrix found only index 450 immediately clears
+a failure (shot 4418, no new faults, `23 -> 22`).  This does not alter the hard
+gate.  Per `.lane/E002-WIDTH-REPAIR-KILL.md`, chained cover, candidate pricing,
+circuit editing, and full evaluation were not opened after the terminal KILL.
 
 ## E001 — promoted-source selector lifecycle port
 
