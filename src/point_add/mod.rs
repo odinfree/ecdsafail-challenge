@@ -2539,6 +2539,10 @@ pub fn build() -> Vec<Op> {
             pingpong_div::retained_numerator_abi_pair_probe();
             return Vec::new();
         }
+        if std::env::var_os("SUB4_PP_FUSED_TRAJECTORY_TRACE").is_some() {
+            pingpong_div::fused_reachable_trajectory_probe();
+            return Vec::new();
+        }
         if std::env::var_os("SUB4_PP_RETAINED_DENOM_SIGN1_SELFTEST").is_some() {
             pingpong_div::retained_denominator_round1_selfcheck();
             return Vec::new();

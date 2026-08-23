@@ -1074,6 +1074,7 @@ version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "ruint",
+ "sha2",
  "sha3",
  "zstd",
 ]

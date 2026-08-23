@@ -121,6 +121,11 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
     assert_eq!(denominator.len(), N);
     assert_eq!(numerator.len(), N);
 
+    fused_trace_set_direction(match direction {
+        PingPongDirection::Divide => "divide",
+        PingPongDirection::Multiply => "multiply",
+    });
+
     let mut u = load_const(b, N, SECP256K1_P);
     u.extend(b.alloc_qubits(VALUE_WIDTH - N));
     let wanted_u = u.clone();
@@ -1138,7 +1143,9 @@ fn replay_halving_round(b: &mut B, round: usize, sign: QubitId, x: &[QubitId], y
         seed_round_one(b, sign, source, target);
         mod_halve_pm(b, target);
     } else {
+        let entry = fused_trace_mark(b);
         signed_mod_add_pm_halve_fused(b, sign, source, target);
+        fused_trace_record(b, "halve", round, sign, source, target, entry);
     }
 }
 
@@ -1147,7 +1154,9 @@ fn replay_doubling_round(b: &mut B, round: usize, sign: QubitId, x: &[QubitId], 
     let (source, target) = if round.is_multiple_of(2) { (x, y) } else { (y, x) };
     if fused && round > 1 {
         b.x(sign);
+        let entry = fused_trace_mark(b);
         signed_mod_double_add_pm_fused(b, sign, source, target);
+        fused_trace_record(b, "double", round, sign, source, target, entry);
         b.x(sign);
     } else {
         mod_double_pm(b, target);
@@ -1652,6 +1661,101 @@ fn fused_fold_maskfree(
     b.free(operand);
 }
 
+/// Diagnostic-only recorder for the shared fused-cell trajectory (P64/C64).
+/// Every field is read-only over the builder: it observes op offsets and live
+/// wire IDs but never calls `push_op`/`alloc_*`, so with the gate off nothing
+/// runs and the emitted op stream is byte-identical. Gate: env
+/// `SUB4_PP_FUSED_TRAJECTORY_TRACE`.
+struct FusedCallRecord {
+    cell: &'static str,      // "halve" (forward) or "double" (inverse)
+    direction: &'static str, // "divide" or "multiply"
+    call_index: usize,
+    round: usize,
+    sign: QubitId,
+    source: Vec<QubitId>,
+    target: Vec<QubitId>,
+    off_entry: usize,
+    off_exit: usize,
+}
+
+struct FusedTrace {
+    direction: &'static str,
+    call_index: usize,
+    records: Vec<FusedCallRecord>,
+}
+
+thread_local! {
+    static FUSED_TRACE: std::cell::RefCell<Option<FusedTrace>> =
+        std::cell::RefCell::new(None);
+}
+
+fn fused_trace_active() -> bool {
+    FUSED_TRACE.with(|c| c.borrow().is_some())
+}
+
+fn fused_trace_begin() {
+    FUSED_TRACE.with(|c| {
+        *c.borrow_mut() = Some(FusedTrace {
+            direction: "?",
+            call_index: 0,
+            records: Vec::new(),
+        });
+    });
+}
+
+fn fused_trace_take() -> Vec<FusedCallRecord> {
+    FUSED_TRACE.with(|c| c.borrow_mut().take().map(|t| t.records).unwrap_or_default())
+}
+
+fn fused_trace_set_direction(direction: &'static str) {
+    FUSED_TRACE.with(|c| {
+        if let Some(t) = c.borrow_mut().as_mut() {
+            t.direction = direction;
+        }
+    });
+}
+
+/// Offset at cell entry; `usize::MAX` when the trace is off (record is skipped).
+fn fused_trace_mark(b: &B) -> usize {
+    if fused_trace_active() {
+        b.ops.len()
+    } else {
+        usize::MAX
+    }
+}
+
+fn fused_trace_record(
+    b: &B,
+    cell: &'static str,
+    round: usize,
+    sign: QubitId,
+    source: &[QubitId],
+    target: &[QubitId],
+    off_entry: usize,
+) {
+    if off_entry == usize::MAX {
+        return;
+    }
+    FUSED_TRACE.with(|c| {
+        if let Some(t) = c.borrow_mut().as_mut() {
+            let call_index = t.call_index;
+            t.call_index += 1;
+            let direction = t.direction;
+            t.records.push(FusedCallRecord {
+                cell,
+                direction,
+                call_index,
+                round,
+                sign,
+                source: source.to_vec(),
+                target: target.to_vec(),
+                off_entry,
+                off_exit: b.ops.len(),
+            });
+        }
+    });
+}
+
 fn signed_mod_add_pm_halve_fused(b: &mut B, sign: QubitId, source: &[QubitId], target: &[QubitId]) {
     let f = U256::MAX
         .wrapping_sub(SECP256K1_P)
@@ -1945,7 +2049,9 @@ fn replay_halving(b: &mut B, tape: &[QubitId], x: &[QubitId], y: &[QubitId]) {
             seed_round_one(b, sign, source, target);
             mod_halve_pm(b, target);
         } else {
+            let entry = fused_trace_mark(b);
             signed_mod_add_pm_halve_fused(b, sign, source, target);
+            fused_trace_record(b, "halve", round, sign, source, target, entry);
         }
     }
 }
@@ -1961,7 +2067,9 @@ fn replay_doubling_inverse(b: &mut B, tape: &[QubitId], x: &[QubitId], y: &[Qubi
         };
         if fused && round > 1 {
             b.x(sign);
+            let entry = fused_trace_mark(b);
             signed_mod_double_add_pm_fused(b, sign, source, target);
+            fused_trace_record(b, "double", round, sign, source, target, entry);
             b.x(sign);
         } else {
             mod_double_pm(b, target);
@@ -3197,6 +3305,404 @@ pub(crate) fn retained_numerator_abi_pair_probe() {
     }
 
     eprintln!("NUMERATOR_ABI_PAIR_PROBE done pairs=4 corpus=nonzero_mod_p");
+}
+
+/// P64 + C64 characterization of the shared fused-cell trajectory.
+///
+/// P64 is the unmodified production point-add composition
+/// (`build_pingpong_point_add`) simulated on the frozen 64 valid affine pairs;
+/// under the `SUB4_PP_FUSED_TRAJECTORY_TRACE` gate the recorder captures every
+/// round->=2 entry/exit of the forward halve cell (Divide) and the inverse
+/// double-add cell (Multiply). C64 replays the deduplicated
+/// `(sign, source, target_before)` reachable tuples through the existing
+/// forward cell, the existing inverse, and their composition. The recorder adds
+/// no op/wire; the receipt hashes use the predeclared SHA-256. Gate:
+/// `SUB4_PP_FUSED_TRAJECTORY_TRACE=1 ./target/release/build_circuit`.
+pub(crate) fn fused_reachable_trajectory_probe() {
+    use crate::circuit::QubitOrBit;
+    use sha2::{Digest, Sha256};
+    use sha3::{
+        digest::{ExtendableOutput, Update, XofReader},
+        Shake256,
+    };
+
+    let p = SECP256K1_P;
+    let hexstr = |bytes: &[u8]| -> String {
+        let mut s = String::with_capacity(bytes.len() * 2);
+        for b in bytes {
+            s.push_str(&format!("{b:02x}"));
+        }
+        s
+    };
+
+    // ---- Build P64 ops with the trace on. -------------------------------------
+    fused_trace_begin();
+    let ops = build_pingpong_point_add();
+    let records = fused_trace_take();
+    assert!(!fused_trace_active(), "trace not cleared");
+
+    // Gate 2 op-stream identity: rebuild with the trace off, compare length and
+    // a full-stream SHA-256. The recorder must not perturb any emitted byte.
+    let finish = |h: Sha256| -> [u8; 32] {
+        let mut out = [0u8; 32];
+        out.copy_from_slice(&h.finalize());
+        out
+    };
+    let hash_ops = |ops: &[Op]| -> [u8; 32] {
+        let mut h = Sha256::new();
+        for op in ops {
+            Digest::update(&mut h, [op.kind as u8]);
+            Digest::update(&mut h, op.q_control2.0.to_le_bytes());
+            Digest::update(&mut h, op.q_control1.0.to_le_bytes());
+            Digest::update(&mut h, op.q_target.0.to_le_bytes());
+            Digest::update(&mut h, op.c_target.0.to_le_bytes());
+            Digest::update(&mut h, op.c_condition.0.to_le_bytes());
+            Digest::update(&mut h, op.r_target.0.to_le_bytes());
+        }
+        finish(h)
+    };
+    let h_on = hash_ops(&ops);
+    {
+        let ops_off = build_pingpong_point_add();
+        assert_eq!(ops.len(), ops_off.len(), "trace changed emitted op count");
+        assert_eq!(h_on, hash_ops(&ops_off), "trace changed emitted op stream");
+    }
+    eprintln!(
+        "FUSED_TRAJ op_stream_identity=OK ops={} stream_sha256={}",
+        ops.len(),
+        hexstr(&h_on),
+    );
+
+    // ---- P64 fixture: the exact 64 valid secp256k1 affine pairs. --------------
+    let curve = WeierstrassEllipticCurve {
+        modulus: SECP256K1_P,
+        a: U256::ZERO,
+        b: U256::from(7),
+        gx: U256::from_str_radix(
+            "79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798",
+            16,
+        )
+        .expect("valid generator x"),
+        gy: U256::from_str_radix(
+            "483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8",
+            16,
+        )
+        .expect("valid generator y"),
+        order: U256::from_str_radix(
+            "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141",
+            16,
+        )
+        .expect("valid group order"),
+    };
+    let mut input_seed = Shake256::default();
+    input_seed.update(b"pingpong full affine point-add composition gate");
+    let mut input_reader = input_seed.finalize_xof();
+    let mut targets = Vec::with_capacity(64);
+    let mut offsets = Vec::with_capacity(64);
+    let mut expected = Vec::with_capacity(64);
+    while targets.len() < 64 {
+        let mut scalar_bytes = [[0u8; 32]; 2];
+        XofReader::read(&mut input_reader, &mut scalar_bytes[0]);
+        XofReader::read(&mut input_reader, &mut scalar_bytes[1]);
+        let target = curve.mul(curve.gx, curve.gy, U256::from_le_bytes(scalar_bytes[0]));
+        let offset = curve.mul(curve.gx, curve.gy, U256::from_le_bytes(scalar_bytes[1]));
+        if target.0 == offset.0
+            || (target.0.is_zero() && target.1.is_zero())
+            || (offset.0.is_zero() && offset.1.is_zero())
+        {
+            continue;
+        }
+        expected.push(curve.add(target.0, target.1, offset.0, offset.1));
+        targets.push(target);
+        offsets.push(offset);
+    }
+
+    let (num_qubits, num_bits, num_registers, registers) = analyze_ops(ops.iter());
+    assert_eq!(num_registers, 4);
+    let mut simulator_seed = Shake256::default();
+    simulator_seed.update(b"pingpong full affine point-add simulator randomness");
+    let mut simulator_reader = simulator_seed.finalize_xof();
+    let mut sim = Simulator::new(num_qubits as usize, num_bits as usize, &mut simulator_reader);
+    for shot in 0..64 {
+        sim.set_register(&registers[0], targets[shot].0, shot);
+        sim.set_register(&registers[1], targets[shot].1, shot);
+        sim.set_register(&registers[2], offsets[shot].0, shot);
+        sim.set_register(&registers[3], offsets[shot].1, shot);
+    }
+
+    // Chunk the single production simulation at the recorded cell boundaries and
+    // read source/target values there. Each region between successive read
+    // offsets is condition-balanced (whole cells or inter-cell gaps), so a fresh
+    // `apply_iter` per region is exact.
+    let to_reg = |qs: &[QubitId]| qs.iter().copied().map(QubitOrBit::Qubit).collect::<Vec<_>>();
+    #[derive(Clone, Copy)]
+    enum Ev {
+        Entry(usize),
+        Exit(usize),
+    }
+    let mut events: Vec<(usize, Ev)> = Vec::with_capacity(records.len() * 2);
+    for (i, r) in records.iter().enumerate() {
+        events.push((r.off_entry, Ev::Entry(i)));
+        events.push((r.off_exit, Ev::Exit(i)));
+    }
+    events.sort_by_key(|(off, _)| *off);
+
+    // Per (record, shot) captured values.
+    let mut src_val = vec![[U256::ZERO; 64]; records.len()];
+    let mut sign_val = vec![[0u8; 64]; records.len()];
+    let mut before_val = vec![[U256::ZERO; 64]; records.len()];
+    let mut after_val = vec![[U256::ZERO; 64]; records.len()];
+
+    let mut pos = 0usize;
+    for (off, ev) in &events {
+        if *off > pos {
+            sim.apply_iter(ops[pos..*off].iter());
+            pos = *off;
+        }
+        match *ev {
+            Ev::Entry(i) => {
+                let src_reg = to_reg(&records[i].source);
+                let tgt_reg = to_reg(&records[i].target);
+                let sq = records[i].sign;
+                for shot in 0..64 {
+                    src_val[i][shot] = sim.get_register(&src_reg, shot);
+                    before_val[i][shot] = sim.get_register(&tgt_reg, shot);
+                    sign_val[i][shot] = ((sim.qubit(sq) >> shot) & 1) as u8;
+                }
+            }
+            Ev::Exit(i) => {
+                let tgt_reg = to_reg(&records[i].target);
+                for shot in 0..64 {
+                    after_val[i][shot] = sim.get_register(&tgt_reg, shot);
+                }
+            }
+        }
+    }
+    if pos < ops.len() {
+        sim.apply_iter(ops[pos..].iter());
+    }
+
+    // Gate 2: P64 itself must finish classical/phase/ancilla 0/0/0.
+    let mut p64_classical = 0u64;
+    for shot in 0..64 {
+        if sim.get_register(&registers[0], shot) != expected[shot].0
+            || sim.get_register(&registers[1], shot) != expected[shot].1
+            || sim.get_register(&registers[2], shot) != offsets[shot].0
+            || sim.get_register(&registers[3], shot) != offsets[shot].1
+        {
+            p64_classical += 1;
+        }
+    }
+    let p64_phase = sim.phase.count_ones() as u64;
+    for register in &registers {
+        for wire in register {
+            if let QubitOrBit::Qubit(q) = *wire {
+                *sim.qubit_mut(q) = 0;
+            }
+        }
+    }
+    let mut p64_ancilla = 0u64;
+    for q in 0..num_qubits as u64 {
+        p64_ancilla += sim.qubit(QubitId(q)).count_ones() as u64;
+    }
+    eprintln!(
+        "FUSED_TRAJ P64 classical={p64_classical} phase={p64_phase} ancilla={p64_ancilla}"
+    );
+    assert_eq!(
+        (p64_classical, p64_phase, p64_ancilla),
+        (0, 0, 0),
+        "P64 must be the clean production composition"
+    );
+
+    // ---- Call/row accounting + invariants. ------------------------------------
+    let mut halve_div = 0usize;
+    let mut double_mul = 0usize;
+    let mut other = 0usize;
+    for r in &records {
+        match (r.cell, r.direction) {
+            ("halve", "divide") => halve_div += 1,
+            ("double", "multiply") => double_mul += 1,
+            _ => other += 1,
+        }
+    }
+    let n_rows = records.len() * 64;
+
+    let mut noncanon_before = 0u64;
+    let mut noncanon_after = 0u64;
+    let mut noncanon_src = 0u64;
+    let mut max_before = U256::ZERO;
+    let mut before_ge_p_delta_max = U256::ZERO; // max (value - p) among non-canonical
+    for i in 0..records.len() {
+        for shot in 0..64 {
+            let bv = before_val[i][shot];
+            let av = after_val[i][shot];
+            let sv = src_val[i][shot];
+            if bv >= p {
+                noncanon_before += 1;
+                let d = bv.wrapping_sub(p);
+                if d > before_ge_p_delta_max {
+                    before_ge_p_delta_max = d;
+                }
+            }
+            if av >= p {
+                noncanon_after += 1;
+            }
+            if sv >= p {
+                noncanon_src += 1;
+            }
+            if bv > max_before {
+                max_before = bv;
+            }
+        }
+    }
+
+    // Row hash (SHA-256): direction|call_index|round|sign|source|target_before|
+    // target_after, rows in (call_index, shot) order.
+    let mut rows = Sha256::new();
+    for i in 0..records.len() {
+        let r = &records[i];
+        for shot in 0..64 {
+            Digest::update(&mut rows, r.direction.as_bytes());
+            Digest::update(&mut rows, (r.call_index as u64).to_le_bytes());
+            Digest::update(&mut rows, (r.round as u64).to_le_bytes());
+            Digest::update(&mut rows, [sign_val[i][shot]]);
+            Digest::update(&mut rows, src_val[i][shot].to_le_bytes::<32>());
+            Digest::update(&mut rows, before_val[i][shot].to_le_bytes::<32>());
+            Digest::update(&mut rows, after_val[i][shot].to_le_bytes::<32>());
+        }
+    }
+    let rows_hash: [u8; 32] = finish(rows);
+
+    eprintln!(
+        "FUSED_TRAJ calls halve|divide={halve_div} double|multiply={double_mul} other={other} rows={n_rows}"
+    );
+    eprintln!(
+        "FUSED_TRAJ canonicity noncanon_target_before={noncanon_before} noncanon_target_after={noncanon_after} noncanon_source={noncanon_src} (of {n_rows})"
+    );
+    eprintln!(
+        "FUSED_TRAJ range max_target_before={:#x} max_noncanon_before_minus_p={:#x} p={:#x}",
+        max_before, before_ge_p_delta_max, p
+    );
+    eprintln!("FUSED_TRAJ rows_sha256={}", hexstr(&rows_hash));
+
+    // ---- C64: dedup reachable tuples, run the focused miter on the EXISTING
+    // forward/inverse pair (Gate 4). The cell math is round-independent, so the
+    // dedup key is (sign, source, target_before). ------------------------------
+    use std::collections::BTreeSet;
+    let mut set: BTreeSet<(u8, [u8; 32], [u8; 32])> = BTreeSet::new();
+    for i in 0..records.len() {
+        for shot in 0..64 {
+            set.insert((
+                sign_val[i][shot],
+                src_val[i][shot].to_le_bytes::<32>(),
+                before_val[i][shot].to_le_bytes::<32>(),
+            ));
+        }
+    }
+    let tuples: Vec<(u8, U256, U256)> = set
+        .iter()
+        .map(|(s, src, tgt)| (*s, U256::from_le_bytes(*src), U256::from_le_bytes(*tgt)))
+        .collect();
+    let mut corpus = Sha256::new();
+    for (s, src, tgt) in &tuples {
+        Digest::update(&mut corpus, [*s]);
+        Digest::update(&mut corpus, src.to_le_bytes::<32>());
+        Digest::update(&mut corpus, tgt.to_le_bytes::<32>());
+    }
+    let corpus_hash: [u8; 32] = finish(corpus);
+
+    // Build the miter circuit once (fixed wires); batch 64 tuples per shot.
+    let mut mb = B::new();
+    let m_sign = mb.alloc_qubit();
+    let m_source = mb.alloc_qubits(N);
+    let m_target = mb.alloc_qubits(N);
+    let m_entry = mb.active_qubits;
+    signed_mod_add_pm_halve_fused(&mut mb, m_sign, &m_source, &m_target);
+    mb.x(m_sign);
+    signed_mod_double_add_pm_fused(&mut mb, m_sign, &m_source, &m_target);
+    mb.x(m_sign);
+    assert_eq!(mb.active_qubits, m_entry, "miter leaked qubits");
+    let m_q = mb.next_qubit as usize;
+    let m_b = mb.next_bit as usize;
+    let m_ops = mb.take_ops();
+    let m_source_reg = to_reg(&m_source);
+    let m_target_reg = to_reg(&m_target);
+
+    let mut restore_fail = 0u64;
+    let mut source_fail = 0u64;
+    let mut sign_fail = 0u64;
+    let mut phase_fail = 0u64;
+    let mut ancilla_fail = 0u64;
+    let mut verbose_left = if std::env::var_os("SUB4_PP_FUSED_TRAJECTORY_TRACE_VERBOSE").is_some() {
+        16i32
+    } else {
+        0
+    };
+
+    let mut mshake = Shake256::default();
+    mshake.update(b"fused-trajectory-c64-miter");
+    let mut mreader = mshake.finalize_xof();
+    for chunk in tuples.chunks(64) {
+        let mut msim = Simulator::new(m_q, m_b, &mut mreader);
+        let bs = chunk.len();
+        let cond_mask: u64 = if bs == 64 { u64::MAX } else { (1u64 << bs) - 1 };
+        msim.clear_for_shot();
+        for (shot, (s, src, tgt)) in chunk.iter().enumerate() {
+            msim.set_register(&[QubitOrBit::Qubit(m_sign)], U256::from(*s as u64), shot);
+            msim.set_register(&m_source_reg, *src, shot);
+            msim.set_register(&m_target_reg, *tgt, shot);
+        }
+        msim.apply_iter(m_ops.iter());
+        for (shot, (s, src, tgt)) in chunk.iter().enumerate() {
+            let got = msim.get_register(&m_target_reg, shot);
+            if got != *tgt {
+                restore_fail += 1;
+                if verbose_left > 0 {
+                    eprintln!(
+                        "  C64 FAIL sign={s} source={:#x} target_before={:#x} got={:#x} (target_before+p={:#x})",
+                        src,
+                        tgt,
+                        got,
+                        tgt.wrapping_add(p),
+                    );
+                    verbose_left -= 1;
+                }
+            }
+            if msim.get_register(&m_source_reg, shot) != *src {
+                source_fail += 1;
+            }
+            if ((msim.qubit(m_sign) >> shot) & 1) as u8 != *s {
+                sign_fail += 1;
+            }
+        }
+        phase_fail += (msim.phase & cond_mask).count_ones() as u64;
+        for wire in m_target_reg.iter().chain(m_source_reg.iter()) {
+            if let QubitOrBit::Qubit(q) = *wire {
+                *msim.qubit_mut(q) = 0;
+            }
+        }
+        *msim.qubit_mut(m_sign) = 0;
+        for q in 0..m_q as u64 {
+            ancilla_fail += (msim.qubit(QubitId(q)) & cond_mask).count_ones() as u64;
+        }
+    }
+
+    let verdict = if restore_fail == 0
+        && source_fail == 0
+        && sign_fail == 0
+        && phase_fail == 0
+        && ancilla_fail == 0
+    {
+        "EXACT_INVERSE_ON_REACHABLE"
+    } else {
+        "NOT_INVERSE_ON_REACHABLE"
+    };
+    eprintln!(
+        "FUSED_TRAJ C64 unique_tuples={} corpus_sha256={} restore_fail={restore_fail} source_fail={source_fail} sign_fail={sign_fail} phase_fail={phase_fail} ancilla_fail={ancilla_fail} verdict={verdict}",
+        tuples.len(),
+        hexstr(&corpus_hash),
+    );
+    eprintln!("FUSED_TRAJECTORY_PROBE done");
 }
 
 fn retained_denominator_full_replay_selfcheck(raw_phase_probe: bool) {
