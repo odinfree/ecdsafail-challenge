@@ -1,5 +1,25 @@
 # Lane state
 
+## E002 fixed-nonce width repair
+
+- branch: `research/q1272-fixed-nonce-width-repair`
+- base: evidence `41dd0b4508527081b8d24255adf0579389f02453`, structural
+  `73422709ed70ba9725b3cb592770bcf197df4cdb`
+- status: `PREDECLARED / SOURCE UNCHANGED / PREDICTOR IMPORT PENDING`
+- target: the exact inherited 23 classical failures at nonce `65700024945645`
+- sole family: sparse causal `+1` adjustments to sampled `WIDTH_SCHEDULE`
+  indices
+- hard-fault gate: any hard failure is immediate `KILL`
+- score gate: Q1272 and rounded T at most `914961` (`+177` over inherited
+  rounded T914784)
+- full-evaluator gate: unopened until a committed source-bound model predicts
+  zero classical failures and score positivity; final channels must be `0/0/0`
+- next action: bind the committed exact `23/23` predictor packet, classify all
+  failures, and prove the minimum causal repair set before source edits
+- provider/range/hunt/submission/public note: forbidden
+
+## E001 inherited selector saddle
+
 - branch: `research/q1272-promoted-selector-rebase`
 - base: `4eb93cb33bbf6a93229fe166b8d511c5e52ee253`
 - decision: `SCORE_GO / VALIDATION_DIRTY / NO HUNT`

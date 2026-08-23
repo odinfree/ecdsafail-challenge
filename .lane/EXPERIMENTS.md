@@ -1,5 +1,19 @@
 # Experiment ledger
 
+## E002 — exact Q1272 fixed-nonce sparse width repair
+
+Status: `PREDECLARED / NO SEMANTIC SOURCE EDIT / NO RESULT`.
+
+The bounded falsifier is frozen in `.lane/E002-WIDTH-REPAIR-PREDECL.md`.
+It binds evidence commit `41dd0b4`, structural source `7342270`, operation SHA
+`ea19759d80a4bc1492a5e98c966e70ee79d5aa40211e6cc480b08cf032c8a0f1`,
+nonce `65700024945645`, inherited full result `23/8/0`, and the Q1272 ceiling
+T914961.  Only causal sparse `+1` sampled-width repairs are admissible.
+
+No candidate source edit or result exists.  The next gate is import of a
+committed exact-source predictor reproducing the complete classical set
+`23/23`, followed by hard/soft classification and an exact minimum-cover proof.
+
 ## E001 — promoted-source selector lifecycle port
 
 Status: `STRUCTURAL_PASS / FULL_MEASUREMENT_PENDING`.
