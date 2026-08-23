@@ -125,6 +125,9 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
         PingPongDirection::Divide => "divide",
         PingPongDirection::Multiply => "multiply",
     });
+    if matches!(direction, PingPongDirection::Divide) {
+        retained_splice_denom_capture(b, denominator);
+    }
 
     let mut u = load_const(b, N, SECP256K1_P);
     u.extend(b.alloc_qubits(VALUE_WIDTH - N));
@@ -1754,6 +1757,39 @@ fn fused_trace_record(
             });
         }
     });
+}
+
+// Read-only capture of the pristine divide denominator wires + entry offset,
+// used only by `retained_splice_canonical_selfcheck`. Like `fused_trace`, it
+// observes wire IDs and an op offset but never emits an op or allocates a wire,
+// so with the capture disarmed the emitted stream is byte-identical. Only the
+// first `Divide` call is recorded (there is exactly one per point-add build).
+thread_local! {
+    static DIVIDE_DENOM_CAPTURE: std::cell::RefCell<Option<(Vec<QubitId>, usize)>> =
+        std::cell::RefCell::new(None);
+}
+
+fn retained_splice_denom_arm() {
+    DIVIDE_DENOM_CAPTURE.with(|c| *c.borrow_mut() = Some((Vec::new(), usize::MAX)));
+}
+
+fn retained_splice_denom_capture(b: &B, denominator: &[QubitId]) {
+    DIVIDE_DENOM_CAPTURE.with(|c| {
+        if let Some(slot) = c.borrow_mut().as_mut() {
+            if slot.1 == usize::MAX {
+                slot.0 = denominator.to_vec();
+                slot.1 = b.ops.len();
+            }
+        }
+    });
+}
+
+fn retained_splice_denom_take() -> Option<(Vec<QubitId>, usize)> {
+    DIVIDE_DENOM_CAPTURE.with(|c| c.borrow_mut().take())
+}
+
+fn retained_splice_denom_armed() -> bool {
+    DIVIDE_DENOM_CAPTURE.with(|c| c.borrow().is_some())
 }
 
 fn signed_mod_add_pm_halve_fused(b: &mut B, sign: QubitId, source: &[QubitId], target: &[QubitId]) {
@@ -3703,6 +3739,695 @@ pub(crate) fn fused_reachable_trajectory_probe() {
         hexstr(&corpus_hash),
     );
     eprintln!("FUSED_TRAJECTORY_PROBE done");
+}
+
+/// Canonical retained-word splice on the genuinely nonzero production midpoint.
+///
+/// This is the single predeclared family of
+/// `PREDECLARATION-RETAINED-SPLICE-CANONICAL-B523.md`. Everything is behind the
+/// `SUB4_PP_RETAINED_SPLICE_CANONICAL` gate; with it absent nothing here runs
+/// and the emitted stream is byte-identical (asserted below by an op-stream
+/// identity check that arms the read-only recorder around a single build).
+///
+/// The load-bearing NM64 fixture is the real production divide trajectory on the
+/// frozen R64 affine pairs. We run the untouched `build_pingpong_point_add()`
+/// once, capture the pristine divide denominator per lane and the
+/// `(sign, source, target_before, target_after)` boundary of each rounds-2..7
+/// forward fused halve call, and prove every lane has a nonzero coefficient
+/// midpoint. NM64 then runs the retained-word forward splice (oracle-reconstructed
+/// signs into the unchanged `signed_mod_add_pm_halve_fused`) and its complete
+/// reverse cleanup (the unchanged `signed_mod_double_add_pm_fused` inverse) and
+/// requires bit-exact restoration with value/phase/ancilla `0/0/0`.
+///
+/// M64 is the focused candidate/reference miter: an independent production-sign
+/// reference (signs taken straight from the captured production tape, not
+/// reconstructed) drives the same cells, and every splice boundary must match
+/// the candidate and the captured production values.
+///
+/// Gate 3 (a complete default-off 696-round candidate and its measured economics)
+/// is NOT built here: no sign source exists past round 7 and the frozen ANF
+/// census rules out enumeration. That boundary is stated in the handoff rather
+/// than faked.
+pub(crate) fn retained_splice_canonical_selfcheck() {
+    use crate::circuit::QubitOrBit;
+    use sha2::{Digest, Sha256};
+    use sha3::{
+        digest::{ExtendableOutput, Update, XofReader},
+        Shake256,
+    };
+
+    let p = SECP256K1_P;
+    let hexstr = |bytes: &[u8]| -> String {
+        let mut s = String::with_capacity(bytes.len() * 2);
+        for byte in bytes {
+            s.push_str(&format!("{byte:02x}"));
+        }
+        s
+    };
+    let to_reg = |qs: &[QubitId]| qs.iter().copied().map(QubitOrBit::Qubit).collect::<Vec<_>>();
+    let finish = |h: Sha256| -> [u8; 32] {
+        let mut out = [0u8; 32];
+        out.copy_from_slice(&h.finalize());
+        out
+    };
+
+    // The fused rounds the retained-word sign oracle can reconstruct exactly.
+    const ROUNDS: [usize; 6] = [2, 3, 4, 5, 6, 7];
+
+    // ---- Build the production point-add once with the recorder armed. ---------
+    retained_splice_denom_arm();
+    fused_trace_begin();
+    let ops = build_pingpong_point_add();
+    let records = fused_trace_take();
+    let (denom_wires, denom_off) = retained_splice_denom_take()
+        .expect("divide denominator capture armed");
+    assert!(!fused_trace_active(), "trace not cleared");
+    assert!(!retained_splice_denom_armed(), "denom capture not cleared");
+    assert_ne!(denom_off, usize::MAX, "divide denominator was never captured");
+    assert_eq!(denom_wires.len(), N);
+
+    // Op-stream identity: rebuild with recorder + capture disarmed and compare a
+    // full-stream SHA-256. The recorder must not perturb any emitted byte.
+    let hash_ops = |ops: &[Op]| -> [u8; 32] {
+        let mut h = Sha256::new();
+        for op in ops {
+            Digest::update(&mut h, [op.kind as u8]);
+            Digest::update(&mut h, op.q_control2.0.to_le_bytes());
+            Digest::update(&mut h, op.q_control1.0.to_le_bytes());
+            Digest::update(&mut h, op.q_target.0.to_le_bytes());
+            Digest::update(&mut h, op.c_target.0.to_le_bytes());
+            Digest::update(&mut h, op.c_condition.0.to_le_bytes());
+            Digest::update(&mut h, op.r_target.0.to_le_bytes());
+        }
+        finish(h)
+    };
+    let h_on = hash_ops(&ops);
+    {
+        let ops_off = build_pingpong_point_add();
+        assert_eq!(ops.len(), ops_off.len(), "recorder changed emitted op count");
+        assert_eq!(h_on, hash_ops(&ops_off), "recorder changed emitted op stream");
+    }
+    eprintln!(
+        "RSC op_stream_identity=OK ops={} stream_sha256={}",
+        ops.len(),
+        hexstr(&h_on),
+    );
+
+    // ---- R64: the exact 64 valid secp256k1 affine pairs (frozen fixture). -----
+    let curve = WeierstrassEllipticCurve {
+        modulus: SECP256K1_P,
+        a: U256::ZERO,
+        b: U256::from(7),
+        gx: U256::from_str_radix(
+            "79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798",
+            16,
+        )
+        .expect("valid generator x"),
+        gy: U256::from_str_radix(
+            "483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8",
+            16,
+        )
+        .expect("valid generator y"),
+        order: U256::from_str_radix(
+            "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141",
+            16,
+        )
+        .expect("valid group order"),
+    };
+    let mut input_seed = Shake256::default();
+    input_seed.update(b"pingpong full affine point-add composition gate");
+    let mut input_reader = input_seed.finalize_xof();
+    let mut targets = Vec::with_capacity(64);
+    let mut offsets = Vec::with_capacity(64);
+    let mut expected = Vec::with_capacity(64);
+    while targets.len() < 64 {
+        let mut scalar_bytes = [[0u8; 32]; 2];
+        XofReader::read(&mut input_reader, &mut scalar_bytes[0]);
+        XofReader::read(&mut input_reader, &mut scalar_bytes[1]);
+        let target = curve.mul(curve.gx, curve.gy, U256::from_le_bytes(scalar_bytes[0]));
+        let offset = curve.mul(curve.gx, curve.gy, U256::from_le_bytes(scalar_bytes[1]));
+        if target.0 == offset.0
+            || (target.0.is_zero() && target.1.is_zero())
+            || (offset.0.is_zero() && offset.1.is_zero())
+        {
+            continue;
+        }
+        expected.push(curve.add(target.0, target.1, offset.0, offset.1));
+        targets.push(target);
+        offsets.push(offset);
+    }
+
+    // ---- Locate the 6 forward divide fused calls at rounds 2..7. --------------
+    let mut round_record: [Option<usize>; 6] = [None; 6];
+    for (i, r) in records.iter().enumerate() {
+        if r.cell == "halve" && r.direction == "divide" {
+            if let Some(slot) = ROUNDS.iter().position(|&rr| rr == r.round) {
+                assert!(
+                    round_record[slot].is_none(),
+                    "duplicate divide fused record for round {}",
+                    r.round
+                );
+                round_record[slot] = Some(i);
+            }
+        }
+    }
+    let round_record: [usize; 6] = std::array::from_fn(|k| {
+        round_record[k].unwrap_or_else(|| panic!("missing divide fused record for round {}", ROUNDS[k]))
+    });
+
+    // ---- Simulate the single production build, chunked at the read offsets. ----
+    let (num_qubits, num_bits, num_registers, registers) = analyze_ops(ops.iter());
+    assert_eq!(num_registers, 4);
+    let mut simulator_seed = Shake256::default();
+    simulator_seed.update(b"pingpong full affine point-add simulator randomness");
+    let mut simulator_reader = simulator_seed.finalize_xof();
+    let mut sim = Simulator::new(num_qubits as usize, num_bits as usize, &mut simulator_reader);
+    for shot in 0..64 {
+        sim.set_register(&registers[0], targets[shot].0, shot);
+        sim.set_register(&registers[1], targets[shot].1, shot);
+        sim.set_register(&registers[2], offsets[shot].0, shot);
+        sim.set_register(&registers[3], offsets[shot].1, shot);
+    }
+
+    #[derive(Clone, Copy)]
+    enum Ev {
+        Denom,
+        Entry(usize),
+        Exit(usize),
+    }
+    let mut events: Vec<(usize, Ev)> = Vec::with_capacity(1 + ROUNDS.len() * 2);
+    events.push((denom_off, Ev::Denom));
+    for (slot, &i) in round_record.iter().enumerate() {
+        events.push((records[i].off_entry, Ev::Entry(slot)));
+        events.push((records[i].off_exit, Ev::Exit(slot)));
+    }
+    events.sort_by_key(|(off, _)| *off);
+
+    let denom_reg = to_reg(&denom_wires);
+    let mut denom = [U256::ZERO; 64];
+    let mut src_val = [[U256::ZERO; 64]; 6];
+    let mut before_val = [[U256::ZERO; 64]; 6];
+    let mut after_val = [[U256::ZERO; 64]; 6];
+    let mut sign_val = [[0u8; 64]; 6];
+
+    let mut pos = 0usize;
+    for (off, ev) in &events {
+        if *off > pos {
+            sim.apply_iter(ops[pos..*off].iter());
+            pos = *off;
+        }
+        match *ev {
+            Ev::Denom => {
+                for shot in 0..64 {
+                    denom[shot] = sim.get_register(&denom_reg, shot);
+                }
+            }
+            Ev::Entry(slot) => {
+                let i = round_record[slot];
+                let src_reg = to_reg(&records[i].source);
+                let tgt_reg = to_reg(&records[i].target);
+                let sq = records[i].sign;
+                for shot in 0..64 {
+                    src_val[slot][shot] = sim.get_register(&src_reg, shot);
+                    before_val[slot][shot] = sim.get_register(&tgt_reg, shot);
+                    sign_val[slot][shot] = ((sim.qubit(sq) >> shot) & 1) as u8;
+                }
+            }
+            Ev::Exit(slot) => {
+                let i = round_record[slot];
+                let tgt_reg = to_reg(&records[i].target);
+                for shot in 0..64 {
+                    after_val[slot][shot] = sim.get_register(&tgt_reg, shot);
+                }
+            }
+        }
+    }
+    if pos < ops.len() {
+        sim.apply_iter(ops[pos..].iter());
+    }
+
+    // The production build must itself finish clean, else the captured fixture is
+    // not the frozen canonical support.
+    let mut p64_classical = 0u64;
+    for shot in 0..64 {
+        if sim.get_register(&registers[0], shot) != expected[shot].0
+            || sim.get_register(&registers[1], shot) != expected[shot].1
+            || sim.get_register(&registers[2], shot) != offsets[shot].0
+            || sim.get_register(&registers[3], shot) != offsets[shot].1
+        {
+            p64_classical += 1;
+        }
+    }
+    let p64_phase = sim.phase.count_ones() as u64;
+    for register in &registers {
+        for wire in register {
+            if let QubitOrBit::Qubit(q) = *wire {
+                *sim.qubit_mut(q) = 0;
+            }
+        }
+    }
+    let mut p64_ancilla = 0u64;
+    for q in 0..num_qubits as u64 {
+        p64_ancilla += sim.qubit(QubitId(q)).count_ones() as u64;
+    }
+    assert_eq!(
+        (p64_classical, p64_phase, p64_ancilla),
+        (0, 0, 0),
+        "captured production build is not the clean canonical composition"
+    );
+    eprintln!(
+        "RSC P64 classical={p64_classical} phase={p64_phase} ancilla={p64_ancilla}"
+    );
+
+    // ---- NM64 nonzero-midpoint proof + canonicity. ----------------------------
+    // Coefficient register at the round-2 entry: round 2 is even, so its source
+    // is the coefficient (x) and its target-before is the numerator (y).
+    let coeff_r2 = &src_val[0];
+    let numer_r2 = &before_val[0];
+    let mut nonzero_coeff = 0u64;
+    let mut nonzero_numer = 0u64;
+    for shot in 0..64 {
+        if coeff_r2[shot] != U256::ZERO && coeff_r2[shot] != p {
+            nonzero_coeff += 1;
+        }
+        if numer_r2[shot] != U256::ZERO && numer_r2[shot] != p {
+            nonzero_numer += 1;
+        }
+    }
+    let mut per_round_nonzero = [0u64; 6];
+    let mut noncanon = 0u64;
+    for slot in 0..6 {
+        for shot in 0..64 {
+            if src_val[slot][shot] != U256::ZERO && src_val[slot][shot] != p {
+                per_round_nonzero[slot] += 1;
+            }
+            for v in [src_val[slot][shot], before_val[slot][shot], after_val[slot][shot]] {
+                if v >= p {
+                    noncanon += 1;
+                }
+            }
+        }
+    }
+    // Ordered fixture digest: per (shot, round) denom, source, target_before,
+    // target_after, direction byte, round.
+    let mut fixture = Sha256::new();
+    for shot in 0..64 {
+        Digest::update(&mut fixture, denom[shot].to_le_bytes::<32>());
+        for slot in 0..6 {
+            Digest::update(&mut fixture, b"d"); // divide
+            Digest::update(&mut fixture, (ROUNDS[slot] as u64).to_le_bytes());
+            Digest::update(&mut fixture, [sign_val[slot][shot]]);
+            Digest::update(&mut fixture, src_val[slot][shot].to_le_bytes::<32>());
+            Digest::update(&mut fixture, before_val[slot][shot].to_le_bytes::<32>());
+            Digest::update(&mut fixture, after_val[slot][shot].to_le_bytes::<32>());
+        }
+    }
+    let fixture_hash: [u8; 32] = finish(fixture);
+    eprintln!(
+        "RSC NM64 fixture nonzero_coeff_lanes={nonzero_coeff}/64 nonzero_numer_lanes={nonzero_numer}/64 per_round_nonzero_coeff={:?} noncanon_boundary_values={noncanon} fixture_sha256={}",
+        per_round_nonzero,
+        hexstr(&fixture_hash),
+    );
+    assert_eq!(noncanon, 0, "a captured splice boundary value is non-canonical (>= p)");
+    assert_eq!(
+        nonzero_coeff, 64,
+        "not every lane has a nonzero coefficient midpoint (fixture does not open the gate)"
+    );
+
+    // Chain consistency: rounds 2..7 run in a single ascending replay batch, so
+    // the value that is `target_after` of round r must be the `source` of the
+    // next same-register round. This proves the captured boundaries are a
+    // contiguous walk, not disjoint samples.
+    for slot in 0..5 {
+        let r = ROUNDS[slot];
+        let next = ROUNDS[slot + 1];
+        assert_eq!(next, r + 1, "captured rounds are not consecutive");
+        for shot in 0..64 {
+            // Round r modifies its target; round r+1's source is the register
+            // that was round r's target (parity flips each round).
+            assert_eq!(
+                after_val[slot][shot], src_val[slot + 1][shot],
+                "round {r} target_after != round {next} source (non-contiguous fixture) shot {shot}",
+            );
+            // The register that was round r's source is untouched by round r, so
+            // it becomes round r+1's target_before.
+            assert_eq!(
+                src_val[slot][shot], before_val[slot + 1][shot],
+                "round {r} source != round {next} target_before (non-contiguous fixture) shot {shot}",
+            );
+        }
+    }
+
+    // ---- Discriminating check: retained-word oracle sign == production sign. --
+    // This is what decides whether the family is real. It is validated here on
+    // the R64 production denominators, not on the synthetic sign-7 census.
+    let mut witness = B::new();
+    let w_denominator = witness.alloc_qubits(N);
+    let w_witness = witness.alloc_qubits(6);
+    let w_abi = witness.active_qubits;
+    let w_retained = witness.alloc_qubits(N);
+    for i in 0..N {
+        witness.cx(w_denominator[i], w_retained[i]);
+    }
+    let w_sign = witness.alloc_qubit();
+    let w_scratch_vec = witness.alloc_qubits(2);
+    let w_scratch = [w_scratch_vec[0], w_scratch_vec[1]];
+    for (slot, &r) in ROUNDS.iter().enumerate() {
+        consume_retained_sign_1_to_7(&mut witness, &w_retained, r, &w_scratch, w_sign, w_witness[slot]);
+    }
+    witness.free_vec(&w_scratch_vec);
+    witness.free(w_sign);
+    for i in 0..N {
+        witness.cx(w_denominator[i], w_retained[i]);
+    }
+    witness.free_vec(&w_retained);
+    assert_eq!(witness.active_qubits, w_abi);
+    let w_q = witness.next_qubit as usize;
+    let w_b = witness.next_bit as usize;
+    let w_ops = witness.take_ops();
+    let w_denominator_reg = to_reg(&w_denominator);
+    let w_witness_reg = to_reg(&w_witness);
+    {
+        let mut wshake = Shake256::default();
+        wshake.update(b"retained-splice-canonical-sign-witness");
+        let mut wreader = wshake.finalize_xof();
+        let mut wsim = Simulator::new(w_q, w_b, &mut wreader);
+        for shot in 0..64 {
+            wsim.set_register(&w_denominator_reg, denom[shot], shot);
+        }
+        wsim.apply_iter(w_ops.iter());
+        let mut sign_mismatch = 0u64;
+        for shot in 0..64 {
+            let got = wsim.get_register(&w_witness_reg, shot);
+            let mut want = U256::ZERO;
+            for slot in 0..6 {
+                if sign_val[slot][shot] != 0 {
+                    want |= U256::from(1u64) << slot;
+                }
+            }
+            if got != want {
+                sign_mismatch += 1;
+            }
+            assert_eq!(
+                wsim.get_register(&w_denominator_reg, shot),
+                denom[shot],
+                "witness denominator changed shot {shot}",
+            );
+        }
+        assert_eq!(wsim.phase, 0, "sign-witness phase garbage");
+        eprintln!("RSC NM64 oracle_sign_vs_production sign_mismatch_lanes={sign_mismatch}/64");
+        assert_eq!(
+            sign_mismatch, 0,
+            "retained-word oracle sign disagrees with production on R64: family falsified for these denominators",
+        );
+    }
+
+    // ---- Build the candidate splice (oracle signs) and reference (tape signs). -
+    // Both use exactly the frozen fused pair. The only difference is the sign
+    // source: the candidate reconstructs and uncomputes it from the retained
+    // word; the reference reads it from a production-tape register.
+    let parity = |r: usize, x: &[QubitId], y: &[QubitId]| -> (Vec<QubitId>, Vec<QubitId>) {
+        if r % 2 == 0 {
+            (x.to_vec(), y.to_vec())
+        } else {
+            (y.to_vec(), x.to_vec())
+        }
+    };
+
+    // Candidate. (Clear any residual ladder/walk thread-local state so the fused
+    // cells build in their default layout, exactly as the C64 miter does.)
+    clear_walk_peak();
+    clear_chunks();
+    let mut cand = B::new();
+    let c_denominator = cand.alloc_qubits(N);
+    let c_x = cand.alloc_qubits(N); // coefficient
+    let c_y = cand.alloc_qubits(N); // numerator
+    let c_abi = cand.active_qubits;
+    let c_retained = cand.alloc_qubits(N);
+    for i in 0..N {
+        cand.cx(c_denominator[i], c_retained[i]);
+    }
+    let c_sign = cand.alloc_qubit();
+    let c_scratch_vec = cand.alloc_qubits(2);
+    let c_scratch = [c_scratch_vec[0], c_scratch_vec[1]];
+    let mut c_fwd_ckpt = [0usize; 6];
+    for (slot, &r) in ROUNDS.iter().enumerate() {
+        retained_denominator_sign_1_to_7_oracle(&mut cand, &c_retained, r, &c_scratch, c_sign);
+        let (src, tgt) = parity(r, &c_x, &c_y);
+        signed_mod_add_pm_halve_fused(&mut cand, c_sign, &src, &tgt);
+        retained_denominator_sign_1_to_7_oracle(&mut cand, &c_retained, r, &c_scratch, c_sign);
+        c_fwd_ckpt[slot] = cand.ops.len();
+    }
+    let mut c_rev_ckpt = [0usize; 6];
+    for (i, &r) in ROUNDS.iter().rev().enumerate() {
+        retained_denominator_sign_1_to_7_oracle(&mut cand, &c_retained, r, &c_scratch, c_sign);
+        let (src, tgt) = parity(r, &c_x, &c_y);
+        cand.x(c_sign);
+        signed_mod_double_add_pm_fused(&mut cand, c_sign, &src, &tgt);
+        cand.x(c_sign);
+        retained_denominator_sign_1_to_7_oracle(&mut cand, &c_retained, r, &c_scratch, c_sign);
+        c_rev_ckpt[i] = cand.ops.len();
+    }
+    cand.free_vec(&c_scratch_vec);
+    cand.free(c_sign);
+    for i in 0..N {
+        cand.cx(c_denominator[i], c_retained[i]);
+    }
+    cand.free_vec(&c_retained);
+    assert_eq!(cand.active_qubits, c_abi);
+    let c_peak = cand.peak_qubits;
+    let c_total_q = cand.next_qubit as usize;
+    let c_total_b = cand.next_bit as usize;
+    let c_ops = cand.take_ops();
+    let c_emitted_t = c_ops
+        .iter()
+        .filter(|op| matches!(op.kind, OperationType::CCX | OperationType::CCZ))
+        .count();
+
+    // Reference: signs supplied directly from a production-tape register.
+    let mut refc = B::new();
+    let r_x = refc.alloc_qubits(N);
+    let r_y = refc.alloc_qubits(N);
+    let r_signs = refc.alloc_qubits(6);
+    let r_abi = refc.active_qubits;
+    let r_sign = refc.alloc_qubit();
+    let mut r_fwd_ckpt = [0usize; 6];
+    for (slot, &r) in ROUNDS.iter().enumerate() {
+        refc.cx(r_signs[slot], r_sign);
+        let (src, tgt) = parity(r, &r_x, &r_y);
+        signed_mod_add_pm_halve_fused(&mut refc, r_sign, &src, &tgt);
+        refc.cx(r_signs[slot], r_sign);
+        r_fwd_ckpt[slot] = refc.ops.len();
+    }
+    let mut r_rev_ckpt = [0usize; 6];
+    for (i, &r) in ROUNDS.iter().rev().enumerate() {
+        let slot = ROUNDS.iter().position(|&rr| rr == r).unwrap();
+        refc.cx(r_signs[slot], r_sign);
+        let (src, tgt) = parity(r, &r_x, &r_y);
+        refc.x(r_sign);
+        signed_mod_double_add_pm_fused(&mut refc, r_sign, &src, &tgt);
+        refc.x(r_sign);
+        refc.cx(r_signs[slot], r_sign);
+        r_rev_ckpt[i] = refc.ops.len();
+    }
+    refc.free(r_sign);
+    assert_eq!(refc.active_qubits, r_abi);
+    let r_total_q = refc.next_qubit as usize;
+    let r_total_b = refc.next_bit as usize;
+    let r_ops = refc.take_ops();
+
+    // ---- Simulate candidate and reference on the 64 R64 lanes (one batch). ----
+    let c_denominator_reg = to_reg(&c_denominator);
+    let c_x_reg = to_reg(&c_x);
+    let c_y_reg = to_reg(&c_y);
+    let c_retained_reg = to_reg(&c_retained);
+    let r_x_reg = to_reg(&r_x);
+    let r_y_reg = to_reg(&r_y);
+    let r_signs_reg = to_reg(&r_signs);
+
+    // Register that holds the coefficient (x) and the numerator (y); per round,
+    // which is source/target follows parity.
+    fn value_of<R: sha3::digest::XofReader>(
+        sim: &Simulator<R>,
+        r: usize,
+        is_source: bool,
+        xreg: &[QubitOrBit],
+        yreg: &[QubitOrBit],
+        shot: usize,
+    ) -> U256 {
+        let (s, t) = if r % 2 == 0 { (xreg, yreg) } else { (yreg, xreg) };
+        sim.get_register(if is_source { s } else { t }, shot)
+    }
+
+    let mut cshake = Shake256::default();
+    cshake.update(b"retained-splice-canonical-candidate");
+    let mut creader = cshake.finalize_xof();
+    let mut csim = Simulator::new(c_total_q, c_total_b, &mut creader);
+    for shot in 0..64 {
+        csim.set_register(&c_denominator_reg, denom[shot], shot);
+        csim.set_register(&c_x_reg, coeff_r2[shot], shot);
+        csim.set_register(&c_y_reg, numer_r2[shot], shot);
+    }
+    // Forward: after round r the target register must equal captured after; the
+    // source register must be unchanged (equal captured source).
+    let mut cursor = 0usize;
+    for (slot, &r) in ROUNDS.iter().enumerate() {
+        csim.apply_iter(c_ops[cursor..c_fwd_ckpt[slot]].iter());
+        assert_eq!(csim.qubit(c_sign), 0, "candidate sign dirty after fwd round {r}");
+        for &q in &c_scratch {
+            assert_eq!(csim.qubit(q), 0, "candidate scratch dirty after fwd round {r}");
+        }
+        for shot in 0..64 {
+            let got = value_of(&csim, r, false, &c_x_reg, &c_y_reg, shot);
+            let expected = after_val[slot][shot];
+            assert!(
+                got == expected,
+                "candidate target_after != production at fwd round {r} shot {shot}: got={got:#x} expected={expected:#x} got_is_expected_plus_p={} got_is_expected_minus_p={} (a +/-p representative means ladder-dependent lazy reduction, i.e. harness fidelity; any other delta is a family defect)",
+                got == expected.wrapping_add(p),
+                got == expected.wrapping_sub(p),
+            );
+            assert_eq!(
+                value_of(&csim, r, true, &c_x_reg, &c_y_reg, shot),
+                src_val[slot][shot],
+                "candidate source drifted at fwd round {r} shot {shot}",
+            );
+            assert_eq!(
+                csim.get_register(&c_retained_reg, shot),
+                denom[shot],
+                "candidate retained word dirty at fwd round {r} shot {shot}",
+            );
+        }
+        assert_eq!(csim.phase, 0, "candidate phase dirty after fwd round {r}");
+        cursor = c_fwd_ckpt[slot];
+    }
+    // Reverse: after undoing round r the target register must return to captured
+    // target_before.
+    for (i, &r) in ROUNDS.iter().rev().enumerate() {
+        let slot = ROUNDS.iter().position(|&rr| rr == r).unwrap();
+        csim.apply_iter(c_ops[cursor..c_rev_ckpt[i]].iter());
+        assert_eq!(csim.qubit(c_sign), 0, "candidate sign dirty after rev round {r}");
+        for &q in &c_scratch {
+            assert_eq!(csim.qubit(q), 0, "candidate scratch dirty after rev round {r}");
+        }
+        for shot in 0..64 {
+            let got = value_of(&csim, r, false, &c_x_reg, &c_y_reg, shot);
+            let expected = before_val[slot][shot];
+            assert!(
+                got == expected,
+                "candidate reverse did not restore target_before at round {r} shot {shot}: got={got:#x} expected={expected:#x} got_is_expected_plus_p={} got_is_expected_minus_p={}",
+                got == expected.wrapping_add(p),
+                got == expected.wrapping_sub(p),
+            );
+        }
+        assert_eq!(csim.phase, 0, "candidate phase dirty after rev round {r}");
+        cursor = c_rev_ckpt[i];
+    }
+    csim.apply_iter(c_ops[cursor..].iter());
+    for shot in 0..64 {
+        assert_eq!(
+            csim.get_register(&c_x_reg, shot),
+            coeff_r2[shot],
+            "candidate coefficient not restored to midpoint shot {shot}",
+        );
+        assert_eq!(
+            csim.get_register(&c_y_reg, shot),
+            numer_r2[shot],
+            "candidate numerator not restored to midpoint shot {shot}",
+        );
+        assert_eq!(
+            csim.get_register(&c_denominator_reg, shot),
+            denom[shot],
+            "candidate denominator changed shot {shot}",
+        );
+    }
+    let c_phase = csim.phase.count_ones() as u64;
+    // `stats.toffoli_gates` accumulates per shot (sim.rs:86), so divide by the
+    // 64-lane batch to report a per-lane figure like the other receipts. This
+    // covers the whole slice, forward AND reverse.
+    let c_executed_t_per_lane = csim.stats.toffoli_gates as f64 / 64.0;
+    for wire in c_denominator_reg.iter().chain(&c_x_reg).chain(&c_y_reg) {
+        if let QubitOrBit::Qubit(q) = *wire {
+            *csim.qubit_mut(q) = 0;
+        }
+    }
+    let mut c_ancilla = 0u64;
+    for q in 0..c_total_q as u64 {
+        c_ancilla += csim.qubit(QubitId(q)).count_ones() as u64;
+    }
+
+    // Reference simulation + candidate/reference boundary miter.
+    let mut rshake = Shake256::default();
+    rshake.update(b"retained-splice-canonical-reference");
+    let mut rreader = rshake.finalize_xof();
+    let mut rsim = Simulator::new(r_total_q, r_total_b, &mut rreader);
+    for shot in 0..64 {
+        rsim.set_register(&r_x_reg, coeff_r2[shot], shot);
+        rsim.set_register(&r_y_reg, numer_r2[shot], shot);
+        let mut signs = U256::ZERO;
+        for slot in 0..6 {
+            if sign_val[slot][shot] != 0 {
+                signs |= U256::from(1u64) << slot;
+            }
+        }
+        rsim.set_register(&r_signs_reg, signs, shot);
+    }
+    let mut miter_mismatch = 0u64;
+    let mut cursor = 0usize;
+    for (slot, &r) in ROUNDS.iter().enumerate() {
+        rsim.apply_iter(r_ops[cursor..r_fwd_ckpt[slot]].iter());
+        for shot in 0..64 {
+            if value_of(&rsim, r, false, &r_x_reg, &r_y_reg, shot) != after_val[slot][shot] {
+                miter_mismatch += 1;
+            }
+        }
+        cursor = r_fwd_ckpt[slot];
+    }
+    for (i, &r) in ROUNDS.iter().rev().enumerate() {
+        let slot = ROUNDS.iter().position(|&rr| rr == r).unwrap();
+        rsim.apply_iter(r_ops[cursor..r_rev_ckpt[i]].iter());
+        for shot in 0..64 {
+            if value_of(&rsim, r, false, &r_x_reg, &r_y_reg, shot) != before_val[slot][shot] {
+                miter_mismatch += 1;
+            }
+        }
+        cursor = r_rev_ckpt[i];
+    }
+    rsim.apply_iter(r_ops[cursor..].iter());
+    let r_phase = rsim.phase.count_ones() as u64;
+    for shot in 0..64 {
+        if rsim.get_register(&r_x_reg, shot) != coeff_r2[shot]
+            || rsim.get_register(&r_y_reg, shot) != numer_r2[shot]
+        {
+            miter_mismatch += 1;
+        }
+    }
+    for wire in r_x_reg.iter().chain(&r_y_reg).chain(&r_signs_reg) {
+        if let QubitOrBit::Qubit(q) = *wire {
+            *rsim.qubit_mut(q) = 0;
+        }
+    }
+    let mut r_ancilla = 0u64;
+    for q in 0..r_total_q as u64 {
+        r_ancilla += rsim.qubit(QubitId(q)).count_ones() as u64;
+    }
+
+    let nm64 = c_phase == 0 && c_ancilla == 0;
+    let m64 = miter_mismatch == 0 && r_phase == 0 && r_ancilla == 0;
+    eprintln!(
+        "RSC NM64 closure candidate_phase={c_phase} candidate_ancilla={c_ancilla} candidate_peak_q={c_peak} candidate_abi_q={c_abi} candidate_extra_peak_q={} candidate_total_q={c_total_q} candidate_ops={} candidate_emitted_t={c_emitted_t} candidate_executed_t_per_lane_fwd_and_rev={:.3} persistent_carrier_bits=0 max_live_sign_bits=1 fixed_oracle_scratch_q=2 verdict={}",
+        c_peak - c_abi,
+        c_ops.len(),
+        c_executed_t_per_lane,
+        if nm64 { "CLOSED" } else { "KILL" },
+    );
+    eprintln!(
+        "RSC M64 miter boundary_mismatch={miter_mismatch} reference_phase={r_phase} reference_ancilla={r_ancilla} reference_total_q={r_total_q} verdict={}",
+        if m64 { "MATCH" } else { "KILL" },
+    );
+    assert!(nm64, "NM64 splice did not close with value/phase/ancilla 0/0/0");
+    assert!(m64, "M64 candidate/reference miter mismatch");
+    eprintln!("RSC Gate3 economics NOT_MEASURED reason=no_sign_source_past_round_7 (see handoff)");
+    eprintln!("RETAINED_SPLICE_CANONICAL done");
 }
 
 fn retained_denominator_full_replay_selfcheck(raw_phase_probe: bool) {
