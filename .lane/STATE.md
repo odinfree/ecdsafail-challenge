@@ -624,3 +624,48 @@ The bake is a genuine, net-positive, durable improvement worth keeping.
    Q1272/7ca0559 replay params it embeds.
 3. Phase (~10.4) is at live parity and width-invariant; no phase lever is needed
    to reach live economics -- only the hard classical residual blocks parity.
+
+## D13 — decomposition sharpened; clean-build + census-source reproducibility closed
+
+**Clean-build reproducibility (frozen-candidate gate).** `cargo clean` + release
+rebuild of build_circuit/eval_circuit -> default artifact **12,944,164 ops**,
+ops.bin sha256 **`95e844f3...`** — byte-for-byte match. The D11 bake is a frozen,
+clean-reproducible candidate.
+
+**Census-source reproducibility.** The ppfilter `deficits` census (on which the
+whole fit rests) is preserved at
+`/Users/olifreuler/ecdsa-ppfilter-rl/CENSUS_ADDITIONS_Q1272_LANE.rs.txt`
+(that repo is not under git). It records the pre-edit oracle sha
+`f763f770...`, the edited-binary sha `dfa6f76c...`, the two additions
+(`walk_required` + `deficits` arm; walk/shot_fault_mask_split/replay UNCHANGED),
+and the rebuild command. `breakdown 251000962439` = pred_cls 17 confirms the
+model was not perturbed.
+
+**Classical hard/soft decomposition (corrects D12's channel comparison).** Using
+ppfilter's width-faithful soft channel and routing the 137 live over-counted
+shots (all false replay/term flags -> ppfilter hard bucket) out of live's hard:
+
+| config (n=64) | hard | soft | total classical |
+|---|---:|---:|---:|
+| baked Q1272 (ceil) | 11.02 | 2.79 | 13.81 |
+| live (derived*) | ~8.11 | ~4.16 | 12.27 |
+
+*live hard is derived under the replay-flag assumption; live total 12.27 and both
+soft values are directly measured (full-sim total; ppfilter width-faithful soft).
+
+Two consequences D12 understated:
+1. **The residual to live is entirely hard-classical and LARGER than the net gap:**
+   Q1272's hard floor (11.02) is ~2.91 lambda ABOVE live's (~8.11). The net 1.55
+   classical gap is the hard +2.91 partly offset by Q1272's better soft. So Route 4
+   (non-converging-walk / 696-vs-698 structure) is even more strongly the only
+   remaining lever than D12 stated. Width is exhausted.
+2. **Live carries ~4.16 lambda of unexploited SOFT width faults** (vs baked Q1272's
+   2.79). A Q1272-style +1 width repair fitted on the live/698 stream is an
+   unexploited width lever there, at whatever peak the 698 stream can absorb — a
+   fresh campaign finding for the live lane.
+
+**Final status.** Structural goal MET (smallest peak-safe +1 repair fitted,
+validated, baked at Q1272; strict score beat -4.49M; opt-out intact; clean-build
+reproducible). Economic goal PARTIALLY met (huntability ~80x -> ~3.6-5x vs live,
+not parity; residual is hard-classical, width-unreachable). The bake is a genuine,
+net-positive, durable improvement. Next lever: Route 4 hard-classical, NOT width.
