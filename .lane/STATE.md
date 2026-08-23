@@ -1,8 +1,12 @@
 # Q1274 exact-carry plus replay-compare19 composition
 
-Status: **structurally and economically hunt-ready, conditional on a
-source-exact predictor qualification.**  The inherited nonce is dirty; no
-hunt, provider action, submission, or promotion was performed from this lane.
+Status: **structurally/economically ready and locally predictor-qualified;
+fleet launch remains closed.**  The inherited nonce is dirty.  A source-exact
+local predictor matched the inherited control plus five pre-registered full
+9024-shot fixtures exactly in classical count and failing-shot set, with zero
+ancilla garbage.  Linux CPU/GPU 32-fixture parity and a deterministic pred0
+canary remain open.  No hunt, provider action, submission, or promotion was
+performed from this lane.
 
 ## Frozen input and sole composition
 
@@ -133,10 +137,17 @@ self-check.  It does prove that the inherited nonce is not a candidate.
 `results.tsv` was restored byte-for-byte after recording the receipt; no
 generated result row is committed.
 
-## Next action
+## Predictor qualification and next action
 
-Bind the classical prefilter to this exact 12921014-operation stream and prove
-its predicted classical count and shot indices match the trusted inherited-
-nonce receipt.  Only after that source-exact qualification may a separate lane
-start a non-overlapping nonce hunt.  This lane itself remains no-scan and
-no-submit.
+The full local qualification, target state digest, source/binary hashes,
+wrong-stream negatives, exact six-nonce fault sets, deterministic future
+canary rule, and remaining fleet gates are in `.lane/PREDICTOR.md`.  Local
+classical parity is `6/6` by count and complete shot set; all six full runs
+have ancilla zero.  The temporary predictor rejected the two neighboring
+known streams with exit `2`.
+
+The next allowed action is a production Linux CPU/GPU packet: enforce the
+target state digest, prove 32-fixture CPU/GPU8/GPU16 mask parity with all fault
+classes covered, then close the pre-registered pred0 canary.  Only a separate
+lane that closes both gates may begin a non-overlapping nonce hunt.  This lane
+itself remains no-scan and no-submit.
