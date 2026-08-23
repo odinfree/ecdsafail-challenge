@@ -1,0 +1,7 @@
+fixture	nonce	selection
+fresh-0	113545695445511	SHA256 derivation chunk 0
+fresh-1	15124849180204	SHA256 derivation chunk 1
+fresh-2	130190539534390	SHA256 derivation chunk 2
+fresh-3	216240074003955	SHA256 derivation chunk 3
+fresh-4	207050053506523	SHA256 derivation chunk 4
+inherited-control	251000962439	baked inherited nonce
