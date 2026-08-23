@@ -1292,6 +1292,21 @@ fn coord_sub_circuit(reg: &U4, coord: &U4) -> U4 {
     out
 }
 
+/// `coord_add3x`: add the exact classical `3 * coord mod p`, then reproduce
+/// `mod_add_exact`'s low-53 F window. The carry out of that window is
+/// deliberately dropped by the emitted circuit.
+#[inline(always)]
+fn coord_add3x_circuit(reg: &U4, coord: &U4) -> U4 {
+    let coord2 = fe_add(coord, coord);
+    let coord3 = fe_add(&coord2, coord);
+    let (mut out, carry) = u4_addc(reg, &coord3);
+    if carry == 1 {
+        const LOW53_MASK: u64 = (1u64 << COORD_FOLD_BITS) - 1;
+        out[0] = (out[0] & !LOW53_MASK) | (out[0].wrapping_add(FC) & LOW53_MASK);
+    }
+    out
+}
+
 /// Default fused `coord_rsub`: `mod_rsub_vented_loaded(coord + 1, reg)`.
 /// Unlike `coord_sub_circuit`, its loaded reverse-subtraction keeps the raw
 /// complemented sum and applies the truncated F fold when the carry is zero.
@@ -1724,8 +1739,7 @@ fn point_add_classical_traced(
     out.push(("tlm_coord_y_sub", dx, dy));
     let (dxr, lam) = pingpong_divide(&dx, &dy, m, s, &mut nph);
     out.push(("pp_div_restore", dxr, lam));
-    let ox3 = fe_add(&fe_add(ox, ox), ox);
-    let mut x = fe_add(&fe_norm(&dxr), &ox3);
+    let mut x = coord_add3x_circuit(&dxr, ox);
     out.push(("tlm_coord_add3x", x, lam));
     let lamn = fe_norm(&lam);
     x = square_sub_circuit(&x, &lamn);
@@ -1755,8 +1769,7 @@ fn point_add_classical(
     let dx = coord_sub_circuit(tx, ox);
     let dy = coord_sub_circuit(ty, oy);
     let (dxr, lam) = pingpong_divide(&dx, &dy, m, s, nphase);
-    let ox3 = fe_add(&fe_add(ox, ox), ox);
-    let mut x = fe_add(&fe_norm(&dxr), &ox3);
+    let mut x = coord_add3x_circuit(&dxr, ox);
     let lamn = fe_norm(&lam);
     x = square_sub_circuit(&x, &lamn);
     let (x2, y2) = pingpong_multiply(&x, &lam, m, s, nphase);
