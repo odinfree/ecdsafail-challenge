@@ -237,6 +237,19 @@
 - Evidence: `.lane/TEDDY-RETAINED-ROUND3-PREDECLARATION.md`, `.lane/TEDDY-RETAINED-ROUND3.md`, and the frozen complete fixture.
 - Exact next action: stop X007. A separate changed-premise lane may test nonzero-numerator ABI closure; do not open round4, optimize, grind, hunt, or touch a provider here.
 
+## X008 — retained replay nonzero coefficient/numerator ABI
+
+- Status: predeclared before semantic source edit or result.
+- Ancestor/source identity: clean pushed X007 `21caaa1789b3a14c367aa574ee7ae0326ad6c5bc`, tree `dc543da2bbf5861c5ca2a7e76cc60456f91454d6`; preserved production replay SHA-256 `22c4820a9ba3b2356eb785d0d0d452b0939a643cb6c65241706554d19b7df376`; opt-in retained module SHA-256 `13e8d210e85be9f9ad8397b411c302941ea00eadb4a971e2cd5232e4c3494680`.
+- Hypothesis: X007's one-retained-word, one-flag rounds0..3 divide replay exposes the exact unchanged production coefficient/numerator continuation for nonzero numerator inputs and admits an explicit unchanged-production inverse ABI.
+- Frozen corpus: independent64 denominators x64 seed pairs =4,096 ordered rows. Seeds0..31 are production ABI `(coefficient=0,numerator!=0)`; seeds32..63 set both coefficient/numerator nonzero. Fixture `.lane/fixtures/TEDDY-NONZERO-ABI-CORPUS.tsv` SHA-256 `53b06714ffdf079be23b2d3e1d25706c0d2853ab08d13345588f9a505c9409b0`; denominator/seed hashes `bd1c937e2aa188106bc156929b19f536f6b5933510221371e42d1cbaeedeea2d` / `4a48e4569fd7ad7df277e9624f06a58b2b453cf8629c76eb07db24052d305d39`.
+- Explicit mapping: unchanged forward executes production `R0,R1,R2,R3`; independent inverse executes `D3,D2,D1,D0`. Candidate reconstructs signs1..3 from retained denominator and retains X007's single sign1-keyed `T;R2;T` normalization. Reference never shares `T`. Compare coefficient/numerator after every round, then require inverse restoration of the exact seed.
+- Expected invariant: exact4,096/4,096 continuation and inverse equality, denominator/retained preserved, sign/scratch/flag0 at checkpoints, flags peak1/concurrent0, carrier0, phase0, ancilla0, candidate Q<=1114; round2 fused cell remains first binder.
+- Prototype debt cap: candidate ABI768, fixed retained/sign/scratch/flag base1028, transient<=86, total Q<=1114. Candidate emitted T<=960 split65/141/377/377; average executed T<=960, at most+65.946 over X007's zero-seed receipt. References priced separately.
+- Kill: production seed0..31 mismatch => `KILL_NONZERO_NUMERATOR_ABI`; strict seed32..63-only mismatch => `KILL_GENERAL_TRANSDUCER_ABI`; reference inverse failure => `KILL_REFERENCE_ABI_UNAVAILABLE`. Also kill on extra256-bit carrier, second flag, Q>1114, unavailable predecessor, dirty sign/scratch/flag, phase, or ancilla. No repair ladder.
+- Evidence: `.lane/TEDDY-NONZERO-ABI-PREDECLARATION.md`, frozen complete fixture, and its hash-checking generator.
+- Exact next action: commit/push the predeclaration, then implement and run reference closure before candidate parity. If exact, name but do not implement the rounds1..3 whole-production divide splice; do not extend round4.
+
 ## Experiment template
 
 - Status:

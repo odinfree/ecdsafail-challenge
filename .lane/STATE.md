@@ -53,19 +53,19 @@ The current universal gate is `Q * T < 1175485230`. Exact strict T ceilings are 
 
 ## Current phase
 
-`FULL_FIELD_ROUND3_EXACT_HOLD`
+`NONZERO_ABI_PREDECLARED`
 
 ## Current hypothesis
 
-`H9` survives X007: retaining one exact 256-bit original denominator word makes the bounded component map injective without a persistent per-round carrier through production round3. The exact rounds0..3 witness passes the frozen ordered4,096-denominator corpus at Q1114 with the same one local sentinel-normalization flag used at round2 only; round3 is flag-free and adds no width. The corpus SHA-256 is `9cbe05c8d2a2865318da958ce825163b9ac3052c142abd08c4026fff43076dbe`.
+`H10`: X007's exact retained-word rounds0..3 mapping composes with the live production coefficient/numerator ABI, not only its all-zero seed. X008 is frozen before semantic execution on an independent64-denominator x64-seed Cartesian corpus (4,096 rows, SHA-256 `53b06714ffdf079be23b2d3e1d25706c0d2853ab08d13345588f9a505c9409b0`). Seeds0..31 use production `coefficient=0,numerator!=0`; seeds32..63 set both registers nonzero. The candidate must match unchanged production continuation after every round and a separate unchanged inverse must restore the exact input ABI.
 
 ## Current falsifier
 
-None of X007's semantic kill gates fired: concurrent flags0, carrier0, denominator/retained preserved, replay-state match, shared sign/scratch/flag0, phase0, ancilla0. The raw unnormalized source fails deterministically after round2 with phase debt, binding the one atomic toggle. The exact Q1114 zero-seed prefix is HOLD because it does not exercise a live nonzero numerator or close the production ABI; it does not yet prove production replay replacement. Context-specific free-outer-key, local-terminal, checkpoint, radix, coefficient-absorption, and materializing-decoder negatives remain closed unless a changed premise is named.
+H10 fails immediately if the single sign1-keyed sentinel toggle changes a nonzero production-ABI continuation, if reference inverse closure is unavailable, or if exactness needs Q>1114, an extra256-bit carrier, a second flag, unavailable predecessor state, dirty sign/scratch/flag, phase debt, or ancilla debt. The raw production reference must not share the candidate's normalization toggle. X007 remains exact only on its frozen zero-seed corpus until X008 clears. Context-specific free-outer-key, local-terminal, checkpoint, radix, coefficient-absorption, and materializing-decoder negatives remain closed unless a changed premise is named.
 
 ## Next action
 
-Seal X007 as a terminal exact component HOLD. Its first Q binder is the round2 `signed_mod_add_pm_halve_fused` cell at base Q1028 plus86 transient qubits; the flag-free round3 cell reuses the same space at +377 emitted / +343.807 average executed T and +0Q. A future changed-premise lane may audit nonzero-numerator ABI closure, but this lane must not continue to round4, optimize, grind, hunt, or touch a provider.
+Push X008's source/ABI/corpus/Q-T predeclaration before source edits or semantic execution. Then build the unchanged-production forward and inverse reference miters, require their exact closure first, and compare the retained candidate after rounds0/1/2/3. Stop on the first declared KILL class. If exact, name the rounds1..3 whole-production divide splice gate; do not implement it, extend to round4, optimize, grind, hunt, or touch a provider.
 
 ## Last verified result
 
