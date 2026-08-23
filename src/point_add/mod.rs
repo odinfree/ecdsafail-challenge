@@ -2526,6 +2526,10 @@ pub fn build() -> Vec<Op> {
     set_default_env("TLM_FFG_INVERSE_TOP29_MAX_CALL", "180");
     set_default_env("TLM_FUSED_CLEAN_FOLD_SKIP_TOP31", "1");
     set_default_env("TLM_GIDNEY_SKIP_SMALL_RESIDUAL_DEAD", "1");
+    if std::env::var_os("TLM_FINAL_Y_SUB_BOUNDARY_SELFTEST").is_some() {
+        trailmix_ludicrous::final_y_boundary_carry_selfcheck();
+        return Vec::new();
+    }
     if std::env::var_os("SUB4_PRODUCT_SQUARE_SELFTEST").is_some() {
         trailmix_ludicrous::product_register_square_selfcheck();
         return Vec::new();

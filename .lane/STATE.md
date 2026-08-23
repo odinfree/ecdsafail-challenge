@@ -205,3 +205,30 @@ removed immediately; inherited full and H64 did not run. The explicit borrow
 repairs the observed value fault but this micro-composition is phase-dirty on
 frozen corner cases and remains killed. Any later phase-clean construction
 requires a new predeclaration rather than an amendment to E-006.
+
+## E-007 post-low predicate terminal update
+
+E-007 used the phase-clean alternative from independently pushed commit
+`ff1387d`: compute the missing borrow directly from the post-low result as
+`anc && (z_low >= 0x1ffffefffffc2f)`, decrement the complete 203-bit high
+suffix, then recompute the unchanged predicate to erase the one borrow qubit.
+No E-006 capture/restore erasure code was reused.
+
+The fixed 7996/7997 gate and all 13 adversarial primitive lanes passed exact
+value, phase, and ancilla checks. Candidate SHA `4618d4af...9f37` has
+12,943,345 operations, Q1272, same-seed diagnostic T918043.41 with `0/0/0`,
+and final-y Q1026. Exact inherited full T is 918104.700; the unchanged full
+evaluator reported `11/12/0`, improving held aggregate `14/14/0`.
+
+The predeclared numeric mismatch-set subset gate failed because the candidate's
+11 SHA-bound mismatch indices and the held stream's 14 indices were disjoint.
+The changed operation SHA also changes the Fiat-Shamir inputs, so this does not
+attribute causal regressions to the repair. It does trigger the frozen stop:
+H64, hunting, providers, spending, and submission did not run. The exact
+phase-clean repair is retained behind
+`TLM_FINAL_Y_SUB_BOUNDARY_CARRY=1` as a held structural component only.
+
+Post-clean reproduction again matched default `ecc3d9f0...4cfd`, promoted
+`d9737f51...b124`, candidate `4618d4af...9f37`, and held
+`d4ecab6d...f920`. Temporary evaluator instrumentation and generated rows were
+removed.
