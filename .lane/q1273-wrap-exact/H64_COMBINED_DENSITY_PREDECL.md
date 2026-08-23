@@ -39,9 +39,9 @@ For each of the 64 nonces record:
   indicators;
 - stdout/stderr hashes for both selectors.
 
-Require canonical sorted indices, deterministic repeated inherited output,
-exact source/ops/state/schedule guards, 64 distinct rows, and no selector or
-nonce outside the frozen set.  Any guard failure is terminal `HOLD`.
+Require canonical sorted indices, a deterministic repeat of the first frozen
+nonce, exact source/ops/state/schedule guards, 64 distinct rows, and no selector
+or nonce outside the frozen set.  Any guard failure is terminal `HOLD`.
 
 ## Predeclared summaries
 
