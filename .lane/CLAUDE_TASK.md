@@ -1,31 +1,47 @@
-# Claude Fable task — Q1274 phase-channel re-descent
+# Claude Fable task — Q1274 targeted phase-carry overturn
 
 Work only in this isolated worktree and branch. Read the complete
-`/Users/olifreuler/ecdsa-ops/skills/burn-the-house-down/SKILL.md` first.
+`/Users/olifreuler/ecdsa-ops/skills/burn-the-house-down/SKILL.md` first, then
+read `.lane/STATE.md` completely. Continue from the pushed phase re-descent
+evidence at `b7822f2`; do not redo its completed 23/23 mechanism proof.
 
-Target identity is frozen: source `fe0b7ba`, evidence `d793aa2`, HEAD
-`4aebb8b`, 12,920,073 operations, operation SHA-256
+Frozen candidate identity: source `fe0b7ba`, operation SHA-256
 `4c68597468ed1dbb4f2e33042842227bf57c011c51f41e9cdaf13c73194b1f8c`,
-Q1274, diagnostic T916424.62, inherited unchanged full `22/11/0`.
-The exact classical predictor is already qualified; do not rebuild it.
-Read-only evidence is under
-`/Users/olifreuler/ecdsa-ops/gpu-port-q1274-repair-r100` and
-`/Users/olifreuler/ecdsa-ops/q1274-repair-r100-packet`. Its first predicted
-classical-zero canary, nonce `100000035106674`, was terminal `0/2/0`.
+Q1274, diagnostic T916424.62, inherited unchanged full `22/11/0`. The current
+live frontier was refreshed at source `b523ecf`, score 1,169,101,620; at Q1274
+a strictly beating rounded full T must be <=917662. Reopen live before any
+final score claim.
 
-Predeclare before instrumentation. Re-descend on the phase channel: identify
-the exact earliest phase-garbage cause(s) on the inherited fixture, the clean-
-classical canary, and a small fixed corpus drawn only from existing receipts.
-Distinguish a search-only exact phase predictor from a real reversible-circuit
-repair. Prefer the smallest bounded architectural correction or passenger
-removal that preserves Q<=1274 and rounded T<=918822 (strict live-beat room),
-but a source-bound exact phase model is also a useful search-economics result.
+The proven hunt-binding phase mechanism is classical-clean Gidney divergence:
+`rng & (truncated_carry XOR control_AND)`. The frozen corpus contains 70+
+classical-clean-conditioned phase-dirty lane observations, all Gidney and zero
+bare-R. Execute the next bounded overturn already named in `.lane/STATE.md`:
 
-Every structural claim requires exact value, phase, ancilla, protected-default
-reproduction, and unchanged full-shot validation on the predeclared corpus.
+1. Predeclare a deterministic development/holdout split of the existing 23
+   receipt nonces before adding site attribution.
+2. Extend an external logging mirror to record, for every classical-clean
+   phase-dirty lane, the exact operation index, freed carry, controls, source
+   call site, and sampled width/schedule decision of each uncancelled Gidney
+   divergence. Prove the extended mirror remains source-exact on all frozen
+   receipts and agrees with `Simulator` batch state.
+3. Determine whether the divergences concentrate at a small set of carry sites
+   or schedule indices. Fit only on the predeclared development split and
+   report held-out capture and measured T cost.
+4. Admit at most one small source-semantic repair family: targeted +1 carry
+   width only at the top predeclared sites/indices. Preserve the opt-out chain.
+   Gate exact value, phase, and ancilla first; then Q<=1274 and rounded full
+   T<=917662. A repair changing the operation stream gets fresh unchanged
+   full-shot evaluation; old nonce receipts never transfer across the SHA.
+5. If the repair family is diffuse or score-negative, build the cheaper fast
+   phase screen instead by carrying the per-site divergence mask and exact RNG
+   parity through the already-qualified classical model. Validate it on the
+   frozen corpus plus a disjoint predeclared corpus. Do not call the full-sim
+   mirror a fast predictor.
+
 No adaptive nonce search. Do not use providers, remotes, ranges, hunts,
 submissions, public notes, or external messages, and do not mutate ecdsa-ops.
-Keep experiments opt-in. Do not commit ops.bin, results rows, generated
-binaries/logs, temporary evaluators, caches, or artifacts. Clean, commit, and
-push to `odinfree/research/fable-q1274-phase-redescent`; if killed, preserve the
-exact falsifier and the next bounded overturn.
+Do not weaken final `0/0/0` validity. Keep experimental guards opt-in. Do not
+commit ops.bin, result rows, generated binaries/logs, temporary evaluators,
+caches, or artifacts. Apply critique -> fix -> verify. Update durable state,
+commit, and push to `odinfree/research/fable-q1274-phase-redescent`; if killed,
+preserve the exact falsifier and the next bounded action.
