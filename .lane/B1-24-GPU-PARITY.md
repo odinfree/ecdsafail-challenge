@@ -1,10 +1,10 @@
 # B1=24 Linux/CUDA parity
 
-Updated: 2026-08-23T05:47:00Z
+Updated: 2026-08-23T06:25:00Z
 
 ## Verdict
 
-`PASS_COUNT_PARITY_HOLD_MASK_PARITY`
+`PASS_EXACT_FAULTSHOT_PARITY_HOLD_HUNT`
 
 This packet binds the exact B1=24 predictor source before any borrowed-host
 result. It authorizes only an isolated Linux CPU/CUDA comparison on the 32
@@ -90,3 +90,37 @@ Count equality is necessary but does not prove that CPU and CUDA identify the
 same failing shots. The next gate therefore freezes these same 32 fixtures and
 requires byte-identical complete 9,024-bit classical fault masks, plus
 wrong-stream rejection, before this lane can become hunt-capable.
+
+## Per-shot parity result
+
+That stronger gate passed. CPU and CUDA emitted byte-identical complete masks
+for all 32 fixtures. Each 141-word mask's population count equals its reported
+classical-fault count. The gate also rejected a CPU circuit-identity mismatch,
+a wrong CUDA `--ops` assertion, a wrong checkpoint identity, and the invalid
+combination of an incomplete early-exit screen with mask output.
+
+- source commit: `f376e532f9e5ac293bfda8cfbd27edb6c1e97f0b`;
+- source tree: `71598311d15f0b49f6a34360b664182cbb6be698`;
+- terminal receipt SHA-256:
+  `6a690e14ca5322c8fdf4b1948cb377c6e3eb65c44b3a5e89fe8616fe4a2292af`;
+- fingerprint receipt SHA-256:
+  `e75b77f9c0853c58eae0c9c787ccd5ed4b2edb8637f64d05dcccb2d497e4c971`;
+- shared CPU/CUDA mask SHA-256:
+  `00a545dacb9fa68d7ffcb4d52a7a5e0edf802443bc8e3ecacd845cf181755cf9`;
+- Linux CPU SHA-256:
+  `55bfc275af87f79b3beb618cfa2a6581fde2d6074908531d168bf432d6a1c5aa`;
+- CUDA SHA-256:
+  `9a125a20405f63a4bfbb162daaba8be86fb065fbf3c020cb2c65ee6084e545da`;
+- protected before/after manifest SHA-256:
+  `57ae9a4e6656e33cd7cf483f26a342b58bca44544360b88095d92582e94b8e40`.
+
+The first wrapper attempt preserved all computed artifacts and the exact
+post-run protection manifest, then stopped because stdin execution exposed
+`$0` as `bash`, which is not a hashable file. Finalization was performed only
+after rechecking every output, negative, protected hash, confirmer identity,
+and zero-GPU state with the committed finalizer. No fixture was recomputed and
+no guard was relaxed.
+
+This closes classical per-shot model parity. It does not authorize a hunt:
+the separate source-bound phase lane and current score-economics decision still
+remain external gates.
