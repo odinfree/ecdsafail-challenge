@@ -53,7 +53,7 @@ The current universal gate is `Q * T < 1175485230`. Exact strict T ceilings are 
 
 ## Current phase
 
-`NUMERATOR_RESIDUAL_CARRIER_PREDECLARED`
+`NUMERATOR_RESIDUAL_STAGE_A_COMPLETE`
 
 ## Current hypothesis
 
@@ -65,7 +65,7 @@ H12 fails if the exact residual has a conflicting fiber on every allowed live ke
 
 ## Next action
 
-Commit and push X010 before characterization or source edits. Then run Stage A over the complete frozen corpus and select only the first source-semantic mapping in the frozen oracle order. Implement Stage B only if one-carrier compute/correct/uncompute remains possible at Q<=1370. Stop on the first KILL; no round4, whole-circuit work, optimization, grind, hunt, or provider.
+Stage A completed all4,096 frozen rows at candidate Q1114 with no carrier or correction. Seal that observation, then execute the declared dependency/entropy/effective-width and source-formula gate. Implement Stage B only if the first surviving mapping is source-semantic and one-carrier compute/correct/uncompute remains possible at Q<=1370. Stop on the first KILL; no round4, whole-circuit work, optimization, grind, hunt, or provider.
 
 ## Last verified result
 
@@ -93,6 +93,7 @@ Commit and push X010 before characterization or source edits. Then run Stage A o
 - X007 round3 receipt `.lane/TEDDY-RETAINED-ROUND3.md`: exact production rounds0..3 on the same frozen4,096 denominators at Q1114/ABI768/extra346, 13,659 ops, emitted T960 split65/141/377/377, executed T894.054; reference Q1546/T3945.219. The single flag is used only around round2, round3 is flag-free, and denominator/retained/replay/sign/scratch/flag/phase/ancilla/carrier gates all pass. Default production remains15,730,117 ops at SHA-256 `843558da6f504e3f8f2f41cae1edeccdf0cfed9e0dc216f8e880ebc1752e7b75`. Verdict exact component HOLD; nonzero-numerator ABI closure is not proved.
 - X008 nonzero-ABI receipt `.lane/TEDDY-NONZERO-ABI-KILL.md`: terminal `KILL_PHASE_DEBT_REFERENCE`. The exact release miter prices the retained candidate at Q1114/ABI768/13,659 ops/emitted T960, with the round2 fused replay cell as binder, one flag, and no carrier. Before candidate execution, unchanged raw forward has phase mask `000000400000004f` after round2 for the first frozen denominator batch; first dirty input is production seed0 `(d,c,n)=(1,0,1)`. Finite inverse and candidate parity were not run. Two direct receipts are identical at SHA-256 `46762dce4f3c7a907e6e2277dc4254e108bb6cc79e5802b1d944fa2d01ed9878`.
 - X009 relative-phase receipt `.lane/TEDDY-NONZERO-ABI-RELATIVE-PHASE-KILL.md`: terminal `KILL_NONZERO_NUMERATOR_ABI`. Event-bound replay randomness reproduces the X008 raw canary; denominator0 raw forward/inverse/cleanup and candidate rounds0..1 value/phase parity pass. Round2 then mismatches all64 seeds (`ffffffffffffffff`), first at production `(d,c,n)=(1,0,1)`; coefficient is exact and numerator differs. Round2 relative phase and all later gates are not claimed. Two normalized receipts are identical at SHA-256 `0563479d2663232a2e8291c0184a8be9d9ac414be69ff246042e321e83675591`.
+- X010 Stage-A receipt `.lane/TEDDY-NUMERATOR-RESIDUAL-STAGE-A.md`: complete observation-only 4,096-row census under unchanged corpus/source/event bindings. Raw forward injectivity is64/64 per denominator, finite inverse4096/4096, and raw cleanup exact. Candidate Q1114/ops13,659/emitted T960/executed T894.242; reference Q1546/ops40,605/emitted T4,010/executed T3,944.242. Complete record SHA-256 `7ce27cc97c07d8303c5c0f1f5b86c91c26377a0349225a85425b67a3b62b90b9`; carrier0/correction0. Dependency/entropy/source-formula gate remains open; no candidate parity or splice is claimed.
 - Protected-leader cache HOLD commit `a05cca3`: exact `a9af194` cycle has21 clean rows and no average below919784.5; promoted nonce57002259501 at919785.268 remains best. Do not rebuild until a newer read-only cache cycle contains a necessarily new strict beat.
 
 ## Credit and shipping note

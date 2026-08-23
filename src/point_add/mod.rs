@@ -2546,6 +2546,10 @@ pub fn build() -> Vec<Op> {
         return Vec::new();
     }
     if std::env::var_os("SUB4_LEGACY_POINT_ADD").is_none() {
+        if std::env::var_os("SUB4_TEDDY_NUMERATOR_RESIDUAL_CHARACTERIZE").is_some() {
+            pingpong_retained_round3::retained_numerator_residual_characterize();
+            return Vec::new();
+        }
         if std::env::var_os("SUB4_TEDDY_NONZERO_ABI_RELATIVE_SELFTEST").is_some() {
             pingpong_retained_round3::retained_nonzero_abi_relative_phase_selfcheck();
             return Vec::new();

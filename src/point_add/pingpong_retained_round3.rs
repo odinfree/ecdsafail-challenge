@@ -3430,7 +3430,7 @@ fn retained_denominator_full_replay_selfcheck(raw_phase_probe: bool) {
 /// exercise the production entry ABI (`coefficient=0,numerator!=0`) and the
 /// remaining 32 exercise the stronger general transducer ABI.
 pub(crate) fn retained_nonzero_abi_selfcheck() {
-    retained_nonzero_abi_selfcheck_inner(false);
+    retained_nonzero_abi_selfcheck_inner(false, false);
 }
 
 /// X009 changed-premise form of [`retained_nonzero_abi_selfcheck`]. The raw
@@ -3438,17 +3438,26 @@ pub(crate) fn retained_nonzero_abi_selfcheck() {
 /// consume the corresponding post-walk suffix so full phase masks can be
 /// compared without pretending the inherited raw phase debt is zero.
 pub(crate) fn retained_nonzero_abi_relative_phase_selfcheck() {
-    retained_nonzero_abi_selfcheck_inner(true);
+    retained_nonzero_abi_selfcheck_inner(true, false);
 }
 
-fn retained_nonzero_abi_selfcheck_inner(relative_phase: bool) {
+/// X010 Stage-A observation mode. It runs the same bound raw/candidate miter
+/// through round 3 but records, rather than repairs, every round-2 numerator
+/// residual on the frozen corpus.
+pub(crate) fn retained_numerator_residual_characterize() {
+    retained_nonzero_abi_selfcheck_inner(true, true);
+}
+
+fn retained_nonzero_abi_selfcheck_inner(relative_phase: bool, characterize_residual: bool) {
     use crate::circuit::QubitOrBit;
     use sha3::{
         digest::{ExtendableOutput, Update, XofReader},
         Shake256,
     };
 
-    let receipt_prefix = if relative_phase {
+    let receipt_prefix = if characterize_residual {
+        "TEDDY_NUMERATOR_RESIDUAL_CHARACTERIZE"
+    } else if relative_phase {
         "TEDDY_NONZERO_ABI_RELATIVE"
     } else {
         "TEDDY_NONZERO_ABI"
@@ -4047,6 +4056,8 @@ fn retained_nonzero_abi_selfcheck_inner(relative_phase: bool) {
         }
 
         let mut candidate_cursor = 0usize;
+        let mut candidate_round3_outputs = vec![(U256::ZERO, U256::ZERO); 64];
+        let mut candidate_phase_masks = [0u64; 4];
         for round in 0..4 {
             if round > 0 {
                 let sign_checkpoint = candidate_sign_ready_checkpoints[round - 1];
@@ -4079,6 +4090,7 @@ fn retained_nonzero_abi_selfcheck_inner(relative_phase: bool) {
 
             let checkpoint = candidate_round_checkpoints[round];
             candidate_sim.apply_iter(candidate_ops[candidate_cursor..checkpoint].iter());
+            candidate_phase_masks[round] = candidate_sim.phase;
             if !relative_phase && candidate_sim.phase != 0 {
                 let shot = first_shot(candidate_sim.phase);
                 eprintln!(
@@ -4109,11 +4121,13 @@ fn retained_nonzero_abi_selfcheck_inner(relative_phase: bool) {
             }
 
             let mut mismatch_mask = 0u64;
+            let mut candidate_outputs = vec![(U256::ZERO, U256::ZERO); 64];
             for shot in 0..64 {
                 let candidate_output = (
                     candidate_sim.get_register(&candidate_coefficient_reg, shot),
                     candidate_sim.get_register(&candidate_numerator_reg, shot),
                 );
+                candidate_outputs[shot] = candidate_output;
                 if candidate_output != reference_outputs[round][shot] {
                     mismatch_mask |= 1u64 << shot;
                 }
@@ -4128,12 +4142,43 @@ fn retained_nonzero_abi_selfcheck_inner(relative_phase: bool) {
                     "candidate retained word changed after round {round} denominator {denominator_index} seed {shot}",
                 );
             }
-            if mismatch_mask != 0 {
+            if characterize_residual && round == 2 {
+                for shot in 0..64 {
+                    let raw_numerator = reference_outputs[2][shot].1;
+                    let candidate_numerator = candidate_outputs[shot].1;
+                    let delta_wrap = raw_numerator.wrapping_sub(candidate_numerator);
+                    let delta_field = if raw_numerator >= candidate_numerator {
+                        raw_numerator.wrapping_sub(candidate_numerator)
+                    } else {
+                        SECP256K1_P.wrapping_sub(
+                            candidate_numerator.wrapping_sub(raw_numerator),
+                        )
+                    };
+                    eprintln!(
+                        "{receipt_prefix}_ROW denominator_index={denominator_index} seed_index={shot} seed_class={} sign1={} sign2={} d={:064x} input_c={:064x} input_n={:064x} c1={:064x} n1={:064x} c2_candidate={:064x} n2_candidate={:064x} c2_raw={:064x} n2_raw={:064x} c3_raw={:064x} n3_raw={:064x} delta_field={delta_field:064x} delta_wrap={delta_wrap:064x}",
+                        if shot < 32 { "production" } else { "stress" },
+                        (reference_sign_masks[0] >> shot) & 1,
+                        (reference_sign_masks[1] >> shot) & 1,
+                        denominator,
+                        seeds[shot].0,
+                        seeds[shot].1,
+                        reference_outputs[1][shot].0,
+                        reference_outputs[1][shot].1,
+                        candidate_outputs[shot].0,
+                        candidate_outputs[shot].1,
+                        reference_outputs[2][shot].0,
+                        reference_outputs[2][shot].1,
+                        reference_outputs[3][shot].0,
+                        reference_outputs[3][shot].1,
+                    );
+                }
+            }
+            if characterize_residual && round == 3 {
+                candidate_round3_outputs.clone_from(&candidate_outputs);
+            }
+            if mismatch_mask != 0 && !(characterize_residual && round >= 2) {
                 let shot = first_shot(mismatch_mask);
-                let candidate_output = (
-                    candidate_sim.get_register(&candidate_coefficient_reg, shot),
-                    candidate_sim.get_register(&candidate_numerator_reg, shot),
-                );
+                let candidate_output = candidate_outputs[shot];
                 let reference_output = reference_outputs[round][shot];
                 let class = seed_kill(shot);
                 eprintln!(
@@ -4148,7 +4193,10 @@ fn retained_nonzero_abi_selfcheck_inner(relative_phase: bool) {
                 );
                 panic!("{class} after round {round}");
             }
-            if relative_phase && candidate_sim.phase != reference_phase_masks[round] {
+            if relative_phase
+                && (!characterize_residual || round < 2)
+                && candidate_sim.phase != reference_phase_masks[round]
+            {
                 let phase_delta = candidate_sim.phase ^ reference_phase_masks[round];
                 let shot = first_shot(phase_delta);
                 eprintln!(
@@ -4174,7 +4222,7 @@ fn retained_nonzero_abi_selfcheck_inner(relative_phase: bool) {
                 );
                 panic!("KILL_CANDIDATE_CLEANUP_PHASE_DEBT");
             }
-            if candidate_sim.phase != reference_final_phase {
+            if !characterize_residual && candidate_sim.phase != reference_final_phase {
                 let phase_delta = candidate_sim.phase ^ reference_final_phase;
                 let shot = first_shot(phase_delta);
                 eprintln!(
@@ -4197,12 +4245,20 @@ fn retained_nonzero_abi_selfcheck_inner(relative_phase: bool) {
             );
             assert_eq!(
                 candidate_sim.get_register(&candidate_coefficient_reg, shot),
-                reference_outputs[3][shot].0,
+                if characterize_residual {
+                    candidate_round3_outputs[shot].0
+                } else {
+                    reference_outputs[3][shot].0
+                },
                 "candidate cleanup changed coefficient at denominator {denominator_index} seed {shot}",
             );
             assert_eq!(
                 candidate_sim.get_register(&candidate_numerator_reg, shot),
-                reference_outputs[3][shot].1,
+                if characterize_residual {
+                    candidate_round3_outputs[shot].1
+                } else {
+                    reference_outputs[3][shot].1
+                },
                 "candidate cleanup changed numerator at denominator {denominator_index} seed {shot}",
             );
         }
@@ -4223,7 +4279,7 @@ fn retained_nonzero_abi_selfcheck_inner(relative_phase: bool) {
                 "KILL_ANCILLA_DEBT_CANDIDATE q{q} denominator_index={denominator_index}",
             );
         }
-        if relative_phase {
+        if relative_phase && !characterize_residual {
             eprintln!(
                 "{receipt_prefix}_MASK denominator_index={denominator_index} denominator={denominator:x} round0={:016x} round1={:016x} round2={:016x} round3={:016x} cleanup={reference_final_phase:016x}",
                 reference_phase_masks[0],
@@ -4231,7 +4287,31 @@ fn retained_nonzero_abi_selfcheck_inner(relative_phase: bool) {
                 reference_phase_masks[2],
                 reference_phase_masks[3],
             );
+        } else if characterize_residual {
+            eprintln!(
+                "{receipt_prefix}_BATCH denominator_index={denominator_index} denominator={denominator:064x} reference_round0={:016x} candidate_round0={:016x} reference_round1={:016x} candidate_round1={:016x} reference_round2={:016x} candidate_round2={:016x} reference_round3={:016x} candidate_round3={:016x} reference_cleanup={reference_final_phase:016x} candidate_cleanup={:016x}",
+                reference_phase_masks[0],
+                candidate_phase_masks[0],
+                reference_phase_masks[1],
+                candidate_phase_masks[1],
+                reference_phase_masks[2],
+                candidate_phase_masks[2],
+                reference_phase_masks[3],
+                candidate_phase_masks[3],
+                candidate_sim.phase,
+            );
         }
+    }
+
+    if characterize_residual {
+        eprintln!(
+            "{receipt_prefix} PASS observation_only=1 rows=4096 denominators=64 production_seeds=32 stress_seeds=32 raw_forward_injective=64/64 finite_inverse=4096/4096 raw_cleanup=exact candidate_rounds0_through3_observed=1 candidate_peak_q={candidate_peak} candidate_ops={} candidate_emitted_t={candidate_emitted_toffoli} candidate_executed_t={:.3} reference_peak_q={reference_peak} reference_ops={} reference_emitted_t={reference_emitted_toffoli} reference_executed_t={:.3} carrier_allocated=0 correction_applied=0",
+            candidate_ops.len(),
+            candidate_executed_toffoli as f64 / 4096.0,
+            reference_ops.len(),
+            reference_executed_toffoli as f64 / 4096.0,
+        );
+        return;
     }
 
     eprintln!(

@@ -278,7 +278,7 @@
 
 ## X010 — one numerator-residual carrier saddle
 
-- Status: predeclared before characterization, source edit, or result.
+- Status: Stage-A 4,096-row characterization complete; dependency/entropy/source-formula gate pending before any construction.
 - Ancestor/source identity: clean pushed X009 `6b8d50f246b96171989dcca39186ebb1ea656847`, tree `a8962b7035d0753252e8b398313211444119fe10`; production SHA-256 `22c4820a9ba3b2356eb785d0d0d452b0939a643cb6c65241706554d19b7df376`; opt-in module SHA-256 `071699cc95dd3e09b95f9985f983d497399f17ec8c2efa527a073aa0510d66c5`; X009 receipt SHA-256 `a76756baa32ea86bd8fc8e71203365ae2598e0afa1b3be356caf252367e86565`.
 - Changed premise: permit exactly one zero-initialized256-bit numerator-residual carrier to bridge X009's round2 loss. No second carrier, predecessor copy, second flag, growing transcript, or round4.
 - Frozen corpus/authority: unchanged4,096 Cartesian rows SHA-256 `53b06714ffdf079be23b2d3e1d25706c0d2853ab08d13345588f9a505c9409b0`; raw production continuation/finite inverse and X009 event-bound relative phase remain authority.
@@ -287,8 +287,9 @@
 - Q/T price: X009 base1028 + carrier256 = base1284; existing transient86 => hard Q1370. No score T ceiling for the first exact prototype; record emitted/executed/per-stage T and do not optimize.
 - Gates: complete4,096 per-round value/phase equality, per-denominator finite inverse, denominator/retained/sign/scratch/flag/carrier/ancilla cleanup, exactly one carrier, Q<=1370, deterministic repeat. KILL on one-carrier insufficiency, predecessor-history need, nonfunctional live key, or any inherited X009 failure.
 - Pass boundary: component saddle only. Measured carrier entropy/effective width names a later re-descent target; no production splice, round4, full circuit, provider/range/hunt/submission claim.
-- Evidence: `.lane/TEDDY-NUMERATOR-RESIDUAL-CARRIER-PREDECLARATION.md` plus immutable X008/X009 fixture and receipts.
-- Exact next action: push predeclaration, run full Stage A, then either KILL or implement the single selected Stage-B oracle. No second attempt or sweep.
+- Stage-A result: direct release run exits0 with exactly4,096 rows and64 denominator batches. Raw forward is injective64/64 per denominator, finite inverse4096/4096, and cleanup exact. Candidate observation is Q1114/ops13,659/emitted T960/executed T894.242; reference Q1546/ops40,605/emitted T4,010/executed T3,944.242. No carrier was allocated and no correction was applied. Complete record SHA-256 `7ce27cc97c07d8303c5c0f1f5b86c91c26377a0349225a85425b67a3b62b90b9`.
+- Evidence: `.lane/TEDDY-NUMERATOR-RESIDUAL-CARRIER-PREDECLARATION.md`, `.lane/TEDDY-NUMERATOR-RESIDUAL-STAGE-A.md`, plus immutable X008/X009 fixture and receipts.
+- Exact next action: seal Stage A, then run the frozen dependency/entropy/effective-width and source-formula gate. KILL if it yields only a finite lookup or predecessor-dependent cleanup; otherwise implement exactly the first source-semantic one-carrier oracle. No second attempt or sweep.
 
 ## Experiment template
 
