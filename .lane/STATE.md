@@ -183,3 +183,32 @@ Committed before any fit/census run on these draws:
   Q1274 protocol). Controls (direct Q1274 r100/r200 index transfer) are
   priced on A and validated on B without refitting.
 - The inherited nonce 251000962439 is a fixture only, never a density sample.
+
+## D4 — pricing correction + pre-registered decision rule (BEFORE census)
+
+- **Diag→full offset on THIS stream is +44.55, NOT the Q1274 lane's -23.37.**
+  Measured pair: diag 914748.17 vs trusted full average 914792.720. Sign is
+  flipped vs Q1274. All candidate pricing uses full-eval T and reports against
+  the 921139 ceiling directly; the offset is re-derived for any schedule change.
+- Headroom: 921139 - 914792.72 = **6346 full-eval T** (~6302 diag).
+- Objective is expected time to a clean nonce; clean = 0 classical AND 0 phase
+  AND 0 ancilla over 9024 shots. E[nonces-to-clean] ~ exp(lambda_cls +
+  lambda_phase + lambda_anc). Inherited draw: 17 cls / 16 phase batches / 0 anc.
+  Width repair CANNOT touch phase or the hard classical channels (term/replay/
+  walkback/square/result).
+- Inherited-nonce classical decomposition (ppfilter): width=11, term=4,
+  walkback=0, shell=0, replay_mul=2 -> ~6 lambda already hard-channel.
+- **PRE-REGISTERED DECISION RULE**: after the corpus-A deficit census yields the
+  +1-repairable lambda ceiling C1, compare C1 to measured lambda_phase:
+    * If C1 is small relative to lambda_phase (width is not the binding channel
+      for time-to-clean), width repair is PRICED-AND-PARKED (report the frontier
+      as evidence, do not fit r100/r200 analogues) and the lane PIVOTS to
+      phase/hard channels (route 4) and the square/replay-ladder phase audit
+      (route 5).
+    * Otherwise, fit sparse +1 / bounded +2 width repairs on corpus A, validate
+      on B/C, and price the Pareto knee against the 6346-T ceiling.
+- lambda_phase is measured in parallel on corpora A/B/C: first via any existing
+  fleet phase predictor (phase-rank/ppprobe, 787e-opus5-phase-filter), else via
+  small-n `screen_nonces --full` on the PREDECLARED nonce lists. This is a
+  DENSITY MEASUREMENT on fixed predeclared nonces (no --best-score win search,
+  no scanning), not the prohibited nonce scan.
