@@ -1,10 +1,10 @@
 # Lane state: bdf4845 SUB4 ladder history and Q1276 composition
 
-Updated: 2026-08-23T06:55:22+02:00
+Updated: 2026-08-23T07:38:09+02:00
 
 ## Decision
 
-`HOLD_SUBMISSION / GO_MODEL_QUALIFICATION`
+`STOP_OLD_STREAM / ZERO_MODEL_GATE_PASS`
 
 The historical square-ladder observation is real, but `SUB4_SQUARE_LADDER`
 cannot lower the global peak alone. On exact live source `bdf4845`, the
@@ -87,15 +87,19 @@ temporary profiles, and score output were not retained in Git.
 - Source-build equals tail-patch byte-for-byte on all four fixtures. The
   unchanged reserved full-confirm path closed receipt
   `b09d29a129f61e02a95152da747e7fbe675375bbe23e945e597f9c6c88d927ee`.
-- The predeclared zero calibration is running. It has no terminal receipt;
-  low-3, canary launch, fleet retarget, and submission remain locked.
+- The predeclared zero calibration retained two rows. GPU, CPU, and unchanged
+  full evaluation agreed at classical zero on both; the final results were
+  `0/8/0` and `0/1/0`. Receipt `0ed3e932...` closes the observed zero edge.
+- Neither retained row is a valid island. The separate low-3 interval was not
+  run because a stronger promoted-source Q1276 composition superseded this
+  stream. Canary launch, fleet retarget, and submission were cancelled.
 
 ## Scope and next action
 
 No nonce hunt, fleet retarget, submission, or incumbent change occurred. The
-only range activity is the fixed qualification interval.
+only range activity was the fixed qualification interval.
 
-Next gate: finish the exact zero interval, validate every retained row through
-the CPU model and unchanged full evaluator, then run only the fixed low-3
-interval. Require zero false negatives before any campaign controller considers
-this stream. Final acceptance remains full 9,024-shot `0/0/0`.
+This stream is frozen with its terminal receipts. Do not run its fixed low-3
+interval or launch its canary. Reuse the validated parity and confirmation
+doctrine only after binding it to the stronger promoted-source composition.
+Final acceptance remains full 9,024-shot `0/0/0`.

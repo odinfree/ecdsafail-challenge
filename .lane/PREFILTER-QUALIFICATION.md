@@ -1,17 +1,20 @@
 # Q1276 exact-model qualification
 
-Updated: 2026-08-23T04:55:22Z
+Updated: 2026-08-23T05:38:09Z
 
 ## Verdict
 
-`HOLD_ZERO_RUNNING`
+`STOP_SUPERSEDED_AFTER_ZERO_PASS`
 
 The CPU and CUDA models are bound to the byte-exact candidate. CPU equals the
 unchanged full evaluator on the inherited nonce plus three ordinary nonces;
 CPU also equals CUDA comb8 and comb16 on every frozen fixture on both isolated
-and dedicated hosts. The predeclared zero interval is running; it has no
-terminal receipt yet, and the low-3 interval remains locked. No hunt,
-submission, or fanout has occurred in this lane.
+and dedicated hosts. The predeclared zero interval closed with two retained
+rows, and both gave GPU = CPU = unchanged full evaluator at classical zero.
+Their full results were `0/8/0` and `0/1/0`, so neither is an island. The
+separate low-3 interval was deliberately not run: a stronger promoted-source
+composition superseded this stream before activation. No hunt, submission, or
+fanout occurred in this lane.
 
 ## Live anchor
 
@@ -139,23 +142,45 @@ block root file writes. The clean rerun preserved the tracked `results.tsv`
 hash `eea84022...`, left the source clone clean, and kept the incumbent
 confirmer intact while observing zero GPU applications at receipt close.
 
+## Zero boundary
+
+The fixed interval `[270000000000,270128000000)` retained exactly two rows at
+predicted classical count zero. Every row passed the complete boundary chain:
+
+| nonce | GPU cls | CPU cls/first | full cls/phase/anc | full first | verdict |
+|---:|---:|---:|---:|---:|---|
+| 270009216713 | 0 | 0 / -1 | 0 / 8 / 0 | -1 | phase-dirty |
+| 270118456214 | 0 | 0 / -1 | 0 / 1 / 0 | -1 | phase-dirty |
+
+Bound receipts:
+
+- calibration receipt SHA-256:
+  `e839b2c1e22caa93cb73756e2fb6910501524c836b1213fe6b067ef065e44059`;
+- retained-row file SHA-256:
+  `eaf57509b143bd58a7dfcf167e942cf283d99c786a403d3bd0cf1cc964e96cf0`;
+- terminal full-confirm receipt SHA-256:
+  `0ed3e9320c34281090eb2cabf276cfc5b0aac809b608121b7d4adab578f4cf8b`;
+- full result table SHA-256:
+  `aae927d3597eadf2f0e1d40f30bf240548e8ce16f07a41b7eb33fffdd7767923`.
+
+The unchanged evaluator's tracked results file, the source checkout, and the
+reserved confirmer were identical after both full evaluations. This closes
+the strict zero false-negative check for the observed rows, but it does not
+create a valid submission.
+
 ## Reserved canary
 
 The obsolete scanner was drained only at its active chunk boundary. Its child
 finished naturally, the coverage audit passed, the confirmer was preserved,
-and the Q1276 canary remains unlaunched. It retains the exact ops, source,
-binary, digest, and parity receipts, but it cannot launch until zero plus
-low-3 qualification closes.
+and the Q1276 canary remained unlaunched. It retains the exact ops, source,
+binary, digest, and parity receipts. It will not launch for this superseded
+stream.
 
-## Remaining gates
+## Final decision
 
-1. Finish the already-running predeclared zero calibration interval. Confirm
-   every retained row with the CPU model and unchanged full evaluator.
-2. Only after an exact zero edge, evaluate the separate low-3 interval and
-   freeze at least one exact full-evaluator fixture for counts 1, 2, and 3.
-3. Require zero false negatives across the frozen boundary set before any
-   canary launch or fleet retarget.
-
-Until all three close with no false negatives, the stream is not eligible for
-fanout or hunting. Final campaign acceptance still requires a full 9,024-shot
-`0/0/0` result.
+The zero edge passed on every retained row, but neither row was phase-clean.
+The campaign stopped this stream before low-3 because a stronger
+promoted-source Q1276 composition displaced its search economics. The fixed
+low-3 calibration, canary launch, fleet retarget, and submission are all
+cancelled. Final campaign acceptance still requires a full 9,024-shot
+`0/0/0` result on whichever stream advances.

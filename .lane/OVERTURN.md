@@ -1,6 +1,6 @@
 # SUB4 ladder overturn ledger
 
-Updated: 2026-08-23T06:55:22+02:00
+Updated: 2026-08-23T07:38:09+02:00
 
 ## Protected anchor
 
@@ -81,7 +81,9 @@ about +732.671 average T relative to Q1276. The local break-even is about
 
 ## Decision
 
-- `GO`: exact predictor/model qualification for the Q1276 stream
-  `d1461959...`; it is the cheapest current-head composition found here.
-- `HOLD`: nonce hunting, fleet retarget, submission, and promotion. The baked
-  inherited nonce is not clean.
+- `PASS`: exact predictor/model qualification for Q1276 stream `d1461959...`.
+  Its two strict-zero retained rows matched GPU, CPU, and full classical
+  evaluation exactly, then failed phase at `0/8/0` and `0/1/0`.
+- `STOP`: low-3 calibration, nonce hunting, fleet retarget, submission, and
+  promotion. A stronger promoted-source Q1276 composition superseded this
+  stream before activation.
