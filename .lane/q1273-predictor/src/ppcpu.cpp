@@ -8,6 +8,7 @@
 // Range and scan modes are deliberately absent from this qualification binary.
 // Env PPF_OPS selects the ops stream (default ops.bin).
 #include <vector>
+#include <cerrno>
 #include "pp_host.h"
 
 static const char* ops_path() {
@@ -19,6 +20,26 @@ static void limbs_hex(const u64 a[4], char* out) {
     snprintf(out, 80, "%016llx%016llx%016llx%016llx", (unsigned long long)a[3],
              (unsigned long long)a[2], (unsigned long long)a[1],
              (unsigned long long)a[0]);
+}
+
+static bool parse_u64_decimal(const char* text, u64* out) {
+    if (text == nullptr || *text == '\0') return false;
+    for (const char* p = text; *p != '\0'; p++) {
+        if (*p < '0' || *p > '9') return false;
+    }
+    errno = 0;
+    char* end = nullptr;
+    unsigned long long value = strtoull(text, &end, 10);
+    if (errno != 0 || end == text || *end != '\0') return false;
+    *out = (u64)value;
+    return true;
+}
+
+static bool parse_shot_index(const char* text, int* out) {
+    u64 value;
+    if (!parse_u64_decimal(text, &value) || value >= PP_NUM_TESTS) return false;
+    *out = (int)value;
+    return true;
 }
 
 int main(int argc, char** argv) {
@@ -101,7 +122,11 @@ int main(int argc, char** argv) {
     fprintf(stderr, "ppcpu: comb ready\n");
 
     if (mode == "faultshots") {
-        u64 nonce = strtoull(argv[2], 0, 10);
+        u64 nonce;
+        if (argc != 3 || !parse_u64_decimal(argv[2], &nonce)) {
+            fprintf(stderr, "ppcpu: malformed nonce\n");
+            return 2;
+        }
         std::vector<PP_Shot> shots;
         pp_derive_corpus(&prefix, nonce, comb.data(), shots);
         for (size_t i = 0; i < shots.size(); i++) {
@@ -112,7 +137,11 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (mode == "breakdown") {
-        u64 nonce = strtoull(argv[2], 0, 10);
+        u64 nonce;
+        if (argc != 3 || !parse_u64_decimal(argv[2], &nonce)) {
+            fprintf(stderr, "ppcpu: malformed nonce\n");
+            return 2;
+        }
         std::vector<PP_Shot> shots;
         pp_derive_corpus(&prefix, nonce, comb.data(), shots);
         u64 br[5] = {0, 0, 0, 0, 0};
@@ -140,8 +169,13 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (mode == "shot") {
-        u64 nonce = strtoull(argv[2], 0, 10);
-        int idx = atoi(argv[3]);
+        u64 nonce;
+        int idx;
+        if (argc != 4 || !parse_u64_decimal(argv[2], &nonce) ||
+            !parse_shot_index(argv[3], &idx)) {
+            fprintf(stderr, "ppcpu: malformed nonce or shot index\n");
+            return 2;
+        }
         std::vector<PP_Shot> shots;
         pp_derive_corpus(&prefix, nonce, comb.data(), shots);
         PP_Shot& s = shots[idx];
