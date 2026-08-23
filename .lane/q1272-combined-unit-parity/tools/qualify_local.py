@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 
 REPO = pathlib.Path(__file__).resolve().parents[3]
-LANE = REPO / ".lane/q1272-combined-unit-parity"
+LANE = REPO / ".lane/q1272-phase8833-repair"
 CLASSICAL = REPO / ".lane/q1272-promoted-predictor"
 COMBINED = REPO / ".lane/q1272-live-phase"
 OPS = pathlib.Path(
@@ -25,7 +25,9 @@ OPS = pathlib.Path(
 )
 FIXTURE_ROOT = pathlib.Path("/Users/olifreuler/ecdsa-ops/q1272-live-phase-ea19759d")
 SITES = FIXTURE_ROOT / "op-sites.tsv"
-SCHEDULE = FIXTURE_ROOT / "pp_phase_schedule.h"
+SCHEDULE = pathlib.Path(
+    "/Users/olifreuler/ecdsa-ops/q1272-phase8833-repair-generated/pp_phase_schedule.h"
+)
 MIRROR_SOURCE = pathlib.Path("/private/tmp/phase_mirror/src/main.rs")
 MIRROR = pathlib.Path("/private/tmp/phase_mirror/target/release/phase_mirror")
 
@@ -38,7 +40,7 @@ MAX_NONCE = 1 << 48
 EXPECTED_HASHES = {
     OPS: "ea19759d80a4bc1492a5e98c966e70ee79d5aa40211e6cc480b08cf032c8a0f1",
     SITES: "f2f0f99d096027299460d9a82c16d3714c9684564d10f13f6dcbbac2b3e92833",
-    SCHEDULE: "de37d6004427082c345004d1225d0f877abfe9597ac969df228b77eb915fe42f",
+    SCHEDULE: "2135746c16dc4deb4e608cd2e7e1d9907fe167d76854ba2420279f6164efca82",
     MIRROR_SOURCE: "26d2a045d048025ce086b099b41fdfc7c42a2657426c59d5fdb95be9cacd8d98",
     MIRROR: "90e4db8669c03b259c13b259018134b754faa94adfbc1e491a601f1052cd6402",
     CLASSICAL / "src/pp_model.h":
@@ -48,11 +50,15 @@ EXPECTED_HASHES = {
     CLASSICAL / "src/ppcpu.cpp":
         "37550fe3d8d1f1130cdc03a746ed5b4ea6bdb619475eebcddaeb087342457352",
     COMBINED / "src/pp_model.h":
-        "0d4c9a812892b9dac598cb59a8345c443b9e21663ac29743578f4e651b39b92a",
+        "9eab10bd8cf1c3510f4dcada4f08f8eb93d2efb749cc8496a88b7f68401bb90b",
     COMBINED / "src/pp_host.h":
         "aa546788a823268cf311d88f028b80dd12826162fe220848ae46ec165b6190a2",
     COMBINED / "src/ppcpu.cpp":
-        "dd05545d33911e7e0ab44b0e373f03a759ae8ee4b990f20f2cc40ca6ee2063af",
+        "71031a56d921056d41c845b4d933d5fcd020c563a98ec1d7f8407ab57c3962e1",
+    COMBINED / "tools/extract_phase_meta.py":
+        "6509c592501ff20c5c808512f443b11ae3881225e8f80c35ff6bdbff5241aaea",
+    COMBINED / "tools/generate_phase_schedule.py":
+        "4efb39c8cd7da958cc80d719bd41ecbb47050f9c1bfee4c6ad298ca20fdebd18",
     CLASSICAL / "H64.nonces":
         "17443162349d50e521b0c9a20904de5a0212a668e6f3ae7ea0e2702b2f79c4b9",
     CLASSICAL / "D32.nonces":
@@ -61,15 +67,20 @@ EXPECTED_HASHES = {
         "9db8b3a0fc0f277f8cea77cac181cc6133a667c96d5e73a97397a7116a6ec1bd",
     CLASSICAL / "W64.nonces":
         "db43f935ec97561cdab7f1e0c86d11ea439f9b75f0da815a7a92b999bc5575a0",
-    LANE / "F32.nonces":
+    REPO / ".lane/q1272-combined-unit-parity/F32.nonces":
         "8d93cbf5e871f1ec8cab5768835c5c60a78a94fbc71611a96248a4248dc450ec",
+    LANE / "R64.nonces":
+        "c0253a53113952659308bdc32c0245160b30093fc3ef4e7925cfbd02332a186b",
     FIXTURE_ROOT / "inherited-oracle.txt":
         "230ce787840da6838ae7632851d4a7109d4ab1fda4e802c872eed38c91e1c3b2",
     FIXTURE_ROOT / "h64/RESULTS.tsv":
         "0b05b359ac2f9fc23e81163adcf8047aa28fd514c5ecd581a0416a07ee1b9ccc",
 }
 
-CORPUS_LENGTHS = {"inherited": 1, "H64": 64, "D32": 32, "V64": 64, "F32": 32}
+CORPUS_LENGTHS = {
+    "inherited": 1, "H64": 64, "D32": 32, "V64": 64, "F32": 32,
+    "R64": 64,
+}
 SUMMARY_RE = re.compile(
     r"^MIRROR nonce=(\d+) qubits=(\d+) shots=(\d+) cls=(\d+) "
     r"phase_batches=(\d+) phase_shots=(\d+) ancilla=(\d+) "
@@ -126,7 +137,10 @@ def load_corpora() -> dict[str, tuple[int, ...]]:
         "H64": read_canonical_nonces(CLASSICAL / "H64.nonces", 64),
         "D32": read_canonical_nonces(CLASSICAL / "D32.nonces", 32),
         "V64": read_canonical_nonces(CLASSICAL / "V64.nonces", 64),
-        "F32": read_canonical_nonces(LANE / "F32.nonces", 32),
+        "F32": read_canonical_nonces(
+            REPO / ".lane/q1272-combined-unit-parity/F32.nonces", 32
+        ),
+        "R64": read_canonical_nonces(LANE / "R64.nonces", 64),
     }
     owner: dict[int, str] = {}
     for name, values in corpora.items():
@@ -137,8 +151,8 @@ def load_corpora() -> dict[str, tuple[int, ...]]:
                 fail(f"corpus overlap: nonce {value} in {owner[value]} and {name}")
             owner[value] = name
     prior_w64 = read_canonical_nonces(CLASSICAL / "W64.nonces", 64)
-    if set(corpora["F32"]) & set(prior_w64):
-        fail("fresh F32 overlaps prior W64")
+    if (set(corpora["F32"]) | set(corpora["R64"])) & set(prior_w64):
+        fail("fresh corpus overlaps prior W64")
     return corpora
 
 
@@ -189,7 +203,7 @@ def verify_build_identity(classical: pathlib.Path, combined: pathlib.Path) -> No
     required = (
         f"source_commit={SOURCE_COMMIT}", "ops_count=12904643",
         f"ops_sha256={EXPECTED_HASHES[OPS]}", f"predictor_digest={STATE_DIGEST}",
-        "phase_sites=3964", "phase_rhmr=1938616", "shots=9024",
+        "phase_sites=3966", "phase_rhmr=1938616", "shots=9024",
         "contract=phase&~classical",
     )
     if any(token not in identity for token in required):
@@ -438,7 +452,7 @@ def main() -> int:
     if status:
         fail("worktree must be clean before qualification")
     if run([
-        "git", "merge-base", "--is-ancestor", "517f32a", "HEAD"
+        "git", "merge-base", "--is-ancestor", "03efb27", "HEAD"
     ], check=False).returncode != 0:
         fail("sealed predeclaration is not an ancestor of HEAD")
     if run(["git", "rev-parse", "HEAD"]).stdout.decode("ascii").strip() == "f308df4f1ab054b204dec050bc8b9f452e7c49ee":
@@ -480,6 +494,12 @@ def main() -> int:
     f32_repeat = deterministic_repeat(
         args.out, "F32", corpora["F32"][-1], classical_bin, combined_bin
     )
+    d32_repeat = deterministic_repeat(
+        args.out, "D32", 154123680082395, classical_bin, combined_bin
+    )
+    r64_repeat = deterministic_repeat(
+        args.out, "R64", corpora["R64"][-1], classical_bin, combined_bin
+    )
     result_lines = [
         "corpus\tnonce\tclassical\traw_phase\tclean_phase\t"
         "classical_mask_sha256\tphase_mask_sha256\tcause_sha256\t"
@@ -509,6 +529,8 @@ def main() -> int:
         f"results_sha256={sha256(results)}\nnegative_sha256={negative_sha}\n"
         f"inherited_repeat_manifest_sha256={inherited_repeat}\n"
         f"f32_repeat_manifest_sha256={f32_repeat}\n"
+        f"d32_repair_repeat_manifest_sha256={d32_repeat}\n"
+        f"r64_repeat_manifest_sha256={r64_repeat}\n"
         + "".join(
             f"{name}_totals_classical_raw_clean={value[0]},{value[1]},{value[2]}\n"
             for name, value in totals.items()

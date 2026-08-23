@@ -8,11 +8,11 @@ import pathlib
 import sys
 
 
-EXPECTED_META_SHA256 = "59c177b5b43bf27eba1ee6758a7c1cea07f0eef5aa9b0c2a27dfe05301c6657d"
+EXPECTED_META_SHA256 = "61e28111ff655bed39d5bc7dd8ccf0912274c112a34dfcc11ec01369725010b6"
 EXPECTED_OPS = 12_904_643
 EXPECTED_RHMR = 1_938_616
-EXPECTED_COUNTS = (2_573, 694, 694, 3)
-SOURCE_LINES = (1558, 1813, 1928, 1501)
+EXPECTED_COUNTS = (2_573, 694, 694, 3, 2)
+SOURCE_LINES = (1558, 1813, 1928, 1501, 1471)
 
 
 def fail(message: str) -> None:
@@ -54,7 +54,7 @@ def main() -> None:
             fail(f"non-monotonic row {number}")
         rows.append((op_index, ordinal, source_line, family))
 
-    counts = tuple(sum(row[3] == family for row in rows) for family in range(4))
+    counts = tuple(sum(row[3] == family for row in rows) for family in range(len(SOURCE_LINES)))
     if counts != EXPECTED_COUNTS:
         fail(f"family counts {counts} != {EXPECTED_COUNTS}")
 

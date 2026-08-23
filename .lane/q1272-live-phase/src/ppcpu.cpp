@@ -216,7 +216,7 @@ int main(int argc, char** argv) {
                PP_SOURCE_COMMIT, (unsigned long long)PP_EXPECTED_OPS,
                PP_EXPECTED_OPS_SHA256,
                (unsigned long long)pp_state_digest(&prefix),
-               "0d4c9a812892b9dac598cb59a8345c443b9e21663ac29743578f4e651b39b92a",
+               "9eab10bd8cf1c3510f4dcada4f08f8eb93d2efb749cc8496a88b7f68401bb90b",
                PP_PHASE_META_SHA256, PP_PHASE_SITE_COUNT, PP_PHASE_RHMR_COUNT,
                PP_NUM_TESTS);
         return 0;

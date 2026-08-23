@@ -1035,11 +1035,13 @@ PP_HD bool pp_sign_at(const u64 signs[11], int r) {
 
 // ─── source-bound phase-screen trace helpers ───────────────────────────────
 //
-// The fast phase screen records the three measured-boundary families proven
+// The fast phase screen records the measured-boundary families proven
 // by the frozen two-pass mirror:
-//   family 0: pingpong_div.rs:1547 (chunk-boundary carry erase)
-//   family 1: pingpong_div.rs:1783 (divide replay flag erase)
-//   family 2: pingpong_div.rs:1898 (multiply replay flag erase)
+//   family 0: pingpong_div.rs:1558 (chunk-boundary carry erase)
+//   family 1: pingpong_div.rs:1813 (divide replay flag erase)
+//   family 2: pingpong_div.rs:1928 (multiply replay flag erase)
+//   family 3: trailmix_ludicrous/arith.rs:1501 (sub cleanup)
+//   family 4: trailmix_ludicrous/arith.rs:1471 (lt cleanup)
 //
 // `values` and `families` are caller-owned so this arithmetic remains usable
 // from both host and device builds without a large per-thread struct.  A
@@ -1049,6 +1051,7 @@ PP_HD bool pp_sign_at(const u64 signs[11], int r) {
 #define PP_PHASE_FAMILY_DIV_FLAG 1u
 #define PP_PHASE_FAMILY_MUL_FLAG 2u
 #define PP_PHASE_FAMILY_SHELL_SUB 3u
+#define PP_PHASE_FAMILY_SHELL_LT 4u
 
 struct PP_PhaseTrace {
     u8* values;
@@ -1860,6 +1863,17 @@ PP_HD void pp_mod_add_exact_model(const u64 x[4], const u64 y[4], u64 out[4]) {
     for (int i = 0; i < 4; i++) out[i] = o[i];
 }
 
+// mod_add_exact's measured cleanup (trailmix_ludicrous/arith.rs:1471).
+// The source compares the repaired 256-bit result against the original
+// addend, then phases when that predicate differs from the measured carry.
+PP_HD void pp_mod_add_exact_phase_model(const u64 x[4], const u64 y[4], u64 out[4],
+                                        PP_PhaseTrace* tr) {
+    u64 sum[4];
+    bool anc = pp_add256(x, y, sum);
+    pp_mod_add_exact_model(x, y, out);
+    pp_phase_emit(tr, anc != !pp_ge(out, x), PP_PHASE_FAMILY_SHELL_LT);
+}
+
 // coord_rsub (fused default): x := (coord - reg) mod p.
 PP_HD void pp_coord_rsub_model(const u64 reg[4], const u64 coord[4], u64 out[4]) {
     PP_Wide m256;
@@ -1889,6 +1903,28 @@ PP_HD void pp_coord_rsub_model(const u64 reg[4], const u64 coord[4], u64 out[4])
         pp_wide_set(o, 0, PP_ARITH_LSBS, lu);
     }
     for (int i = 0; i < 4; i++) out[i] = o[i];
+}
+
+// mod_rsub_vented_loaded's measured cleanup
+// (trailmix_ludicrous/arith.rs:1471). The target is restored to the original
+// carry before the source compares the repaired top-19 result against
+// (coord + 1)'s top 19 bits.
+PP_HD void pp_coord_rsub_phase_model(const u64 reg[4], const u64 coord[4], u64 out[4],
+                                    PP_PhaseTrace* tr) {
+    PP_Wide m256, rw, nreg, t1w, sum;
+    pp_wide_mask(256, m256);
+    pp_wide_from4(reg, rw);
+    pp_wide_xor(rw, m256, nreg);
+    u64 t1[4];
+    u64 onev[4] = {1, 0, 0, 0};
+    pp_add256(coord, onev, t1);
+    pp_wide_from4(t1, t1w);
+    pp_wide_add(nreg, t1w, sum);
+    bool anc = pp_wide_bit(sum, 256);
+    pp_coord_rsub_model(reg, coord, out);
+    u64 result_top = pp_slice4(out, 256 - 19, 19);
+    u64 t1_top = pp_slice4(t1, 256 - 19, 19);
+    pp_phase_emit(tr, anc != (result_top < t1_top), PP_PHASE_FAMILY_SHELL_LT);
 }
 
 // ─── per-shot fault evaluation ──────────────────────────────────────────────
@@ -2064,7 +2100,7 @@ PP_HD u32 pp_shot_fault_phase_trace_s(const u64 tx[4], const u64 ty[4], const u6
     u64 three[4], x2b[4], x2c[4];
     pp_fadd(ox, ox, three);
     pp_fadd(three, ox, three);
-    pp_mod_add_exact_model(three, x2_after_div, x2b);
+    pp_mod_add_exact_phase_model(three, x2_after_div, x2b, tr);
     pp_square_phase_model(y2d, x2b, x2c, tr);
 
     if (pp_is_zero(x2c)) return wd_fault ? PP_F_WALK_DIV : PP_F_WALK_MUL;
@@ -2088,7 +2124,7 @@ PP_HD u32 pp_shot_fault_phase_trace_s(const u64 tx[4], const u64 ty[4], const u6
 
     u64 y2f[4], x2f[4];
     pp_coord_sub_phase_model(y2m, oy, y2f, tr);
-    pp_coord_rsub_model(x2_after_mul, ox, x2f);
+    pp_coord_rsub_phase_model(x2_after_mul, ox, x2f, tr);
     if (!pp_eq(x2f, rx) || !pp_eq(y2f, ry)) {
         if (wd_fault) return PP_F_WALK_DIV;
         return wm_fault ? PP_F_WALK_MUL : PP_F_RESULT;

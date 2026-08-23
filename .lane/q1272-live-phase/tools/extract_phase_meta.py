@@ -11,12 +11,13 @@ import sys
 EXPECTED_TRACE_SHA256 = "f2f0f99d096027299460d9a82c16d3714c9684564d10f13f6dcbbac2b3e92833"
 EXPECTED_TRACED_OPS = 12_904_547
 EXPECTED_RHMR = 1_938_616
-EXPECTED_COUNTS = (2_573, 694, 694, 3)
+EXPECTED_COUNTS = (2_573, 694, 694, 3, 2)
 FAMILIES = (
     ("point_add/pingpong_div.rs", 1558),
     ("point_add/pingpong_div.rs", 1813),
     ("point_add/pingpong_div.rs", 1928),
     ("point_add/trailmix_ludicrous/arith.rs", 1501),
+    ("point_add/trailmix_ludicrous/arith.rs", 1471),
 )
 
 
