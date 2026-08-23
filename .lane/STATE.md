@@ -212,3 +212,92 @@ Committed before any fit/census run on these draws:
   small-n `screen_nonces --full` on the PREDECLARED nonce lists. This is a
   DENSITY MEASUREMENT on fixed predeclared nonces (no --best-score win search,
   no scanning), not the prohibited nonce scan.
+
+## D5 — corpus-A width deficit census (n=320, ppfilter census, VALIDATED)
+
+Census total cross-validated: single-nonce census at 251000962439 = 17 faulting
+shots == trusted receipt (17/16/0). Corpus-A (nonces 111000000000+0..319):
+
+| quantity | per-nonce lambda |
+|---|---:|
+| lambda_cls (total) | 17.56 |
+| hard_only (no width deficit) | 3.63 |
+| hard_and_width (non-converging walk, +deficit) | 7.85 |
+| soft width-only (hard-clean, width-fault) | 6.08 |
+|   of which +1-repairable (all deficits == 1 bit) | **3.51 (C1)** |
+|   of which need +2 or more | 2.57 |
+
+Classical floor under UNLIMITED width widening = hard_only + hard_and_width =
+**11.48 lambda** (these shots fault even at infinite width — non-converging
+walks / terminal / replay, all schedule-independent). Max conceivable classical
+reduction by width = the 6.08 soft lambda.
+
+Greedy +1 set-cover frontier (in-sample corpus A; each shot needs ALL its
+deficit sampled-indices widened): 40 idx -> 0.94 lambda, 100 idx -> 1.66,
+200 idx -> 2.34, 300 idx -> 2.80 (ceiling 3.51 needs >300 diffuse indices).
+Population is DIFFUSE: median 3 indices/shot, top index touches 96/1123 shots
+(8.5%), no cheap pocket. The Q1274 lane's "no ~6-round pocket, smooth frontier"
+finding TRANSFERS qualitatively to the 696-stream. Held-out realizable is ~half
+in-sample (Q1274 measured r100 = -0.95 held-out), so r100 ~0.9 lambda, r200
+~1.2 lambda held-out.
+
+## D6 — phase/classical/ancilla ground truth (screen_nonces --full, held-out)
+
+Full-sim (trusted-equivalent, no early abort) over corpus B nonces
+222000000000+0..15 (n=16):
+
+- lambda_cls = 17.56 +/- 4.18  (== ppfilter census 17.56 exactly: classical
+  oracle cross-validated on held-out data)
+- lambda_phase = 13.31 +/- 3.87
+- lambda_anc = 0
+- lambda_total (cls+phase) = 30.87
+
+This was a DENSITY MEASUREMENT on predeclared fixed nonces (no --best-score win
+search, no scanning), tool source screen_nonces.rs (ported from
+fable-peak-q1275-940e34a, digest guard stripped for this tree; kept uncommitted
+as a temporary evaluator per gate).
+
+## D7 — VERDICT: width repair PRICED-AND-PARKED; Q1272 not huntable by density
+
+Applying the D4 pre-registered decision rule (C1=3.51 vs lambda_phase=13.31):
+
+- E[nonces to clean] ~ exp(lambda_cls + lambda_phase) = exp(30.87) ~ 2.6e13.
+- Huntable reference (accepted-class configs): lambda_total ~10.9 ~ 5.4e4.
+  Q1272 as-is is ~exp(20) ~ 5e8x harder than a huntable config.
+- Width repair addresses ONLY the soft classical channel. Realizable within any
+  sane T budget: r100 ~0.9 held-out lambda (+~500 diag T), r200 ~1.2 (+~1000 T)
+  -> a 2.5-3.3x search speedup. The 6346-T ceiling could in principle buy the
+  full C1=3.51 (~33x) but only at the diffuse tail's rising T/lambda cost.
+- Even at INFINITE width widening the classical floor (11.48) + phase (13.31)
+  leaves lambda_total ~= 24.79 ~ 5.8e10 -- still ~1e6x worse than huntable.
+
+Therefore width repair CANNOT make Q1272 huntable. Per the decision rule, width
+is PRICED-AND-PARKED (frontier recorded above as evidence; NO r100/r200 baked --
+baking would erode the strict-beat score margin for a practically infeasible
+search and add risk surface with zero huntability payoff). The Q1272 frozen
+artifact stays byte-identical (ecc3d9f0..., diag T914748.17, Q1272; square and
+affine selftests reproduce exact frozen values; git diff --check clean).
+
+The BINDING channels for time-to-clean are both schedule-independent and NOT
+width-repairable:
+1. Hard classical ~11.48 lambda: non-converging pingpong walks (7.85),
+   terminal/replay clears (3.63). Route 4 (walkback/replay/tape overturn).
+2. Phase ~13.31 lambda: untouched by any width move; no exact predictor exists
+   for the 696/696 stream (would need a new tool). Route 4/5.
+
+## Next binder
+
+The task premise ("~6.3k T of density-repair room" implies a reachable clean
+nonce) is REFUTED with held-out data: the T room is real but density at Q1272 is
+exp(~30.9) from clean, dominated by two channels width cannot touch. The
+highest-value next experiment is NOT width fitting; it is a phase + hard-classical
+attack:
+- Build a 696/696 phase predictor (the fleet has only partial lower-bound K
+  rankers at 700/696; none predicts the trusted phase-batch count) to make the
+  ~13.3 phase lambda measurable/attackable cheaply.
+- Characterize the 7.85-lambda non-converging-walk population (route 4): is it
+  intrinsic to the a_div/a_mul distribution at 696 rounds, or reducible by a
+  bounded walkback/replay-tape architectural change with an exact miter?
+- Route 5 (square/replay-ladder co-binder audit) only with measured co-binder
+  and exact-test evidence, since the Q1272 peak cut REQUIRES replay 128 + square
+  242 jointly (Q1274 lane exp #6/#7: square binds 1274 without both).
