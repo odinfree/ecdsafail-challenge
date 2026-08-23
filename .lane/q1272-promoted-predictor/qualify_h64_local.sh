@@ -2,7 +2,9 @@
 set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/../.." && pwd)
-corpus="$repo/.lane/q1272-promoted-predictor/H64.nonces"
+gate=${PPF_GATE:-H64}
+expected_rows=${PPF_ROWS:-64}
+corpus=${PPF_CORPUS:-"$repo/.lane/q1272-promoted-predictor/H64.nonces"}
 predictor="$repo/target/release/pingpong_filter"
 builder="$repo/target/release/build_circuit"
 evaluator=/Users/olifreuler/ecdsa-ops/q1273-predictor-093d85d/evaluator-instrumented/target/release/eval_circuit
@@ -12,11 +14,22 @@ hash() { sha256sum "$1" | awk '{print $1}'; }
 assert_hash() { [[ -f $1 && $(hash "$1") == "$2" ]] || die "hash drift: $1"; }
 
 check_identity() {
+  local expected_corpus_sha
   git -C "$repo" merge-base --is-ancestor \
     01e06d605c1de3cea4571b033e1d16dc820bfbdf HEAD || \
     die 'inherited classical checkpoint is not an ancestor of HEAD'
-  assert_hash "$corpus" \
-    17443162349d50e521b0c9a20904de5a0212a668e6f3ae7ea0e2702b2f79c4b9
+  case "$gate:$expected_rows" in
+    H64:64)
+      expected_corpus_sha=17443162349d50e521b0c9a20904de5a0212a668e6f3ae7ea0e2702b2f79c4b9
+      ;;
+    D32:32)
+      expected_corpus_sha=45838602350ecabd4c95d900602d440692e57bffd2581160e1f151ccdb4cc79c
+      ;;
+    *)
+      die "unsupported qualification gate: $gate rows=$expected_rows"
+      ;;
+  esac
+  assert_hash "$corpus" "$expected_corpus_sha"
   assert_hash "$repo/src/bin/pingpong_filter.rs" \
     2d016070a93a5966c5a163a6242b27ef8264176c76c72448ba50027b70465890
   assert_hash "$repo/src/bin/eval_circuit.rs" \
@@ -33,7 +46,8 @@ check_identity() {
     02c94aed131c5558aa40f91cc9bdccda8248c8dccbe4390138afd4a3901311a5
   assert_hash "$evaluator" \
     37081d949bf34f185023098e74393a9014b96853633646288a90f1538663580e
-  [[ $(wc -l <"$corpus" | tr -d '[:space:]') == 64 ]] || die 'H64 row count drift'
+  [[ $(wc -l <"$corpus" | tr -d '[:space:]') == "$expected_rows" ]] || \
+    die "$gate row count drift"
   awk 'NF != 1 || $1 !~ /^[0-9]+$/ || (NR > 1 && $1 <= prev) {exit 2} {prev=$1}' \
     "$corpus" || die 'H64 nonce framing drift'
 }
@@ -48,7 +62,8 @@ predict() {
     SUB4_PP_FOLD_SELECTOR_EVICT=1 SUB4_PP_PEAK=1272 SUB4_SQUARE_LADDER=242 \
     "$predictor" --nonces "$corpus" --jobs 4 --faultshots >"$tmp"
   rows=$(wc -l <"$tmp" | tr -d '[:space:]')
-  [[ $rows == 64 ]] || die "prediction rows $rows != 64"
+  [[ $rows == "$expected_rows" ]] || \
+    die "prediction rows $rows != $expected_rows"
   awk 'NF != 3 || $1 !~ /^[0-9]+$/ || $2 !~ /^[0-9]+$/ ||
        length($3) != 2256 || $3 !~ /^[0-9a-f]+$/ ||
        (NR > 1 && $1 <= prev) {exit 2} {prev=$1}' "$tmp" || \
@@ -60,7 +75,7 @@ predict() {
     printf 'source_sha256=2d016070a93a5966c5a163a6242b27ef8264176c76c72448ba50027b70465890\n'
     printf 'corpus_sha256=%s\n' "$(hash "$corpus")"
     printf 'prediction_sha256=%s\n' "$(hash "$out/prediction.tsv")"
-    printf 'rows=64\n'
+    printf 'gate=%s\nrows=%s\n' "$gate" "$expected_rows"
   } >"$out/PREDICTION.seal.tmp"
   mv "$out/PREDICTION.seal.tmp" "$out/PREDICTION.seal"
   sha256sum "$out/prediction.tsv" "$out/PREDICTION.seal"
@@ -111,7 +126,7 @@ worker() {
   (
     cd "$stage"
     env -i PATH="$PATH" LC_ALL=C EVAL_CLASSICAL_SHOTS=1 EVAL_NO_WRITE=1 \
-      "$evaluator" --note q1272-promoted-h64 \
+      "$evaluator" --note q1272-promoted-holdout \
       >eval.stdout 2>eval.stderr
   )
   eval_rc=$?
@@ -147,7 +162,7 @@ worker() {
 }
 
 evaluate() {
-  local out=$1 jobs=${2:-4} sealed actual nonce tmp rows faults
+  local out=$1 jobs=${2:-4} sealed actual nonce tmp summary_rows faults
   check_identity
   [[ -f $out/PREDICTION.seal && -f $out/prediction.tsv ]] || die 'prediction is not sealed'
   sealed=$(awk -F= '$1 == "prediction_sha256" {print $2}' "$out/PREDICTION.seal")
@@ -165,9 +180,10 @@ evaluate() {
     [[ -f $out/evaluator/$nonce/WORKER.complete ]] || die "missing worker $nonce"
     cat "$out/evaluator/$nonce/row.tsv" >>"$tmp"
   done <"$corpus"
-  rows=$(($(wc -l <"$tmp") - 1))
+  summary_rows=$(($(wc -l <"$tmp") - 1))
   faults=$(awk 'NR > 1 {n += $5} END {print n+0}' "$tmp")
-  [[ $rows == 64 ]] || die "summary rows $rows != 64"
+  [[ $summary_rows == "$expected_rows" ]] || \
+    die "summary rows $summary_rows != $expected_rows"
   mv "$tmp" "$out/summary.tsv"
   (
     cd "$out"
@@ -176,13 +192,16 @@ evaluate() {
   ) >"$out/MANIFEST.sha256.tmp"
   mv "$out/MANIFEST.sha256.tmp" "$out/MANIFEST.sha256"
   {
-    printf 'status=H64_CLASSICAL_PASS\nrows=64\nclassical_faults=%s\n' "$faults"
+    printf 'status=%s_CLASSICAL_PASS\nrows=%s\nclassical_faults=%s\n' \
+      "$gate" "$expected_rows" "$faults"
     printf 'prediction_sha256=%s\nsummary_sha256=%s\nmanifest_sha256=%s\n' \
       "$sealed" "$(hash "$out/summary.tsv")" "$(hash "$out/MANIFEST.sha256")"
-  } >"$out/H64.complete.tmp"
-  mv "$out/H64.complete.tmp" "$out/H64.complete"
-  sha256sum "$out/summary.tsv" "$out/MANIFEST.sha256" "$out/H64.complete"
+  } >"$out/${gate}.complete.tmp"
+  mv "$out/${gate}.complete.tmp" "$out/${gate}.complete"
+  sha256sum "$out/summary.tsv" "$out/MANIFEST.sha256" "$out/${gate}.complete"
 }
+
+export PPF_CORPUS="$corpus" PPF_GATE="$gate" PPF_ROWS="$expected_rows"
 
 mode=${1:-}
 case "$mode" in
@@ -199,6 +218,6 @@ case "$mode" in
     worker "$2" "$3"
     ;;
   *)
-    die 'usage: qualify_h64_local.sh predict OUT | evaluate OUT [JOBS]'
+    die 'usage: [PPF_GATE=D32 PPF_ROWS=32 PPF_CORPUS=...] qualify_h64_local.sh predict OUT | evaluate OUT [JOBS]'
     ;;
 esac
