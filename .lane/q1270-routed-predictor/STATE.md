@@ -8,8 +8,11 @@
 - inherited/H64/D32 hashes: `dabc1771...` / `87fb300f...` /
   `09941a91...`;
 - D32: frozen private and unopened;
+- target reproduction: 12,953,636 operations / `ec4fadc0...eb63a`, Q1270 /
+  T916366.972 / `23/14/0`, PASS byte-exact;
 - model status: no donor source, binary, table, checkpoint, or output imported;
-- decision: `PREDECLARED / TARGET REBUILD NEXT / NO HUNT`.
+- decision: `TARGET REBUILT / PHASE TRACE NEXT / NO HUNT`.
 
-Next action: commit/push the predeclaration, then perform the exact empty-target
-rebuild and inherited receipt reproduction before tracing phase geometry.
+Next action: commit/push the rebuild receipt, then derive source-bound
+operation checkpoint and phase geometry before constructing the trusted-mask
+oracle.
