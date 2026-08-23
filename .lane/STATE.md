@@ -359,3 +359,20 @@ not run. All source and harness changes were removed and protected hashes
 reproduce. Terminal verdict:
 `VALUE_EXACT; DIRTY_ZERO; PHASE_KILL; SOURCE_REMOVED`. No hunt, provider,
 remote, spend, submission, or adaptive repair ran.
+
+## E-014 coherent high200 increment terminal update
+
+E-014 replaced only E-011's vented high200 controlled increment with a fully
+coherent forward/inverse prefix network. A pre-output assertion first caught
+five reset frees; converting those proven-zero frees to zero-qubit loans
+enforced the declared no-HMR/R substream before measurement.
+
+The repaired-seed miter retained 8/8 exact values, dirty `0`, Q515, and 821
+emitted Toffolis, only four above E-011. The coherent substream emitted no HMR
+or reset. Phase still measured `0x30`, so the first frozen gate failed and no
+square64, composition, or Q/T run followed.
+
+All E-014 source/harness changes were removed and protected hashes reproduce.
+Terminal verdict: `VALUE_EXACT; DIRTY_ZERO; COHERENT_PATH; PHASE_KILL;
+SOURCE_REMOVED; FAMILY_CLOSED`. No additional call-9 local micro-repair, hunt,
+provider, remote, spend, or submission action ran.
