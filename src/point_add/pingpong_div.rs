@@ -1260,7 +1260,7 @@ fn plan(rounds: usize) -> Option<Plan> {
     // layouts by a few rounds in both directions.
     let r1 = env("SUB4_PP_R1", 340).min(rounds);
     let r2 = env("SUB4_PP_R2", 628).min(rounds.saturating_sub(1));
-    let peak = env("SUB4_PP_PEAK", 1274);
+    let peak = env("SUB4_PP_PEAK", 1273);
     Some(Plan { r1, r2, peak })
 }
 
