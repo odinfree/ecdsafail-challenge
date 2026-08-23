@@ -27,6 +27,9 @@ check_identity() {
     V64:64)
       expected_corpus_sha=9db8b3a0fc0f277f8cea77cac181cc6133a667c96d5e73a97397a7116a6ec1bd
       ;;
+    W64:64)
+      expected_corpus_sha=db43f935ec97561cdab7f1e0c86d11ea439f9b75f0da815a7a92b999bc5575a0
+      ;;
     *)
       die "unsupported qualification gate: $gate rows=$expected_rows"
       ;;
