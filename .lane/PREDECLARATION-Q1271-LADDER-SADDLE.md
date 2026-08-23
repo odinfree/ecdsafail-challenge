@@ -110,6 +110,40 @@ SUB4_SQUARE_LADDER=241`.
    as a semantic-portability record, with operation/checkpoint hashes and
    fixture qualification treated as new).
 
+## Amendment 1 (pushed before the probe it authorizes)
+
+Measured result of the predeclared armed configuration `SUB4_PP_PEAK=1271
+SUB4_SQUARE_LADDER=241`: builder peak = num_qubits = **1272**, not 1271.
+The square (1271) and `pp_mul_walkback` (1271) followed their budgets; both
+replay phases stopped at 1272, and the binding instant moved from the
+terminal batch (ops_idx 2528401 at Q1272) to the interleaved replay region
+(ops_idx 4358982, `pp_div_replay`). Profile exec 918,545.05 (wire-3 price
++832.80 vs +631.86/+655.77 for wires 1–2). This configuration is also
+strictly dominated by the native Q1272 row (917,712.25 at the same Q1272),
+so it is dead as any candidate. Gate 3 requires naming the exposed floor
+precisely; that needs one classification probe:
+
+- **PROBE-1** (authorized here, PP_PROFILE + timeline only, no full
+  battery): `SUB4_PP_PEAK=1270 SUB4_SQUARE_LADDER=241`.
+  - If peak = num_qubits = **1271**: the floor is budget-relative — the
+    interleaved replay/batch footprint accounting undercounts by one wire
+    at the new binding structure. Candidate B := `SUB4_PP_PEAK=1270
+    SUB4_SQUARE_LADDER=241` then becomes the armed Q1271 candidate and
+    must pass the FULL original battery unchanged (composition selfcheck,
+    square miter, per-phase maxima ≤ 1271, composition 0/0x0/0, two paired
+    deltas, projected official rounded T ≤ 918,689, then the single
+    inherited-nonce full diagnostic). No further PEAK values are
+    authorized beyond PROBE-1.
+  - If peak = num_qubits = **1272** again: the floor is absolute at 1272
+    for this family; verdict KILL (exposed floor: interleaved replay,
+    owner `pp_div_replay`/`pp_mul_replay`), no further runs.
+- Static layout note recorded with this amendment: at P=1271 the divide
+  terminal batch target is 59 and still admits the 5-chunk exact-leading
+  layout (25+4×58 ≥ 256); at P=1270 (target 58) `chunk_layout` switches
+  the terminal batch to the equal-split family (live 53 ≤ 58, +1
+  approximate boundary per round) — additional executed-T cost is
+  expected and the 918,689 ceiling check governs.
+
 ## Exclusions (restated, binding)
 
 No provider/cloud compute, no nonce/range hunt, no submission, no public
