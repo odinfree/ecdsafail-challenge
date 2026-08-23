@@ -33,8 +33,8 @@ pingpong_div.rs                 de5e347383a9bab4d76a2776b3bcee4bebda4fecb65beb3d
 product_register.rs             872f9a18929cc576dcdbfd05735bc3243b756488ce6acc70ce705f46e2b302ee
 point_add/mod.rs                 3106691965fbd0002fc0dc427e07f28f30654be49b748beb08d93b30c21db490
 unchanged eval_circuit.rs        b35314bc47a5f8eecbf60459e6c76c9b43aa034eeb9b7ec3421655d74f9e890b
-ported pingpong_filter.rs        e5ef16cf344ac90d8f77489b18601a66f35396c875d813925b1beb02d9533c53
-release pingpong_filter binary   a9c2a49aaf867e5e0337df0d7502c9e5804f2292059dbd249259525e4b62bc71
+ported pingpong_filter.rs        b2a4d44c89b5340c7cc7d2db8a11b8cebc9207537a0f6883445d9dd85799e9b4
+release pingpong_filter binary   767d89df2f3385ce6da3e8bb3c510c89462a926499bbe0fc1c93f9a77115fcc4
 ```
 
 An independent `build_circuit` run under that environment reproduced:
@@ -59,6 +59,14 @@ unchanged full evaluator result was already sealed as classical/phase/ancilla
 Thus the known classical count agrees exactly.  This one exposed nonce is a
 port smoke test, not model qualification.  Complete mismatch-set equality on
 the frozen H64 and disjoint sets remains mandatory.
+
+The generic `--faultshots` output path was also restored from the previously
+qualified B1 model.  On the same nonce it emitted 141 little-endian mask words
+(2,256 hexadecimal characters), retained count 18, and produced complete-row
+SHA-256
+`fa24149697bf1bc14e655e0814eb883f3e18c67f9d43fa1f2c38e2bd1000b583`.
+This checks the output shape and popcount only; the sibling H64 gate must still
+compare every bit to the unchanged evaluator.
 
 Local timing for the smoke test was 3.63 seconds to build and absorb the
 stream once, then 0.002 seconds XOF, 0.102 seconds elliptic-curve draw, and

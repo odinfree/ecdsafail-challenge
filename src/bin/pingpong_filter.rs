@@ -24,6 +24,9 @@
 //!
 //! CLI:  pingpong_filter --from <nonce> --to <nonce> [--jobs N] [--verbose]
 //! stdout: one "<nonce> <classical_mismatch_count>" line per nonce, in order.
+//! With `--nonces <file> --faultshots`, a third field is the complete 9,024-bit
+//! classical-fault mask: 141 ascending little-endian u64 words rendered as
+//! fixed-width lowercase hex (word 0 first, bit 0 = Fiat-Shamir draw 0).
 
 // The contestant circuit builder is compiled into this binary the same way
 // `build_circuit` does it (it is deliberately not part of the shared library).
@@ -1633,6 +1636,7 @@ impl Checkpoint {
 
 const NUM_TESTS: usize = 9024;
 const XOF_BYTES: usize = NUM_TESTS * 64;
+const FAULT_MASK_WORDS: usize = (NUM_TESTS + 63) / 64;
 
 struct NonceScratch {
     xof: Vec<u8>,
@@ -1642,6 +1646,7 @@ struct NonceScratch {
     ox: Vec<U4>,
     oy: Vec<U4>,
     dens: Vec<U4>,
+    draws: Vec<usize>,
     prefix: Vec<U4>,
     model: Scratch,
 }
@@ -1656,6 +1661,7 @@ impl NonceScratch {
             ox: Vec::with_capacity(NUM_TESTS),
             oy: Vec::with_capacity(NUM_TESTS),
             dens: Vec::with_capacity(NUM_TESTS),
+            draws: Vec::with_capacity(NUM_TESTS),
             prefix: Vec::with_capacity(NUM_TESTS),
             model: Scratch { tape: vec![0u8; rounds + 8], rec: None },
         }
@@ -1679,7 +1685,8 @@ fn screen_nonce(
     m: &Model,
     s: &mut NonceScratch,
     verbose: bool,
-) -> (usize, usize) {
+    faultshots: bool,
+) -> (usize, usize, Vec<u64>) {
     let timing = std::env::var_os("PF_TIME").is_some();
     let tt = std::time::Instant::now();
     cp.xof_for(nonce, &mut s.xof);
@@ -1704,6 +1711,7 @@ fn screen_nonce(
     s.ox.clear();
     s.oy.clear();
     s.dens.clear();
+    s.draws.clear();
     for d in 0..NUM_TESTS {
         let t = aff[2 * d];
         let o = aff[2 * d + 1];
@@ -1721,6 +1729,7 @@ fn screen_nonce(
         s.ox.push(o.0);
         s.oy.push(o.1);
         s.dens.push(fe_sub(&o.0, &t.0));
+        s.draws.push(d);
     }
     let n = s.tx.len();
 
@@ -1745,6 +1754,11 @@ fn screen_nonce(
         .map(|v| v.split(',').filter_map(|t| t.trim().parse().ok()).collect())
         .unwrap_or_default();
     let mut mismatches = 0usize;
+    let mut fault_mask = if faultshots {
+        vec![0u64; FAULT_MASK_WORDS]
+    } else {
+        Vec::new()
+    };
     // K = number of shots carrying >=1 predicted phase residual.
     // eval's phase word has one lane per shot; a lane with any residual flips with
     // probability exactly 1/2, so P(run phase-clean) = 2^-K and K==0 is a GUARANTEE.
@@ -1785,6 +1799,10 @@ fn screen_nonce(
         if nph > 0 { phase_shots += 1; }
         if gx != ex || gy != ey {
             mismatches += 1;
+            if faultshots {
+                let draw = s.draws[i];
+                fault_mask[draw / 64] |= 1u64 << (draw % 64);
+            }
             if verbose {
                 eprintln!(
                     "  nonce {nonce}: CLASSICAL MISMATCH shot {i}: got (0x{},0x{}) exp (0x{},0x{})",
@@ -1802,7 +1820,17 @@ fn screen_nonce(
     if verbose && n != NUM_TESTS {
         eprintln!("  nonce {nonce}: {} draws skipped by the harness rules", NUM_TESTS - n);
     }
-    (mismatches, phase_shots)
+    (mismatches, phase_shots, fault_mask)
+}
+
+fn fault_mask_hex(mask: &[u64]) -> String {
+    debug_assert_eq!(mask.len(), FAULT_MASK_WORDS);
+    let mut out = String::with_capacity(FAULT_MASK_WORDS * 16);
+    use std::fmt::Write;
+    for word in mask {
+        write!(&mut out, "{word:016x}").unwrap();
+    }
+    out
 }
 
 // ===========================================================================
@@ -1811,6 +1839,7 @@ fn screen_nonce(
 
 fn usage() -> ! {
     eprintln!("usage: pingpong_filter --from <nonce> --to <nonce> [--jobs N] [--verbose]");
+    eprintln!("       --nonces <file> [--jobs N] [--faultshots]");
     eprintln!("       [--selftest]                 run the built-in Fiat-Shamir + model KATs and exit");
     eprintln!("       [--dump-checkpoint <path>]   write the nonce-independent SHAKE256 prefix state");
     std::process::exit(2);
@@ -1825,6 +1854,7 @@ fn main() {
     let mut selftest = false;
     let mut nonce_file: Option<String> = None;
     let mut dump: Option<String> = None;
+    let mut faultshots = false;
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -1846,6 +1876,7 @@ fn main() {
                 i += 1;
                 nonce_file = args.get(i).cloned();
             }
+            "--faultshots" => faultshots = true,
             "--dump-checkpoint" => {
                 i += 1;
                 dump = args.get(i).cloned();
@@ -1857,6 +1888,10 @@ fn main() {
     let have_range = from.is_some() && to.is_some();
     if !selftest && dump.is_none() && nonce_file.is_none() && !have_range {
         usage();
+    }
+    if faultshots && nonce_file.is_none() {
+        eprintln!("pingpong_filter: --faultshots requires --nonces <file>");
+        std::process::exit(2);
     }
     let from = from.unwrap_or(0);
     let to = to.unwrap_or(0);
@@ -1920,7 +1955,8 @@ fn main() {
             .filter_map(|t| t.parse::<u64>().ok())
             .collect();
         let idx = AtomicU64::new(0);
-        let out: Mutex<Vec<(u64, usize, usize)>> = Mutex::new(Vec::with_capacity(list.len()));
+        let out: Mutex<Vec<(u64, usize, usize, Vec<u64>)>> =
+            Mutex::new(Vec::with_capacity(list.len()));
         std::thread::scope(|sc| {
             for _ in 0..jobs {
                 sc.spawn(|| {
@@ -1929,8 +1965,9 @@ fn main() {
                         let i = idx.fetch_add(1, Ordering::Relaxed) as usize;
                         if i >= list.len() { break; }
                         let n = list[i];
-                        let (cl, ph) = screen_nonce(n, &cp, &comb, &m, &mut st, verbose);
-                        out.lock().unwrap().push((n, cl, ph));
+                        let (cl, ph, mask) =
+                            screen_nonce(n, &cp, &comb, &m, &mut st, verbose, faultshots);
+                        out.lock().unwrap().push((n, cl, ph, mask));
                     }
                 });
             }
@@ -1938,9 +1975,14 @@ fn main() {
         let mut v = out.into_inner().unwrap();
         v.sort_unstable();
         let mut sbuf = String::new();
-        for (n, cl, ph) in v {
-            if show_phase { sbuf.push_str(&format!("{n} {cl} {ph}\n")); }
-            else { sbuf.push_str(&format!("{n} {cl}\n")); }
+        for (n, cl, ph, mask) in v {
+            if faultshots {
+                sbuf.push_str(&format!("{n} {cl} {}\n", fault_mask_hex(&mask)));
+            } else if show_phase {
+                sbuf.push_str(&format!("{n} {cl} {ph}\n"));
+            } else {
+                sbuf.push_str(&format!("{n} {cl}\n"));
+            }
         }
         print!("{sbuf}");
         return;
@@ -1963,7 +2005,8 @@ fn main() {
                     if nonce > to {
                         break;
                     }
-                    let k = screen_nonce(nonce, &cp, &comb, &m, &mut s, verbose);
+                    let (cl, ph, _) = screen_nonce(nonce, &cp, &comb, &m, &mut s, verbose, false);
+                    let k = (cl, ph);
                     let mut g = results.lock().unwrap();
                     g.0.insert(nonce, k);
                     let mut out = String::new();
