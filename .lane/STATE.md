@@ -1,126 +1,133 @@
-# Lane state — claude-fable-burn-087cafa
+# Lane state — Q1272 rounds696 / ladder242 production bake
 
-Objective: from exact live source `087cafaef46a4e339644a6191ff2df2e7031cb80` (Q1275,
-rounded T918972, score 1171689300), find a clean composition at Q1274 with rounded
-full-eval T <= 919693. Other lane's exact Q1274 source-host composition (branch
-`research/live-087cafa-exact-carry`, commit 8d261ea) reads diag T919919.48 — 963 T
-hosting vs 721 allowance, 242 over. Not duplicated here.
+Date: 2026-08-23 (Europe/Zurich)
 
-## Ground truth (this worktree, clean rebuilds)
+## Decision
 
-| item | value |
+The audited Q1272 composition is now baked into source defaults on the isolated
+branch `research/q1272-round696-ladder242`, starting from exact receipt commit
+`82a742b19fb28d641e3993c3ef18abd0191544ee`.
+
+The build is byte-for-byte reproducible and passes the production 64-lane
+profile plus both focused self-tests. The inherited 9,024-shot draw remains
+dirty at `17/16/0`, so this branch is a frozen hunt candidate, not a submission
+candidate. No nonce search, provider action, or submission was started here.
+
+## Frozen source defaults
+
+```text
+SUB4_PP_WIDTH_RESCALE=1 (implicit default; =0 is the opt-out)
+SUB4_PP_R1=340
+SUB4_PP_R2=628
+SUB4_PP_ROUNDS=696
+SUB4_PP_ROUNDS_MUL=696
+SUB4_PP_PEAK=1272
+SUB4_SQUARE_LADDER=242
+SUB4_PINGPONG_TAIL_NONCE=251000962439 (unchanged inherited nonce)
+```
+
+Only three runtime defaults changed from the audited Q1274 source: divide
+rounds `698 -> 696`, replay peak `1274 -> 1272`, and square ladder `244 -> 242`.
+Multiply rounds were already 696; width rescaling and R1/R2 were already baked.
+No arithmetic primitive or evaluator code changed.
+
+Every tuned value retains its environment override. Two reproduction paths
+were exercised after the bake:
+
+- prior Q1274 route: `ROUNDS=698`, `ROUNDS_MUL=696`, `R1=340`, `R2=628`,
+  `PEAK=1274`, `SQUARE_LADDER=244`, width rescale on -> artifact
+  `60b6fe451b0cea31c2deffee907c74a1327e175f1adbe9dd41d6e9d76e6ea933`;
+- promoted live route: the prior vector plus `WIDTH_RESCALE=0`, `R1=342`,
+  `R2=625`, `PEAK=1275`, `SQUARE_LADDER=245` -> artifact
+  `d9737f5154cf1159d1115f5057dcc8019b42984507f4e0cbeacd80edaee0b124`.
+
+## Exact production evidence
+
+Clean release build:
+
+```text
+cargo clean
+cargo build --release --bin build_circuit --bin eval_circuit
+```
+
+Final default reconstruction:
+
+| item | exact result |
 |---|---|
-| baseline commit | 087cafa |
-| baseline ops.bin sha256 | d9737f5154cf1159d1115f5057dcc8019b42984507f4e0cbeacd80edaee0b124 |
-| baseline full 9024 eval | 0/0/0, avg T918972.304, Q1275, score 1171689300 |
-| baseline 64-lane diag T | 918995.67 (offset full-diag = -23.37) |
-| baseline paid-repair census | approx=2313 exact=285 (chunk-boundary erases) |
+| loaded/emitted ops | 12,901,167 |
+| semantic ops before 96-op tail | 12,901,071 |
+| `ops.bin` SHA-256 | `ecc3d9f0bb1dd4e68e6d337e39c4cdb66cfbfe83928a81fec28e22797fca4cfd` |
+| peak qubits | 1272 |
+| 64-lane diagnostic T | 914748.17 |
+| 64-lane gate | classical 0, phase `0x0`, dirty qubits 0 |
 
-## RESULT: Q1274 width-rescale composition (CANDIDATE, score gate PASSED)
+The final source state was rebuilt once more after comment cleanup and produced
+the same op count and artifact hash.
 
-Config baked as source defaults (env-equivalent, opt-out restores live artifact
-byte-for-byte):
+## Co-binder profile
 
-- `SUB4_PP_WIDTH_RESCALE` default ON (`=0` restores live schedule)
-- `SUB4_PP_PEAK` 1275 -> 1274
-- `SUB4_PP_R1` 342 -> 340, `SUB4_PP_R2` 625 -> 628
-- `SQUARE_LADDER` 245 -> 244
+`PP_PROFILE=1 PROFILE_ACTIVE_TIMELINE=1` shows a balanced Q1272 plateau:
 
-| item | value |
-|---|---|
-| candidate ops.bin sha256 | 60b6fe451b0cea31c2deffee907c74a1327e175f1adbe9dd41d6e9d76e6ea933 |
-| emitted ops | 12,913,783 (semantic; +96 X tail + tail nonce) |
-| Q (max id, analyze_ops) | 1274 |
-| 64-lane PP_PROFILE diag T | 915,905.50; 0 classical / phase 0x0 / 0 dirty |
-| production selftest | PASS: 916,063.359 executed T on its 64-input gate, Q1274 |
-| paid-repair census | approx=2290 exact=276 — FEWER approximate repairs than live |
-| B0 binding census | pp_div_replay op 2,527,796: tape 340 + y 256 + coeff 256 + u 145 + v 145 + ladder 130 + 2 misc = 1274 |
-| est. full T | ~915,882 +/- ~15 (diag - 23.4 offset) |
-| score gate (<=919,693) | PASS, margin ~3,800 T |
-| predicted score | ~915,882 x 1274 = ~1,166,833,668 (-4.86M / -0.41% vs live) |
+| phase | peak qubits | executed T on 64-lane diagnostic |
+|---|---:|---:|
+| `pp_div_replay` | 1272 | 262590.31 |
+| `square_product_register` | 1272 | 58733.52 |
+| `pp_mul_replay` | 1272 | 24218.28 |
+| `pp_mul_walkback` | 1272 | 307586.95 |
 
-Mechanism: ROUNDS was cut 704->698 in earlier accepted commits but the sampled
-WIDTH_SCHEDULE was still indexed by raw round, leaving the tail of the walk wider
-than the tuned curve at every depth point. `width_round_index` compression
-(shipped env-gated, default-off, since the ROUNDS=698 commits) re-maps
-round -> round*(703)/(697), recovering the dead bit-rounds: -3,418 diag T at
-Q1274 (rescale alone at Q1275: diag 915,609.41, approx=2266). The Q1274 peak cut
-itself (PEAK=1274 + SQUARE_LADDER=244) costs +622 diag T of purely EXACT work
-(walk splits + narrower exact chunks): the approximate boundary-repair count is
-IDENTICAL to live (2313/285) without rescale and LOWER (2290/276) with it. So
-this composition adds no new approximate chunk-boundary exposure; the residual
-risk channel is the width schedule itself (rescale narrows some walk widths 1-6
-schedule indices) — the same channel the fleet's earlier screen on 940e34a
-(SUB4_PP_WIDTH_RESCALE candidate, "sound + screen-OK", -4.37M score) already
-covered at ROUNDS=698.
+First peak: op 2,527,023 in `pp_div_replay`. Its live-set census is 339 prior
+walk-tape wires, 256 input/numerator wires, 256 replay coefficient wires, 145
+`u`, 145 `v`, 128 replay-ladder wires, and three one-wire controls/signs: 1272
+total. The two-qubit peak cut comes from replay ladder `130 -> 128`, coordinated
+with square ladder `244 -> 242`; R1 remains 340, so the prior tape contributes
+339 wires at the binding snapshot.
 
-## Experiment ledger (all 64-lane deterministic diag, PP_COUNT_PAID censuses)
+## Focused source gates
 
-| # | config delta vs live | Q | diag T | approx/exact | verdict |
-|---|---|---|---|---|---|
-| 0 | none (baseline) | 1275 | 918995.67 | 2313/285 | matches official receipt |
-| 1 | PEAK=1274 SQ=244 | 1274 | 919617.72 | 2313/285 | passes gate; exact-only cost +622 |
-| 2 | PEAK=1274 only | 1275 | 919638.27 | — | square still binds 1275 |
-| 3 | SQ=244 only | 1275 | 918997.56 | — | square side nearly free (+1.9) |
-| 4 | #1 + R2=620 | 1274 | 919683.33 | — | worse; kill R2=620 |
-| 5 | PEAK=1273 SQ=243 | 1273 | 920438.20 | 2339/657 | gate-edge (<=920415), approx UP — kill |
-| 6 | PEAK=1272 SQ=242 | 1272 | 922113.55 | 2350/1008 | fails gate by ~950 — kill |
-| 7 | PEAK=1270 SQ=240 | 1272! | 924242.34 | 2522/872 | schedule can't reach 1270 — kill |
-| 8 | #1 + WIDTH_RESCALE | 1274 | 916199.16 | 2290/281 | -3,418; the lever |
-| 9 | #8 + R1/R2 grid (12 pts) | 1274 | best 915905.50 @ R1=340 R2=628 | 2290/276 | FROZEN as candidate |
-| 10 | #8 + R1=360 / R1=355 | 1274 | +751 / +2757 | 2290/969+ | exact-host blowup above r1~346 |
-| 11 | RESCALE only (Q1275) | 1275 | 915609.41 | 2266/287 | score 1,167,335k — worse than #9 |
-| 12 | #8 at Q1273 (PEAK1273 SQ243) | 1273 | 917069.08 | 2304/620 | marginal +870 > 719 break-even — kill |
+- `SUB4_PRODUCT_SQUARE_SELFTEST=1`: PASS — 58,980 emitted / 58,721.141
+  executed Toffoli, Q1272, 64 square inputs, phase and ancilla clean.
+- `SUB4_PINGPONG_POINT_ADD_SELFTEST=1`: PASS — 956,012 emitted / 914,661.344
+  executed Toffoli, Q1272, 64 affine additions, phase and ancilla clean.
+- `git diff --check`: PASS.
 
-Dead ends recorded: R2=620 (worse both with and without rescale); Q1273 and below
-(marginal T cost exceeds per-qubit score break-even, approx exposure rises);
-R1 far from 340 (walk-split exact cost explodes).
+Release compilation emits three pre-existing warnings in unrelated arithmetic
+and dirty-scan code. No warning originates in this bake. Repository-wide
+test-only compilation is not claimed because the audited base has stale legacy
+test modules; the callable production self-tests and unchanged trusted
+evaluator are the applicable gates.
 
-## Validation status
+## Unchanged full 9,024-shot evaluation
 
-- [x] Baseline reproduced exactly (full 9024: 0/0/0, T918972.304, Q1275).
-- [x] Bake faithfulness: baked binary with `SUB4_PP_WIDTH_RESCALE=0 SUB4_PP_R1=342
-      SUB4_PP_R2=625 SUB4_PP_PEAK=1275 SUB4_SQUARE_LADDER=245` reproduces the live
-      artifact sha256 d9737f51... byte-for-byte.
-- [x] No structural primitive changed (knobs steer existing exact machinery:
-      schedule remap, plan geometry, ladder budgets) — no new miter surface; the
-      exact split/chunk cells in use are the shipped, previously-accepted ones.
-- [x] Production 64-lane self-check (SUB4_PINGPONG_POINT_ADD_SELFTEST): PASS.
-- [x] Peak co-binders profiled (B0): single binding profile at pp_div_replay;
-      square/mul_replay/mul_walkback all <= 1274 (peak_qubits=1274 global).
-- [x] Score gate passed before full eval (est. T915,882 <= 919,693).
-- [ ] One inherited-nonce full 9024-shot eval (nonce 251000962439 baked):
-      RUNNING — result to be appended below.
+The final default artifact was evaluated by the unchanged release
+`eval_circuit` binary:
 
-## Full-eval receipt (one authorized run, inherited nonce 251000962439)
+```text
+loaded ops:              12,901,167
+qubits:                  1272
+classical mismatches:    17
+phase-garbage batches:   16
+ancilla-garbage batches: 0
+exact average T:         914792.720
+```
 
-- artifact sha256 60b6fe451b0cea31c2deffee907c74a1327e175f1adbe9dd41d6e9d76e6ea933,
-  12,913,879 loaded ops
-- trusted evaluator: **qubits = 1274** (max-id scan confirms the width cut)
-- fingerprint: **18 classical / 10 phase / 0 ancilla** over 9,024 shots
-- NOT 0/0/0 -> per the pre-registered gate, NO hunt is proposed from this lane;
-  the inherited-nonce route is closed. The evaluator exits before printing avg
-  T on failure, so the exact full-count T receipt awaits a clean draw; the
-  deterministic diag T915,905.50 (offset -23.4, draw SD ~9) prices rounded full
-  T at ~915,882, score ~1,166,833,668 (-4.86M vs live).
+Rounded T would be 914793 and the score would be
+`1272 * 914793 = 1,163,616,696` if a clean nonce exists, an 8,072,604 reduction
+against the audited live score 1,171,689,300. The inherited draw is not clean,
+so no submission claim follows from that score.
 
-Calibration context for whoever owns density: the other lane's EXACT L-001 cut
-read 13/17/0 on its inherited draw; e928-era fresh-draw calibration on an
-accepted-class config measured lambda ~10.9 (1 clean per ~52k nonces).
-18/10/0 here is one Poisson-ish draw from a config whose paid-boundary census
-is BELOW live (2290 vs 2313) but whose width schedule is ~+3.2 lambda_cls
-hotter (the 940e34a rescale screen's number). Density calibration (FN-gated
-screener, GPU lane) decides huntability; this lane does not start it.
+The full evaluator appends its receipt to `results.tsv`; that generated row was
+removed after reading the exact average and is not part of this branch.
+`ops.bin`, release binaries, logs, and generated score artifacts remain ignored
+and uncommitted.
 
-## Verdict / next binder
+## Risk and next gate
 
-The composition stands as the priced Q1274 candidate: it passes the score gate
-with ~3.8k T margin where the exact carry-host composition missed by 226, and
-it does so with FEWER approximate boundary repairs than the live stream. The
-next binder is not schedule geometry (R1/R2/PEAK grid is at a sharp local
-optimum; Q1273 is score-negative) — it is the width-violation lambda of the
-compressed schedule: a per-round +1-bit repair of the ~6 narrowest rescaled
-rounds (SUB4_PP_WSCHED_FILE-style table edit, tooling exists on the 940e34a
-lane) could buy back most of the +3.2 lambda_cls for tens of T, well inside
-the 3.8k margin. That is the highest-EV next experiment before any fleet
-density run.
+The square and affine primitives pass their binary correctness gates. The
+remaining faults are graded-route risks: two fewer divide rounds change
+convergence exposure, width rescaling narrows the sampled schedule, and the
+smaller replay/square budgets change measured-boundary exposure.
+
+Before any hunt, qualify an exact classical predictor against unchanged full
+9,024-shot fixtures and prove CPU/GPU parity on this exact op hash. Only after
+that gate should a bounded first-predicted-clean canary be evaluated. A final
+candidate still requires full `0/0/0` on the unchanged evaluator.

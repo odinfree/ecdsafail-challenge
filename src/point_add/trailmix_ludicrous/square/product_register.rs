@@ -25,7 +25,8 @@ const F_NAF: [(usize, bool); 5] = [
 /// 257-carry ladder of `tri_corr` was the square's peak owner (1287 qubits).
 const SQUARE_CHUNK_MIN: usize = 200;
 /// Live carry-ladder budget for those wide adds; co-balanced with replay peak.
-const SQUARE_LADDER: usize = 244;
+/// `SUB4_SQUARE_LADDER=244` restores the prior Q1274 square plan.
+const SQUARE_LADDER: usize = 242;
 fn add_full(circ: &mut B, addend: &[QubitId], acc: &[QubitId]) {
     assert_eq!(addend.len(), acc.len());
     let chunk_min = std::env::var("SUB4_SQUARE_CHUNK_MIN")

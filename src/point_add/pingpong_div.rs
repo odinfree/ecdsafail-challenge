@@ -14,11 +14,9 @@ fn rounds_for(direction: PingPongDirection) -> usize {
     match direction {
         PingPongDirection::Divide => rounds(),
         PingPongDirection::Multiply => {
-            // One round fewer on the multiply traversal: its fused doubling
-            // cell holds one more wire (the shifted-out top bit) during the
-            // chunked add than the divide cell does, so a one-bit shorter
-            // tape puts both replay peaks at the same width.  Convergence
-            // exposure of one round on one traversal is ~+0.05 lambda.
+            // The audited Q1272 composition equalizes both traversals at 696
+            // rounds. Keep a separate override because the multiply depth was
+            // tuned independently on earlier routes.
             static SLOT: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
             tuned_window("SUB4_PP_ROUNDS_MUL", &SLOT, 696)
         }
@@ -27,18 +25,18 @@ fn rounds_for(direction: PingPongDirection) -> usize {
 
 fn rounds() -> usize {
     static SLOT: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
-    // 700, not 704: the walk's convergence tail tolerates the four-round cut on
-    // this draw (validated 9,024/9,024 with the baked tail nonce), the tape gives
-    // back four sign qubits against two wider terminal wires (peak 1320 -> 1318),
-    // and each cut round saves its replay and walk adds on both traversals.
-    tuned_window("SUB4_PP_ROUNDS", &SLOT, 698)
+    // 696 is the audited re-descent point: divide and multiply now use the same
+    // fixed depth.  This is a graded convergence cut, not an exact primitive
+    // rewrite, so the environment override remains available for reproduction
+    // and diagnosis (`SUB4_PP_ROUNDS=698` restores the Q1274 route).
+    tuned_window("SUB4_PP_ROUNDS", &SLOT, 696)
 }
 
 /// The width schedule is compressed so it still reaches its floor on the
-/// final round at the reduced 698-round depth, instead of stopping short:
+/// final round at the reduced depth, instead of stopping short:
 /// every walk and replay add above the floor gets its scheduled width from a
 /// slightly earlier point of the sampled curve, which removes the dead
-/// bit-rounds the four-round depth cut had left at the tail.  On this draw
+/// bit-rounds the depth cuts had left at the tail.  On this draw
 /// the compressed schedule also lowers the interleaved replay footprint, so
 /// the chunk layouts pay fewer approximate boundary repairs than the
 /// uncompressed schedule (2,290 vs 2,313 per traversal set).
@@ -1194,12 +1192,13 @@ fn plan(rounds: usize) -> Option<Plan> {
     // byte: at r1=509 no walk round is ever over budget, so nothing splits.
     // The replay and square are co-binders: this cut only lowers global width
     // when the square carry ladder is reduced in the same circuit.
-    // 340/628, not 342/625: re-tuned against the compressed width schedule,
-    // whose narrower interleaved walk registers move the cheapest chunk
-    // layouts by a few rounds in both directions.
+    // 340/628 is re-tuned against the compressed width schedule, whose narrower
+    // interleaved walk registers move the cheapest chunk layouts by a few
+    // rounds in both directions.  The environment overrides remain an exact
+    // reproduction path for the prior Q1274 plan (`SUB4_PP_PEAK=1274`).
     let r1 = env("SUB4_PP_R1", 340).min(rounds);
     let r2 = env("SUB4_PP_R2", 628).min(rounds.saturating_sub(1));
-    let peak = env("SUB4_PP_PEAK", 1274);
+    let peak = env("SUB4_PP_PEAK", 1272);
     Some(Plan { r1, r2, peak })
 }
 
