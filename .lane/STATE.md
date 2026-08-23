@@ -1,6 +1,6 @@
 # Lane state: bdf4845 SUB4 ladder history and Q1276 composition
 
-Updated: 2026-08-23T05:31:20+02:00
+Updated: 2026-08-23T06:55:22+02:00
 
 ## Decision
 
@@ -76,12 +76,26 @@ Q1276 artifact identity:
 The full evaluator's generated `results.tsv` rows, `ops.bin`, release binaries,
 temporary profiles, and score output were not retained in Git.
 
+## Exact-model qualification checkpoint
+
+- CPU equals the unchanged full evaluator on the inherited nonce and three
+  ordinary fixtures, including first classical failure.
+- Isolated and dedicated CUDA gates both give CPU = comb8 = comb16 on all four
+  fixtures with state digest `5a0a4564563a201a`.
+- The dedicated native-architecture binaries are bound as CUDA `6347cff0...`
+  and CPU `bb5b5f0b...`.
+- Source-build equals tail-patch byte-for-byte on all four fixtures. The
+  unchanged reserved full-confirm path closed receipt
+  `b09d29a129f61e02a95152da747e7fbe675375bbe23e945e597f9c6c88d927ee`.
+- The predeclared zero calibration is running. It has no terminal receipt;
+  low-3, canary launch, fleet retarget, and submission remain locked.
+
 ## Scope and next action
 
-No nonce hunt, provider action, spend, fleet mutation, submission, or incumbent
-change occurred in this lane.
+No nonce hunt, fleet retarget, submission, or incumbent change occurred. The
+only range activity is the fixed qualification interval.
 
-Next gate: bind the exact classical/prefilter model to SHA `d1461959...`, test
-fixtures across low counts including 0-3 against the unchanged full evaluator,
-and require zero false negatives before any campaign controller considers this
-stream. Final acceptance remains full 9,024-shot `0/0/0`.
+Next gate: finish the exact zero interval, validate every retained row through
+the CPU model and unchanged full evaluator, then run only the fixed low-3
+interval. Require zero false negatives before any campaign controller considers
+this stream. Final acceptance remains full 9,024-shot `0/0/0`.

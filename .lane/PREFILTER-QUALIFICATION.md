@@ -1,16 +1,17 @@
 # Q1276 exact-model qualification
 
-Updated: 2026-08-23T03:40:02Z
+Updated: 2026-08-23T04:55:22Z
 
 ## Verdict
 
-`HOLD_ZERO_PENDING`
+`HOLD_ZERO_RUNNING`
 
 The CPU and CUDA models are bound to the byte-exact candidate. CPU equals the
 unchanged full evaluator on the inherited nonce plus three ordinary nonces;
-CPU also equals CUDA comb8 and comb16 on every frozen fixture. Low-count
-fixtures 0 through 3 remain open. No hunt, submission, new spend, or range
-scan has occurred in this lane.
+CPU also equals CUDA comb8 and comb16 on every frozen fixture on both isolated
+and dedicated hosts. The predeclared zero interval is running; it has no
+terminal receipt yet, and the low-3 interval remains locked. No hunt,
+submission, or fanout has occurred in this lane.
 
 ## Live anchor
 
@@ -98,18 +99,62 @@ the candidate CUDA process exited normally.
 Cause splits were respectively `3/0/11/1/0`, `9/1/8/0/0`,
 `10/0/10/0/0`, and `9/0/7/1/0` in fixture-table order.
 
-The dedicated-host stage path independently requires zero GPU applications
-before and after rebuilding and repeating these equalities. Calibration accepts
-exactly one host proof: a validated borrow receipt xor a dedicated-host receipt.
+The dedicated-host stage independently rebuilt native `sm_120` binaries after
+asserting the exact GPU architecture and zero GPU applications. Its four rows
+again gave CPU = CUDA comb8 = CUDA comb16 with digest `5a0a4564563a201a`.
+The dedicated binary hashes are:
+
+- CUDA: `6347cff0dac69e8bfade15b28682381f0423143f81211dd1260785b9b7f05b56`;
+- CPU: `bb5b5f0bde170eacbb16560b1fd09169c0eb98788a2154890bc6f7fe2c5d9ca1`.
+
+The first native build stopped before fixtures because `cuobjdump | grep -q`
+caused a SIGPIPE under `pipefail`. No scan ran. Commit `c639abe` replaced that
+false stop with a full-output count check; a fresh restage then closed the
+dedicated receipt. Calibration accepts exactly one host proof: a validated
+borrow receipt xor a dedicated-host receipt.
+
+## Full-confirm path
+
+The reserved CPU path was qualified only after its incumbent confirmation
+queue reached zero. On all four frozen nonces, source-built operations and the
+generic tail patcher were byte-identical. Their hashes were `d1461959...`,
+`c3028fbd...`, `68b1cc12...`, and `bb681cbe...` in fixture-table order. The
+unchanged full evaluator then reproduced every classical, phase, ancilla, and
+first-failure value in the table above.
+
+Bound receipts:
+
+- source commit/tree: `c639abe` / `7f2d009`;
+- patcher SHA-256: `e1c5174ae456ea2ac3aa3b1a6377744c1617b81de4060734adf7dc7d80eee313`;
+- Linux build SHA-256: `16a17befc03e9a2394a1e385167720a79428f84783bcddd10b1bf2e8655bb4d5`;
+- unchanged Linux evaluator SHA-256:
+  `7e146f04e9147be2b5403f613ddc553fb3ddda7054256f14e7d95fc9d3556d40`;
+- terminal receipt SHA-256:
+  `b09d29a129f61e02a95152da747e7fbe675375bbe23e945e597f9c6c88d927ee`.
+
+The first evidence-sink guard used mode `0444`; root could still append, so
+the post-hash check stopped without a receipt. That attempt is frozen. The
+replacement uses directory sentinels at both compile-time output paths, which
+block root file writes. The clean rerun preserved the tracked `results.tsv`
+hash `eea84022...`, left the source clone clean, and kept the incumbent
+confirmer intact while observing zero GPU applications at receipt close.
+
+## Reserved canary
+
+The obsolete scanner was drained only at its active chunk boundary. Its child
+finished naturally, the coverage audit passed, the confirmer was preserved,
+and the Q1276 canary remains unlaunched. It retains the exact ops, source,
+binary, digest, and parity receipts, but it cannot launch until zero plus
+low-3 qualification closes.
 
 ## Remaining gates
 
-1. Stage the same exact source and artifact on a dedicated idle GPU and freeze
-   binary, digest, and parity receipts.
-2. Evaluate the predeclared zero calibration interval only. Confirm every
-   retained row with the CPU model and unchanged full evaluator.
-3. Only after an exact zero edge, evaluate the separate low-3 interval and
+1. Finish the already-running predeclared zero calibration interval. Confirm
+   every retained row with the CPU model and unchanged full evaluator.
+2. Only after an exact zero edge, evaluate the separate low-3 interval and
    freeze at least one exact full-evaluator fixture for counts 1, 2, and 3.
+3. Require zero false negatives across the frozen boundary set before any
+   canary launch or fleet retarget.
 
 Until all three close with no false negatives, the stream is not eligible for
 fanout or hunting. Final campaign acceptance still requires a full 9,024-shot

@@ -1,6 +1,6 @@
 # SUB4 ladder overturn ledger
 
-Updated: 2026-08-23T05:31:20+02:00
+Updated: 2026-08-23T06:55:22+02:00
 
 ## Protected anchor
 
@@ -36,6 +36,21 @@ the convergence-risk cost of a four-round shorter multiply traversal than
 `7ca0559`, while the square ladder is still 248. That does not make two global
 qubits free on its own because the circuit has independent peak owners.
 
+## Independent architectural corroboration
+
+A later group-chat note tied the two-round freedom to tightening
+`SUB4_SQUARE_LADDER` on an eight-commit-old baseline. Its author explicitly
+retracted his initial current-source conclusion after noticing that baseline
+gap. The note corroborates the ladder lever historically; it does not prove
+the transfer to `bdf4845`. The current-source conclusion rests on this lane's
+exact composition measurements: the replay peak cut alone leaves square at
+Q1278, while pairing peak1276 with ladder246 lowers every named owner to Q1276.
+
+The same note mentions an unpublished `v2Grinder` measurement near 16.2K
+nonces per second. It has no shared source, protocol binding, or reproducible
+receipt yet, so this lane does not rely on the rate and will not blindly
+reimplement it.
+
 ## Assumptions and exact falsifiers
 
 | load-bearing assumption | wall it creates | cheapest exact falsifier | result |
@@ -70,4 +85,3 @@ about +732.671 average T relative to Q1276. The local break-even is about
   `d1461959...`; it is the cheapest current-head composition found here.
 - `HOLD`: nonce hunting, fleet retarget, submission, and promotion. The baked
   inherited nonce is not clean.
-
