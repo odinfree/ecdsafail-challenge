@@ -14,7 +14,7 @@ Frozen before new measurement on 2026-08-23.
 | 4 | E-007 post-low boundary predicate | Recompute `b = anc && (z_low >= 0x1ffffefffffc2f)`, decrement all high203 bits, then recompute/uncompute the same predicate. | Q1272, diagnostic T918043.41, exact full T918104.700; final-y Q1026. | Fixed pair and 13-case reversible miter passed; inherited `11/12/0`, but its numeric mismatch set was not a subset of held `14/14/0`. | exact component held; H64 blocked |
 | 4 | E-008 causal H64 characterization | Retest E-007 with unchanged full-evaluator ensemble counts, first-failure distribution, and source-bound cause coverage; do not pair rebound indices. | Q1272, exact H64 T918113.406063; no source change from E-007. | `1053/776/0` passes 3-sigma non-inferiority; 64/64 exact sets classified with one result event. | non-inferior; held dirty |
 | 4 | E-009 candidate result localization | Replay nonce `444000000042`, shot 3036 and adjacent control 3035 through balanced coordinate checkpoints. | No source or T change during localization. | First divergence is square `+2^56`; integer replay pins final C-half top reduction call 9/9. | localized; source unchanged |
-| 4 | E-010 C-half LSBS57 | Widen only square top-reduction call 9/9 from 56 to 57 bits behind an opt-in. | Static call-local Q901 under global Q1272; predicted single-digit T. | Pinned 3035/3036, then exact adversarial boundaries at both bits 56 and 57. | predeclared |
+| 4 | E-010 C-half LSBS57 | Widen only square top-reduction call 9/9 from 56 to 57 bits behind an opt-in. | Measured Q1272; square `+3` emitted / `+1.671` realized T. | Pinned pair passed, but exact miter moved fault to `+2^57` and had phase mask `0x0a`. | killed; source removed |
 | 5 | E-005 state-selective terminal tail | Detect nonterminal residuals and conditionally execute one exact extra walk/replay cell. | Prior fused selector shapes cost several thousand T; universal one-round repair is false for some states. | First enumerate residual-state coverage on a frozen corpus; no source port before that. | held |
 
 E-001 and E-001b exposed the hidden multiply fold co-binder. E-001c changes the
@@ -30,4 +30,6 @@ independent-ensemble gate. E-007 is statistically non-inferior to held fold55,
 but not strictly superior, and remains dirty. E-009 then localized its sole
 result event to the product-register square's final C-half top reduction. The
 observed lost carry is exactly the first bit outside that site's 56-bit fold
-window; any repair must stay one-site and retain a separate exactness gate.
+window. E-010 proved that a one-site width shift cheaply fixes the pinned draw
+but only moves the general fault to the next bit. A successor must encode the
+carry state rather than choose a later truncation boundary.

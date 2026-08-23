@@ -282,3 +282,19 @@ C-half 56-to-57 window falsifier followed immediately by an adversarial
 boundary miter. The pinned event has bit56 zero and should become exact, but a
 general carry can recur at bit57; failure of that exactness gate kills the
 width shift without another adaptive width.
+
+## E-010 one-site width terminal update
+
+The only admitted C-half LSBS56-to-57 implementation fixed original E-009
+control 3035 and target 3036 exactly in the 64-lane product-square selfcheck.
+That focused circuit stayed Q1272 and cost only `+3` emitted / `+1.671`
+executed T. Value, phase, and ancilla all passed on that gate.
+
+The frozen adversarial top-reduction miter then failed: the two cases at
+`2^57-f` and `2^57-f+1` were each wrong by exactly `+2^57`, and the eight-lane
+phase mask was `0x0a`. This repeats the E-004 anti-lever one boundary later.
+E-010 was removed immediately; no composed artifact, full evaluation, or H64
+ran. Default, E-007, and tail42 operation hashes reproduced exactly after
+cleanup. Any next repair must explicitly preserve the carry across the
+low56/high200 boundary and erase it coherently inside the remaining 992-T live
+budget; another width shift is ruled out.
