@@ -160,3 +160,27 @@ Only if that attribution names a bounded repair should E-004 widen the square
 low window or a terminal/result cell. Any composition must retain Q1272,
 rounded full T at or below 921139, exact base/live reproduction, and a fresh
 no-new-result H gate. Do not grind the held stream.
+
+## E-004 terminal update
+
+The exact fixed-shot probe completed the declared isolation. On held SHA
+`d4ecab6d...`, nonce `444000000032` shot 7997 and adjacent control 7996 were
+both exact through add3x, product-register square, and multiply restore. The
+control stayed exact through the complete circuit. Shot 7997 first diverged at
+the final y-subtract by exactly `+2^53`; x, phase, and ancilla remained exact.
+This rules out square, multiply, and rsub for the observed result event.
+
+The only admitted repair, final-y `LSBS 53 -> 54`, emitted 12,939,341 ops at
+SHA `d45a4a5ce7e02fe9ab708c05929d27bb0ce55885233e688e9fa093aac8b0c441`
+and Q1272. On the original pinned input it moved the error to exactly `+2^54`
+instead of clearing it, while the control stayed exact. R1 therefore failed its
+first gate. It was removed without profiling T or running selftests, inherited
+full, or H64; those stages were conditionally authorized only after the fixed
+shot passed.
+
+Clean source again reproduces protected default SHA `ecc3d9f0...`, promoted
+fixture SHA `d9737f51...`, and held SHA `d4ecab6d...`. No generated probe,
+binary, ops stream, log, or result row is retained in Git. E-001c remains a
+held structural component, not a predictor or hunt stream. A future turn must
+predeclare a real boundary-carry representation; further window shifting is a
+measured anti-lever.
