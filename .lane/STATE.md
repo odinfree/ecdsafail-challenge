@@ -61,11 +61,11 @@ The current universal gate is `Q * T < 1175485230`. Exact strict T ceilings are 
 
 ## Current falsifier
 
-H11 fails on the first per-round value difference, candidate/reference phase-mask difference, raw forward collision, inverse/restoration/cleanup failure, X008 canary drift, extra candidate stochastic event, reference-only walk/walkback phase change, Q>1114, emitted T>960, second/concurrent flag, persistent carrier, unavailable predecessor, or dirty sign/scratch/flag/ancilla. Candidate replay consumes the exact `Hmr`/`R` words extracted from the unchanged raw replay cells; independent SHAKE alignment is not an oracle.
+H11 fails on the first per-round value difference, candidate/reference phase-mask difference, raw forward collision, inverse/restoration/cleanup failure, X008 canary drift, extra candidate stochastic event, reference-only walk/walkback phase change, Q>1114, emitted T>960, second/concurrent flag, persistent carrier, unavailable predecessor, or dirty sign/scratch/flag/ancilla. Candidate replay consumes the exact `Hmr`/`R` words extracted from the unchanged raw replay cells; independent SHAKE alignment is not an oracle. Pre-semantic amendment0 binds the inherited X008 cleanup's exact260 `R` resets from `B::free`; they are permitted only on already-zero targets with no phase change, and any additional/reset reorder is new debt.
 
 ## Next action
 
-Commit and push the X009 predeclaration before source edits or semantic execution. Then implement only the event-bound stochastic-tape miter and run the raw reference from the start. Stop on the first frozen KILL class. A complete pass authorizes only a later opt-in whole-production divide-splice prototype; do not implement the splice, extend round4, optimize, grind, hunt, or touch a provider in X009.
+Commit and push X009 pre-semantic amendment0 before constructing either simulator. Then continue only the event-bound stochastic-tape miter and run raw authority from the start. Stop on the first frozen KILL class. A complete pass authorizes only a later opt-in whole-production divide-splice prototype; do not implement the splice, extend round4, optimize, grind, hunt, or touch a provider in X009.
 
 ## Last verified result
 

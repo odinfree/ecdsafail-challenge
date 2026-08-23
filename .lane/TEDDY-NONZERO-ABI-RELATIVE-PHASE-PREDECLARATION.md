@@ -121,9 +121,9 @@ alignment, not circuit equivalence. X009 freezes this coupling instead:
    `Hmr`/`R` event order, for its corresponding unchanged replay cell. Extra
    reference walk/walkback events do not shift candidate replay randomness.
 4. Candidate/reference replay ranges must have identical ordered `Hmr`/`R`
-   kind sequences. The retained sign oracles, `T` toggles, and candidate
-   cleanup must contain zero `Hmr` and zero `R`. Any extra stochastic event is
-   `KILL_NEW_STOCHASTIC_DEBT`.
+   kind sequences. The retained sign oracles and `T` toggles must contain zero
+   `Hmr` and zero `R`. Candidate cleanup is bound by amendment 0 below. Any
+   additional stochastic event is `KILL_NEW_STOCHASTIC_DEBT`.
 5. Reference walk phase must be zero before `R0`. Reference cleanup must not
    change the phase mask present after `R3`; candidate cleanup must likewise
    preserve its `R3` phase mask. Debt generated only by reference walk or
@@ -133,6 +133,34 @@ The complete 64-lane candidate and reference phase masks are compared after
 each replay round and after cleanup. Equality includes every dirty and clean
 lane; diff hunks or counts are insufficient. Nonzero equal masks are reported
 verbatim as inherited raw-reference debt.
+
+### Pre-semantic amendment 0: bind inherited `free` resets
+
+After the X009 predeclaration commit and release compile, but before any corpus
+simulator or candidate/reference semantic row ran, the structural gate exposed
+an error in item 4's cleanup wording. In this source, `B::free(q)` always emits
+an `R(q)` before returning the physical wire to the allocator. X008's frozen
+candidate cleanup therefore already contains exactly 260 reset operations: one
+normalization flag, two oracle scratch wires, one shared sign, and the 256-bit
+retained denominator. These resets are inherited X008 structure, not new X009
+stochastic debt.
+
+The corrected frozen gate is:
+
+- candidate sign-oracle and `T` ranges contain zero `Hmr`/`R` outside the
+  unchanged replay cells;
+- candidate cleanup contains exactly the X008 sequence of 260 `R` and zero
+  `Hmr`, with no added, removed, or reordered stochastic event;
+- every reset target is already zero at its declared cleanup boundary, the
+  candidate phase mask is unchanged across cleanup, and all non-output qubits
+  are zero afterward;
+- reference walkback/free keeps its unchanged source sequence and must likewise
+  preserve the raw round-3 phase mask exactly.
+
+The first implementation attempt stopped at this static assertion before the
+build receipt and before either simulator was constructed. No corpus value,
+phase, inverse, or cleanup result existed when this amendment was committed.
+All replay coupling, canary, Q/T/state, and semantic KILL gates are unchanged.
 
 ## Ordered gates and KILL classes
 
@@ -160,7 +188,8 @@ Immediate KILL classes:
 - raw forward collision or failed inverse lookup:
   `KILL_FORWARD_ABI_NONINJECTIVE`;
 - X008 canary drift: `KILL_REFERENCE_CANARY_DRIFT`;
-- extra candidate `Hmr`/`R`: `KILL_NEW_STOCHASTIC_DEBT`;
+- any candidate `Hmr`/`R` beyond the shared replay events and the exact inherited
+  260-reset cleanup sequence: `KILL_NEW_STOCHASTIC_DEBT`;
 - walk/walkback-only phase change: `KILL_REFERENCE_AUX_PHASE_DEBT`;
 - Q>1114, emitted T>960, a second/concurrent flag, extra 256-bit carrier,
   unavailable predecessor, dirty sign/scratch/flag, changed denominator or
