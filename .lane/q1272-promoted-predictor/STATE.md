@@ -1,6 +1,6 @@
 # Promoted-source Q1272 predictor state
 
-- decision: `CPP_REPAIR_RETRO_PASS / NEW_HOLDOUT_REQUIRED / HOLD_CUDA / HOLD_RANGE`
+- decision: `W64_RUST_CPP_EQUAL / TRUSTED_REVEAL_NEXT / HOLD_CUDA / HOLD_RANGE`
 - target: `73422709` / tree `fe77bddf...` / ops `ea19759d...`
 - evidence: `41dd0b45` / exact diagnostic `23/8/0`
 - predictor source SHA-256: `39371fca9e77d7aab3cfda7111bdbc03c11d8cfc03966cd15b2ea77d79836e38`
@@ -27,8 +27,13 @@
 - repaired C++ retrospective: inherited 23/23; H64 64/64 and 1,144/1,144;
   spent D32 32/32 and 559/559; V64 64/64 and 1,131/1,131; all complete
   masks byte-identical to corrected Rust/trusted evidence
+- W64 corpus SHA-256:
+  `db43f935ec97561cdab7f1e0c86d11ea439f9b75f0da815a7a92b999bc5575a0`
+- W64 pre-evaluator seal: Rust/C++ 64/64 complete masks byte-identical,
+  1,138 predicted faults, output SHA-256 `0e395369f6b6e8d5...`; trusted
+  evaluator unopened at seal boundary
 - scan mode: disabled and negative-tested
 - phase: independently owned by the combined-phase lane; no phase claim here
 - provider/range/hunt/submission: none
-- next action: freeze a new deterministic holdout disjoint from inherited,
-  H64, D32, and V64; seal corrected Rust/C++ predictions before trusted reveal
+- next action: reveal W64 through the unchanged trusted full 9,024-shot
+  evaluator and require exact complete masks, Q1272, and zero ancilla garbage
