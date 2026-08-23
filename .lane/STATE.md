@@ -234,3 +234,37 @@ layout interactions); all pricing above is measured, not modeled.
 - ppfilter on baked stream @ inherited nonce: pred_cls=22 (fresh corpus draw
   at lambda ~14.2 — the ops prefix changed, so the corpus is a new draw;
   ensemble receipts below are the metric).
+
+## R6 — receipts on the frozen artifact (commit fe0b7ba)
+
+- Baked-stream ensemble (own corpus, 192 fresh draws, instrumented oracle,
+  0 cross-check mismatches): lambda_cls = 13.77 +/- 0.27, vs 15.12/15.09 on
+  the unrepaired candidate — measured drop ~-1.3, consistent with (slightly
+  better than) the -0.95 held-out estimate.
+- One authorized inherited-nonce full 9024 trusted eval (benchmark.sh,
+  clean rebuild): loaded ops 12,920,073, **qubits = 1274** (trusted),
+  fingerprint **22 classical / 11 phase / 0 ancilla**. Dirty draw as
+  expected at this density — per the pre-registered gate no hunt follows;
+  the count AND the first failing shot (474) match the ppfilter prediction
+  on this stream exactly (pred_cls=22, first=474). Phase channel unmoved
+  (10-11 both streams, as with the original rescale).
+
+## Verdict / next binder
+
+FROZEN at fe0b7ba: Q1274, diag T916,424.62 (est. full ~916,401, ceiling
+margin ~3.3k), est. score ~1,167,494,874 (-4.19M vs live leader), classical
+width-fault density bought down by ~1 lambda for +519 diag T, all gates
+clean, three-level byte-faithful opt-out chain preserved.
+
+The task's premise is REFUTED with data: the rescale's extra classical
+lambda does NOT sit in ~6 narrow rounds — it is a diffuse population of
+1-bit-marginal violations across the whole compressed curve (best 6-index
+repair: -0.08 lambda out-of-sample). Density and T trade on a smooth
+~1.2-1.8 lambda/kT frontier; r100 is the measured knee. Remaining density
+levers if the fleet wants more: r200 (-1.54 lambda, +987 T, measured, Q1274,
+tables in this lane's ledger) — beyond that the +2-bit population (~1.1
+lambda more) and the hard channels (term/replay, ~12 lambda) bind, which are
+not schedule-repairable. Paid-repair census on the repaired stream is the
+one unmeasured box (external tooling). Next binder is not the width
+schedule: it is phase lambda (~11, untouched by any width move) and the
+hard classical channels.
