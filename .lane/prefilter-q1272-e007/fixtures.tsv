@@ -1,0 +1,5 @@
+nonce	baked_ops_sha256	model_cls	walk_div	replay_div	walk_mul	replay_mul	result	model_first	full_cls	full_phase	full_ancilla	full_first	cpu_full_gate
+251000962439	4618d4af86c23c06cc72fef26f8a8e5986c7a9de5f804891541a8ce6eb189f37	11	8	0	3	0	0	2582	11	12	0	2582	exact_count_first_and_11_of_11_inherited_set
+0	007e7ef84e27498fbede1cece5f15a59a4f1612a8661dc3591068475e7bef7cc	14	6	2	6	0	0	151	14	13	0	151	exact_count_and_first
+7	9c229f7b1568d177bd2e8b17a92bcde6c7f4d0fada7bd637aa0ba9f8da8a6212	19	10	2	6	1	0	90	19	12	0	90	exact_count_and_first
+2500069332	d0d8793dbac1cefe50e0661f5bee943b778da46782d52dc0e09a5a51f4cb06da	12	4	0	8	0	0	911	12	9	0	911	exact_count_and_first
