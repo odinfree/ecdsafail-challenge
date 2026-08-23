@@ -454,3 +454,38 @@ close. Under the correlated (max-channel) model classical binds until cls~phase
 the independent (sum) model the phase gap keeps Q1272 ~4.5x above live even at
 ceil. True E[nonces] is a bracket, not a point. Finalist phase density MUST be
 re-measured post-bake on a fresh corpus (hash change).
+
+## D10 — finalist = ceil; bake-validation corpus PREDECLARED (before observation)
+
+**Finalist: the +1 CEILING (`ceil`, 555 sampled indices).** Rationale: ceil
+strictly dominates r300 under BOTH bracket endpoints. Independent (sum) model:
+lambda_total = lambda_cls + lambda_phase, so each 1.0 of classical reduction is
+worth exp(1.0) regardless of the (additive, equal-for-both) phase gap -- r300's
+extra 0.84 lambda_cls is NOT wasted. Max-channel model: classical binds until
+cls~=phase(~13.31); ceil's held-out cls (14.219) is still above 13.31, so its cut
+is fully live. There is no model in the bracket where r300 is preferred. ceil also
+brings Q1272 classical density BELOW the proven-huntable live config (14.219 vs
+14.637, both n=320 exact oracle) at peak 1272. +2 is infeasible (all-soft -> peak
+1278). ceil is the maximal feasible +1 repair (uses the entire peak-safe +1 pool).
+Score cost vs r300 ~1.48M, against a beat that stays ~ -4.6M with ~3.6k T of
+ceiling margin; the objective ranks hunt economics above score-maximization
+(score is a constraint, satisfied with margin).
+
+**PREDECLARED bake-validation corpus (committed BEFORE observing the baked
+finalist's density):** nonces **444000000000 .. 444000000063** (64 draws),
+deterministic, non-overlapping with A (111e9), B (222e9), C (333e9), or the
+inherited fixture 251000962439. Bound to the finalist's source/config identity:
+the baked default Q1272 stream = base source + a rescale-ON-gated width-repair
+overlay applying the `ceil` sampled table (`/tmp/tbl_ceil.csv`, 555 peak-safe +1s
++ envelope), rounds 696/696, all other defaults unchanged. Classical density on
+these 64 will be measured by ppfilter on the BAKED ops.bin + baked effective
+schedule; phase density by screen_nonces full sim. No fixed-stream per-nonce win
+is reused across the hash change. Pre-bake lambda_phase=13.31 (n=16) is NOT
+carried into the finalist economics; it is a fresh draw post-bake.
+
+**ppfilter oracle provenance note:** the `deficits` mode added `walk_required`
+(read-only, infinite-width) and a new match arm ONLY; `walk`,
+`shot_fault_mask_split`, `divide_replay`, `multiply_replay`, and all model
+constants are byte-identical to the binary that validated against the trusted
+18/10/0 and 22/11/0 receipts. Provenance re-confirmed by `breakdown 251000962439`
+= pred_cls 17 on the new binary (sha `dfa6f76c...`).
