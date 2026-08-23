@@ -2,7 +2,8 @@
 
 ## Current verdict
 
-`BAKE_PASS`; `PROTECTED_OPT_OUT_PASS`; `DENSITY_PASS`; `FAIL_MODEL_H64_2`;
+`BAKE_PASS`; `PROTECTED_OPT_OUT_PASS`; `DENSITY_PASS`;
+`MODEL_DIAGNOSIS_PASS_SQUARE_BIT56`; `FAIL_MODEL_H64_2`;
 `HOLD_PARITY`; `HOLD_SCAN`; `HOLD_HUNT`; `HOLD_PROVIDER`; `HOLD_SUBMIT`.
 
 The paired H64, density margins, and blinded disjoint32 were frozen before any
@@ -19,7 +20,6 @@ predictor-only shots.  Disjoint32 remains blinded.
 
 ## Next bounded action
 
-Commit and push `.lane/MISSING-CHANNEL-PREDECLARATION.md`, then run its bounded
-first-divergence trace on the two revealed shots.  Permit at most one general
-source-semantic correction and keep the frozen disjoint32 unopened until that
-correction is committed.
+Implement only the frozen circuit-exact product-register square correction,
+then require H64 64/64 complete-set equality.  Keep the frozen disjoint32
+unopened until the corrected model source is committed.
