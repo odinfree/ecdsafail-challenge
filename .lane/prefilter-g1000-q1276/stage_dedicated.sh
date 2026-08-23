@@ -36,7 +36,7 @@ test "$(sha256sum "$W/src/ppgpu.cu" | awk '{print $1}')" = \
   8fe6247eeb680ffad96423947909afc88321913bc039233dd85e18733b6a8fb3
 
 PPGPU_CUDA_ARCH=120 "$W/build.sh"
-cuobjdump --list-elf "$W/ppgpu" | grep -Fq 'sm_120'
+test "$(cuobjdump --list-elf "$W/ppgpu" | grep -Fc 'sm_120')" -ge 1
 mkdir "$W/fixtures"
 for nonce in 135608492183 0 7 2500069332; do
   PPF_OPS="$W/ops.bin" "$W/ppcpu" breakdown "$nonce" \
