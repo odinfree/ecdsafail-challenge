@@ -1,6 +1,6 @@
 # Promoted-source Q1272 predictor state
 
-- decision: `ADD3X_REPAIR_RETRO_PASS / V64_CPP_DISAGREEMENT / HOLD_CUDA / HOLD_RANGE`
+- decision: `RUST_V64_PASS / CPP_V64_FALSE_NEGATIVE / HOLD_CUDA / HOLD_RANGE`
 - target: `73422709` / tree `fe77bddf...` / ops `ea19759d...`
 - evidence: `41dd0b45` / exact diagnostic `23/8/0`
 - predictor source SHA-256: `39371fca9e77d7aab3cfda7111bdbc03c11d8cfc03966cd15b2ea77d79836e38`
@@ -18,9 +18,10 @@
   559/559, all complete masks exact
 - V64 pre-evaluator disagreement: nonce `90522024612912`, Rust/C++ 18/17,
   Rust-only shot `2544`; trusted V64 unopened at seal time
+- trusted V64 adjudication: corrected Rust 64/64 masks, 1,131/1,131 faults;
+  shared C++ falsified by trusted shot `2544`
 - scan mode: disabled and negative-tested
 - phase: independently owned by the combined-phase lane; no phase claim here
 - provider/range/hunt/submission: none
-- next action: reveal sealed V64 predictions to the unchanged trusted evaluator,
-  isolate shot 2544, repair only the falsified model, then freeze another new
-  disjoint holdout
+- next action: isolate shared-C++ shot 2544, repair only the C++ finite-width
+  transducer, rerun every revealed corpus, then freeze another new holdout
