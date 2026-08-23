@@ -20,7 +20,14 @@ static const u64 PP_EXPECTED_OPS = 12933805ULL;
 static const char PP_EXPECTED_OPS_SHA256[] =
     "ee6448dbb23aa877123733724b109266e584f1ba14abf5c38b43b9ab6aa26cd1";
 // Derived once from the exact target artifact before any predictor result.
+// The override exists only so the qualification packet can compile a
+// deliberately wrong-identity negative.  Production/default builds never set
+// it and remain bound to the literal below.
+#ifdef PP_EXPECTED_STATE_DIGEST_OVERRIDE
+static const u64 PP_EXPECTED_STATE_DIGEST = PP_EXPECTED_STATE_DIGEST_OVERRIDE;
+#else
 static const u64 PP_EXPECTED_STATE_DIGEST = 0x2148e09f4c4293b2ULL;
+#endif
 
 // Portable SHA-256 used to bind the complete compressed ops.bin before any
 // corpus derivation. This avoids trusting a shell utility or an op-count-only

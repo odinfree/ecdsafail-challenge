@@ -7,6 +7,7 @@
 //   ppcpu statedigest                    -> bound checkpoint/tail digest
 // Range and scan modes are deliberately absent from this qualification binary.
 // Env PPF_OPS selects the ops stream (default ops.bin).
+#include <cerrno>
 #include <vector>
 #include "pp_host.h"
 #include "../../q1273-phase/src/pp_phase_schedule.h"
@@ -20,6 +21,24 @@ static void limbs_hex(const u64 a[4], char* out) {
     snprintf(out, 80, "%016llx%016llx%016llx%016llx", (unsigned long long)a[3],
              (unsigned long long)a[2], (unsigned long long)a[1],
              (unsigned long long)a[0]);
+}
+
+static bool parse_nonce(const char* text, u64* out) {
+    if (text == nullptr || *text == '\0' ||
+        (text[0] == '0' && text[1] != '\0')) {
+        return false;
+    }
+    for (const char* p = text; *p != '\0'; p++) {
+        if (*p < '0' || *p > '9') return false;
+    }
+    errno = 0;
+    char* end = nullptr;
+    unsigned long long value = strtoull(text, &end, 10);
+    if (errno != 0 || end == text || *end != '\0' || value >= (1ULL << 48)) {
+        return false;
+    }
+    *out = (u64)value;
+    return true;
 }
 
 // Exact source-bound conditional-phase contract. The independent two-pass
@@ -46,6 +65,14 @@ static int phasefaultshots(const PP_Prefix* prefix, const u64* comb, u64 nonce) 
     const size_t batches = shots.size() / 64;
     const size_t rng_words_per_block = 8192;
     std::vector<u8> rng_block(rng_words_per_block * 8);
+#ifdef PP_PHASE_FORCE_BAD_SCHEDULE
+    std::vector<u8> negative_families(PP_PHASE_FAMILIES,
+                                      PP_PHASE_FAMILIES + PP_PHASE_SITE_COUNT);
+    negative_families[0] ^= 1u;
+    const u8* phase_families = negative_families.data();
+#else
+    const u8* phase_families = PP_PHASE_FAMILIES;
+#endif
 
     for (size_t batch = 0; batch < batches; batch++) {
         std::fill(predicates.begin(), predicates.end(), 0);
@@ -53,7 +80,7 @@ static int phasefaultshots(const PP_Prefix* prefix, const u64* comb, u64 nonce) 
         for (int lane = 0; lane < 64; lane++) {
             size_t shot_index = batch * 64 + (size_t)lane;
             PP_Shot& shot = shots[shot_index];
-            PP_PhaseTrace tr{values.data(), PP_PHASE_FAMILIES, PP_PHASE_SITE_COUNT,
+            PP_PhaseTrace tr{values.data(), phase_families, PP_PHASE_SITE_COUNT,
                              0, false};
             u32 fault = pp_shot_fault_phase_trace(shot.tx, shot.ty, shot.ox, shot.oy,
                                                   shot.lam, &tr);
@@ -125,11 +152,29 @@ static int phasefaultshots(const PP_Prefix* prefix, const u64* comb, u64 nonce) 
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        fprintf(stderr, "usage: ppcpu shaketest | statedigest | faultshots NONCE | "
+        fprintf(stderr, "usage: ppcpu shaketest | identity | statedigest | faultshots NONCE | "
                         "phasefaultshots NONCE | shot NONCE IDX | breakdown NONCE\n");
         return 2;
     }
     std::string mode = argv[1];
+    u64 qualified_nonce = 0;
+    u64 qualified_shot = 0;
+    if (mode == "phasefaultshots" || mode == "faultshots" || mode == "breakdown") {
+        if (argc != 3 || !parse_nonce(argv[2], &qualified_nonce)) {
+            fprintf(stderr, "ppcpu: expected one canonical 48-bit nonce\n");
+            return 2;
+        }
+    } else if (mode == "shot") {
+        if (argc != 4 || !parse_nonce(argv[2], &qualified_nonce) ||
+            !parse_nonce(argv[3], &qualified_shot) || qualified_shot >= PP_NUM_TESTS) {
+            fprintf(stderr, "ppcpu: expected a canonical 48-bit nonce and shot index\n");
+            return 2;
+        }
+    } else if ((mode == "identity" || mode == "statedigest" || mode == "shaketest") &&
+               argc != 2) {
+        fprintf(stderr, "ppcpu: unexpected arguments for %s\n", mode.c_str());
+        return 2;
+    }
 
     if (mode == "scan") {
         fprintf(stderr, "ppcpu: scan mode disabled in bounded qualification build\n");
@@ -195,6 +240,18 @@ int main(int argc, char** argv) {
     PP_Prefix prefix;
     pp_load_prefix(ops_path(), &prefix);
     fprintf(stderr, "ppcpu: prefix loaded, %llu ops\n", (unsigned long long)prefix.total_ops);
+    if (mode == "identity") {
+        printf("source_commit=%s ops_count=%llu ops_sha256=%s "
+               "predictor_digest=%016llx phase_meta_sha256=%s phase_sites=%d "
+               "phase_rhmr=%d shots=%d contract=phase&~classical "
+               "final=classical_mask==0&&clean_phase_mask==0 "
+               "raw_phase=not-claimed cuda_phase=not-claimed\n",
+               PP_SOURCE_COMMIT, (unsigned long long)PP_EXPECTED_OPS,
+               PP_EXPECTED_OPS_SHA256,
+               (unsigned long long)pp_state_digest(&prefix), PP_PHASE_META_SHA256,
+               PP_PHASE_SITE_COUNT, PP_PHASE_RHMR_COUNT, PP_NUM_TESTS);
+        return 0;
+    }
     if (mode == "statedigest") {
         printf("%016llx\n", (unsigned long long)pp_state_digest(&prefix));
         return 0;
@@ -204,18 +261,12 @@ int main(int argc, char** argv) {
     fprintf(stderr, "ppcpu: comb ready\n");
 
     if (mode == "phasefaultshots") {
-        if (argc != 3) {
-            fprintf(stderr, "usage: ppcpu phasefaultshots NONCE\n");
-            return 2;
-        }
-        u64 nonce = strtoull(argv[2], nullptr, 10);
-        return phasefaultshots(&prefix, comb.data(), nonce);
+        return phasefaultshots(&prefix, comb.data(), qualified_nonce);
     }
 
     if (mode == "faultshots") {
-        u64 nonce = strtoull(argv[2], 0, 10);
         std::vector<PP_Shot> shots;
-        pp_derive_corpus(&prefix, nonce, comb.data(), shots);
+        pp_derive_corpus(&prefix, qualified_nonce, comb.data(), shots);
         for (size_t i = 0; i < shots.size(); i++) {
             u32 m = pp_shot_fault_mask(shots[i].tx, shots[i].ty, shots[i].ox, shots[i].oy,
                                        shots[i].lam);
@@ -224,9 +275,8 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (mode == "breakdown") {
-        u64 nonce = strtoull(argv[2], 0, 10);
         std::vector<PP_Shot> shots;
-        pp_derive_corpus(&prefix, nonce, comb.data(), shots);
+        pp_derive_corpus(&prefix, qualified_nonce, comb.data(), shots);
         u64 br[5] = {0, 0, 0, 0, 0};
         u64 pred = 0;
         long first_idx = -1;
@@ -245,17 +295,16 @@ int main(int argc, char** argv) {
         }
         printf("nonce %llu pred_cls=%llu walk_div=%llu replay_div=%llu walk_mul=%llu "
                "replay_mul=%llu result=%llu shots=%zu first=%ld\n",
-               (unsigned long long)nonce, (unsigned long long)pred,
+               (unsigned long long)qualified_nonce, (unsigned long long)pred,
                (unsigned long long)br[0], (unsigned long long)br[1],
                (unsigned long long)br[2], (unsigned long long)br[3],
                (unsigned long long)br[4], shots.size(), first_idx);
         return 0;
     }
     if (mode == "shot") {
-        u64 nonce = strtoull(argv[2], 0, 10);
-        int idx = atoi(argv[3]);
+        int idx = (int)qualified_shot;
         std::vector<PP_Shot> shots;
-        pp_derive_corpus(&prefix, nonce, comb.data(), shots);
+        pp_derive_corpus(&prefix, qualified_nonce, comb.data(), shots);
         PP_Shot& s = shots[idx];
         u32 m = pp_shot_fault_mask(s.tx, s.ty, s.ox, s.oy, s.lam);
         char hx[80];
