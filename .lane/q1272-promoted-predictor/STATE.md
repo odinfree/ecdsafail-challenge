@@ -1,11 +1,13 @@
 # Promoted-source Q1272 predictor state
 
-- decision: `PREDECLARED / NO MODEL CLAIM / HOLD CUDA / HOLD RANGE`
-- target: `7342270` / tree `fe77bddf...` / ops `ea19759d...`
-- evidence: `41dd0b4` / exact diagnostic `23/8/0`
-- classical donor: older-source code only; known target result `17 != 23`
-- phase donor: trace/generator mechanics only; zero target data consumed
+- decision: `INHERITED_CLASSICAL_PASS / 23_OF_23_COMPLETE_MASK / HOLD_H64 / HOLD_CUDA / HOLD_RANGE`
+- target: `73422709` / tree `fe77bddf...` / ops `ea19759d...`
+- evidence: `41dd0b45` / exact diagnostic `23/8/0`
+- predictor source SHA-256: `2d016070a93a5966c5a163a6242b27ef8264176c76c72448ba50027b70465890`
+- inherited classical index SHA-256: `c46041ff454200ba4d2ab3cffcefb2b118e4afd839f674431762b24da37f8848`
+- inherited result: evaluator = predictor = 23, first shot 292, complete set equal
+- scan mode: disabled and negative-tested
+- phase: independently owned by the combined-phase lane; no phase claim here
 - provider/range/hunt/submission: none
-- next action: integrate the exact committed target tree, then rederive and
-  falsify the source-bound CPU model against complete classical and
-  conditional-phase masks
+- next action: seal this inherited checkpoint, then qualify the exact shared
+  CPU/CUDA model against the predeclared H64 and disjoint holdout fixtures
