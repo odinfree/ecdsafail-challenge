@@ -1,4 +1,4 @@
-# HOLD-HUNT — direct Q1272 replay-ladder descent: Q1272 landed on both trust paths, T priced under the strict ceiling, ladder family TERMINAL at this rung
+# HOLD-HUNT — direct Q1272 replay-ladder descent: Q1272 landed on both trust paths, T priced under the strict ceiling; exact-lead layout form ends at Q1272 (Q1271 rung unpriced, NOT excluded on headroom)
 
 Resolved: 2026-08-23. Lane: `research/fable-2c79-replay-ladder-q1272`.
 Binding predeclaration: `.lane/PREDECLARATION-Q1272-LADDER.md` @ `3d9ac75`
@@ -13,7 +13,7 @@ T ≤ **917,967** (floor((1,167,654,124−1)/1272); headroom +1,441).
 
 ## Verdict
 
-**The second rung fired, and it is the last one.** Armed
+**The second rung fired.** Armed
 `SUB4_PP_PEAK=1272 SUB4_SQUARE_LADDER=242` on byte-exact `2c79d2f`:
 
 - **Q = 1272 on both trust paths** (builder census AND the trusted
@@ -27,10 +27,16 @@ T ≤ **917,967** (floor((1,167,654,124−1)/1272); headroom +1,441).
   intrinsic class (sibling Q1273: 12/12/0; b523 control: 14/9/0; ancilla
   exactly 0 everywhere). Stop rule 4 → **HOLD-HUNT**: the candidate needs a
   GPU nonce hunt (excluded from this lane) before any submission.
-- **Ladder lane exhausted**: the divide-terminal layout cliff is measured
-  statically at Q1271 (below), so no further −1 rung exists in this family.
-  No stop rule 1–3 fired; the R1/R2 rebalance of stop rule 2 was never
-  needed.
+- **Exact-lead layout form ends here; Q1271 rung unpriced.** The divide
+  terminal's exact-lead chunk layout is derived statically to flip to an
+  all-approximate equal split at budget 59 (peak 1271, below). That is a
+  *layout-form* change (more truncated repairs, higher λ), NOT a pricing
+  death: the Q1271 strict ceiling is 918,689, leaving **+1,012** over this
+  lane's measured draw 917,677 — more than either measured single rung cost
+  (~+576 full-corpus). The equal-split λ/T penalty is not measured in this
+  lane, so a Q1271 rung is **not excluded on headroom**; whether it fits is
+  a successor pricing question (see Next binder). No stop rule 1–3 fired;
+  the R1/R2 rebalance of stop rule 2 was never needed.
 
 ## Operation identities
 
@@ -79,17 +85,21 @@ brackets, as predeclared.
 
 | basis | rounded T | score = 1272 × T | vs live 1,167,654,124 |
 |---|---|---|---|
-| paired bracket low | 917,543 | 1,167,114,696 | **−539,428** |
-| full-diag draw | 917,677 | 1,167,285,144 | **−368,980** |
-| paired bracket high | 917,813 | 1,167,458,136 | **−195,988** |
+| paired bracket low (64-lane proxy) | 917,543 | 1,167,114,696 | **−539,428** |
+| **full-diag draw (only measurement on the real 9,024-shot Fiat-Shamir corpus)** | 917,677 | 1,167,285,144 | **−368,980** |
+| paired bracket high (64-lane proxy) | 917,813 | 1,167,458,136 | **−195,988** |
 | strict ceiling | 917,967 | 1,167,654,024 | −100 (guarantee) |
 
-Any hunted nonce whose re-verified rounded T ≤ 917,967 beats the frontier.
+Only the full-diag row is measured on the actual scoring corpus; the two
+bracket rows are deterministic 64-lane proxies that bound it (and do — the
+draw 917,677 sits between them). A reader quoting "−539,428" is quoting a
+proxy endpoint, not the corpus measurement. Any hunted nonce whose
+re-verified rounded T ≤ 917,967 beats the frontier.
 For comparison, the sibling Q1273 candidate projects −54.7k…−113.3k: one
 hunt spent on the Q1272 stream buys roughly 3–5× the score win of the same
 hunt on Q1273.
 
-## Ladder family TERMINAL — static cliff at Q1271 (allocator algebra, cross-checked against three measured rungs)
+## Exact-lead layout form ends at Q1272 — Q1271 rung UNPRICED, not excluded on headroom (allocator algebra, cross-checked against three measured rungs)
 
 `chunk_layout(256, target, final)` with the 20-bit exact-lead compare
 window, replicated externally and validated against the measured layouts at
@@ -104,14 +114,32 @@ window, replicated externally and validated against the measured layouts at
 
 At 1271 the exact-lead form is unreachable (the lead cap IS the compare
 window, already saturated), so the divide terminal flips to an all-
-approximate equal split: more truncated repairs per replay round, higher λ,
-worse fault density — a structurally different and strictly worse family.
-The multiply terminal still has exact-lead room at 1271 (`[20,59×4]`), but
-the peak is set by the divide side. **This family ends at Q1272.** The
-remaining co-binder terms at the divide terminal are tape 698 + coefficient
-256 + numerator 256 + 2 loaned signs + ladder 60 = 1272; tape and the
-512-wide ABI are exactly floored by predecessor bounds
-(injectivity/pricing), the ladder is now at its cliff.
+approximate equal split: more truncated repairs per replay round, hence
+higher λ and executed T. **This is a layout-form change, not a proven death
+of the family.** What is NOT measured here is the size of that λ/T penalty.
+The pricing bound that governs the decision:
+
+- Q1271 strict ceiling = floor((1,167,654,124−1)/1271) = **918,689**.
+- This lane's measured full-corpus draw at Q1272 = 917,677.
+- Headroom for a Q1271 rung = **+1,012** — *larger* than either measured
+  single-rung cost (parent→1273 +631.86 profile; 1273→1272 +655.77 profile;
+  ~+576/rung on the full corpus), because the ceiling grows ~722 per unit of
+  Q while a base rung costs ~650.
+- So a Q1271 rung fits its own ceiling **unless the equal-split cliff
+  penalty exceeds roughly +436 on top of the base rung cost.** That penalty
+  is one extra approximate 20-bit boundary repair per terminal-batch replay
+  round (~137 terminal rounds) plus its λ re-execution — plausibly small,
+  plausibly not; it is not measured in this lane and MUST NOT be measured
+  here (the predeclaration binds "set only PEAK=1272 LADDER=242"; a
+  PEAK=1271 probe is out of scope and requires its own predeclaration).
+
+The multiply terminal still has exact-lead room at 1271 (`[20,59×4]`); the
+peak is set by the divide side. Co-binder terms at the Q1272 divide terminal:
+tape 698 + coefficient 256 + numerator 256 + 2 loaned signs + ladder 60 =
+1272; tape and the 512-wide ABI stay exactly floored by predecessor bounds
+(injectivity/pricing). **Verdict: the exact-lead ladder rungs end at Q1272;
+a Q1271 rung on the equal-split form is unpriced and open — a successor
+pricing question, not a closed lane.**
 
 ## Predictor handoff (gate 6, grounded in artifacts, not labels)
 
@@ -201,11 +229,17 @@ not guessed.
    then submit.
 2. If the Q1272 hunt stalls on density, the Q1273 stream (md5 `5ba8782c…`)
    remains a valid cheaper-λ fallback with its own ceiling margin.
-3. Further Q descent is off this ladder: the next structural family is the
-   **512-wide ABI co-residency** (coefficient+numerator at the replay), the
-   only non-floored co-binder term; the sign tape (698) stays floored by
-   the predecessor's injectivity/pricing bounds, and the ladder is at its
-   measured cliff.
+3. **Price the Q1271 rung before abandoning the ladder.** It is unpriced,
+   not excluded: +1,012 headroom (ceiling 918,689) beats either measured
+   rung cost. The one open question is the equal-split cliff penalty (extra
+   approximate boundary repairs at the divide terminal). Predeclare a
+   PEAK=1271 LADDER=241 family (own predeclaration, own gates), measure the
+   64-lane and full-corpus T deltas, and KILL only if the measured rounded
+   T exceeds 918,689. This ranks *ahead* of the 512-ABI family below.
+4. Further Q descent once the ladder truly caps: the next structural family
+   is the **512-wide ABI co-residency** (coefficient+numerator at the
+   replay), the only non-floored co-binder term; the sign tape (698) stays
+   floored by the predecessor's injectivity/pricing bounds.
 
 ## Model receipt
 
