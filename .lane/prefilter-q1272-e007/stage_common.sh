@@ -23,7 +23,7 @@ stage_sha() {
 stage_require_tools() {
   local tool
   for tool in awk cmp cuobjdump dd flock g++ grep head nvidia-smi nvcc od \
-    sed sha256sum strings tail tr zstd; do
+    sed sha256sum tail tr zstd; do
     command -v "$tool" >/dev/null
   done
 }
@@ -62,10 +62,8 @@ stage_build_scan_disabled() {
   local w=$1 cuda_arch=$2
   PPGPU_CUDA_ARCH="$cuda_arch" "$w/build.sh"
   test "$(cuobjdump --list-elf "$w/ppgpu" | grep -Fc "sm_$cuda_arch")" -ge 1
-  strings "$w/ppcpu" | grep -Fqx \
-    'ppcpu: range scanning is disabled in this parity build'
-  strings "$w/ppgpu" | grep -Fqx \
-    'ppgpu: range scanning is disabled in this parity build'
+  grep -aFq 'ppcpu: range scanning is disabled in this parity build' "$w/ppcpu"
+  grep -aFq 'ppgpu: range scanning is disabled in this parity build' "$w/ppgpu"
 }
 
 stage_run_fixtures() {

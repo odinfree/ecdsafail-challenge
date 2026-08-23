@@ -42,11 +42,11 @@ Q1274 qualification. Its fixed stage root is:
 - inherited exact fault-shot ledger:
   `77c521cb00cbd6fcc32bd6f9accb49d26f1c435b0b79091cf09dbfbd0efc9eaf`;
 - `stage_common.sh`:
-  `55f8d51b9cc7297d206a3d460fcc5d7c56375202506cd4b72933ac255d14c3ba`;
+  `94950be99c0bcafc20373c9d29ebc142679cb026151d1d5558a3fea3a2b43bd9`;
 - `stage_dedicated.sh`:
-  `3f76fc64cb76b960a9e06cb78d3b0f5a2933019405e16bd9085ac00ddc2e8a79`;
+  `d75b797172a8c003e34a084f578d8113dbe43d8a0059d85ced0bcaee78c9a3c4`;
 - unarmed `stage_borrowed.sh`:
-  `33dfb07d5cd75fb8acb51813fd7bc5422b343b75e478fd5ffbe2bc046de5e3e5`;
+  `6ddfdc504a710d712b4872e854bb33d4deede274f24c5a21592b5ca8188e8788`;
 - unarmed `pilot_tolerant.sh`:
   `55fec31176301fe7c2ab2fe66feffe87feb2bb31afa34a232b26ec9cfd068830`.
 

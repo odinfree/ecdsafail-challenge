@@ -4,7 +4,7 @@
 set -euo pipefail
 
 W=$(cd "$(dirname "$0")" && pwd)
-readonly COMMON_SHA=55f8d51b9cc7297d206a3d460fcc5d7c56375202506cd4b72933ac255d14c3ba
+readonly COMMON_SHA=94950be99c0bcafc20373c9d29ebc142679cb026151d1d5558a3fea3a2b43bd9
 test "$(sha256sum "$W/stage_common.sh" | awk '{print $1}')" = "$COMMON_SHA"
 # shellcheck source=stage_common.sh
 source "$W/stage_common.sh"
