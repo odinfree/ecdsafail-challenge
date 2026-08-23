@@ -1,4 +1,5 @@
 #include "q1270_pp_host.h"
+#include "q1270_square_boundary.h"
 
 #include <iostream>
 
@@ -80,7 +81,12 @@ int main(int argc, char** argv) {
             selftest(argv[2], argv[3]);
             return 0;
         }
-        std::cerr << "usage: q1270_ppcpu identity | q1270_ppcpu selftest CHECKPOINT ACTIVE_WIDTHS\n";
+        if (argc == 2 && std::string(argv[1]) == "square-boundary-selftest") {
+            q1270::square_boundary_selftest(std::cout);
+            return 0;
+        }
+        std::cerr << "usage: q1270_ppcpu identity | q1270_ppcpu selftest CHECKPOINT ACTIVE_WIDTHS"
+                     " | q1270_ppcpu square-boundary-selftest\n";
         return 2;
     } catch (const std::exception& error) {
         std::cerr << "q1270_ppcpu: " << error.what() << '\n';

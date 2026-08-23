@@ -32,6 +32,10 @@
 - native model source: target-only recurrence/host/CLI implemented; two strict
   C++20 builds byte-identical at `38e95b03...f5b7f`; SHAKE, checkpoint, width,
   and inherited shot-0 divide/multiply unit PASS;
+- square boundary regression: exact 17 source-order two-chunk events enumerated;
+  integer carry-vs-predicate residual zero; six complemented `sub_full` frames
+  and B shift-6 `sign=0` explicit; two builds byte-identical at
+  `f7ce2e97...596ad`, output `a62ccdfd...af77`;
 - model status: no donor source, binary, table, checkpoint, or output imported;
 - decision: `NATIVE BUILD PASS / COMPLETE-MASK QUALIFICATION HOLD-UNRUN / NO HUNT`.
 
