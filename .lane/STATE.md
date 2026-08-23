@@ -4,7 +4,15 @@ Worker: Claude Fable 5, high effort, ≤USD 25. Source frozen at 4eb93cb
 (child predeclaration commit 8525146). Harness never edited. No provider
 compute / nonce hunt / fleet / submission / external messages.
 
-## DISPOSITION: SCORE_GO / VALIDATION_DIRTY (hand-off) + Q1271 KILL
+## DISPOSITION: Q1271 STRUCTURAL PASS / FROZEN-EIGHT CALIBRATION PENDING
+
+Takeover checkpoint: the predeclared default-off `doubled_out` lifecycle is
+now implemented and independently gated.  Default Q1273 control reproduced
+exactly; the focused relative value/phase/ancilla miter, full affine component,
+and square component pass; and the inherited default-nonce Q1271 result
+reproduces exactly at T915685.693 with channels 13/11/0.  See
+`Q1271-FIVE-T-STRUCTURAL-PASS.md`.  The frozen eight rows are the only remaining
+authorized experiment.
 
 A Q1272 candidate STRICTLY BEATS the incumbent objective and is dirty on full
 channels → per lane rule it is handed (as durable source + op identity) to a
@@ -63,18 +71,16 @@ over-shoots the peak knob by 2 steps and would score WORSE (S=1,166,170,872).
 
 ## Rejected / killed levers (with evidence)
 - Q1271 (EVICT_DOUBLED_OUT + PEAK=1271/SQ=241): T 915686 > 915681 ceiling; Q·T
-  = 1,163,836,906 > S0 → KILL. The doubled_out rematerialization (default-off,
-  byte-neutral when off; implemented then reverted) only relieves mul_replay,
-  but the Q1271 floor is walkback, forcing PEAK=1271 whose T penalty overshoots
-  by ~5 rounded Toffoli. Not independently falsified for function-neutrality.
+  = 1,163,836,906 > S0 on the default nonce.  The default-off lifecycle now
+  has an exact relative miter and passing production component/square checks;
+  its default-nonce 13/11/0 row is reproduced.  Frozen-eight calibration is
+  pending and cannot establish a clean candidate without fresh live state.
 - SUB4_PP_PEAK / SUB4_SQUARE_LADDER alone: no Q gain, T up, dirty.
 
 ## Next objective-advancing action
-Nonce-screen lane: on frozen 4eb93cb with `SUB4_PP_PEAK=1272
-SUB4_SQUARE_LADDER=242`, hunt `SUB4_PINGPONG_TAIL_NONCE` to clear the 22/17
-dirty channels; expected clean score 1,163,616,696 (Q1272). Secondary: seek a
-walkback-phase truncation-neutral eviction to make Q1271 reachable without the
-PEAK=1271 T penalty (would then need T ≤ 915681).
+Run exactly the eight predeclared full-evaluator nonces
+`65700024945641..65700024945648`, once each and in order.  Stop after row eight;
+do not extend, hunt, contact a provider, submit, or publish.
 
 ## Worktree
 Clean: source byte-exact; ops.bin/score.json gitignored; results.tsv restored

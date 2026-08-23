@@ -1813,11 +1813,27 @@ fn signed_mod_double_add_pm_fused(
     source: &[QubitId],
     target: &[QubitId],
 ) {
+    signed_mod_double_add_pm_fused_impl(
+        b,
+        sign,
+        source,
+        target,
+        std::env::var_os("SUB4_PP_EVICT_DOUBLED_OUT").is_some(),
+    );
+}
+
+fn signed_mod_double_add_pm_fused_impl(
+    b: &mut B,
+    sign: QubitId,
+    source: &[QubitId],
+    target: &[QubitId],
+    evict_doubled_out: bool,
+) {
     let f = U256::MAX
         .wrapping_sub(SECP256K1_P)
         .wrapping_add(U256::from(1));
 
-    let doubled_out = b.alloc_qubit();
+    let mut doubled_out = b.alloc_qubit();
     b.swap(target[N - 1], doubled_out);
     for i in (0..N - 1).rev() {
         b.swap(target[i], target[i + 1]);
@@ -1854,6 +1870,14 @@ fn signed_mod_double_add_pm_fused(
     b.cx(doubled_out, odd_correction);
     b.cx(add_out, odd_correction);
     let first_carry = and_clean(b, target[0], odd_correction);
+    // At this boundary odd_correction = doubled_out ^ add_out.  The fold
+    // does not read doubled_out, so the two still-live parity wires are an
+    // exact local representation of it while its physical slot is loaned.
+    if evict_doubled_out {
+        b.cx(odd_correction, doubled_out);
+        b.cx(add_out, doubled_out);
+        b.free(doubled_out);
+    }
     let negative_f = twos_complement_bits(f, replay_fold_window());
     fused_fold_maskfree(
         b,
@@ -1865,6 +1889,11 @@ fn signed_mod_double_add_pm_fused(
         minus_f,
         first_carry,
     );
+    if evict_doubled_out {
+        doubled_out = b.alloc_qubit();
+        b.cx(odd_correction, doubled_out);
+        b.cx(add_out, doubled_out);
+    }
 
     b.cx(odd_correction, target[0]);
     and_uncompute(b, first_carry, target[0], odd_correction);
@@ -2218,6 +2247,229 @@ pub(crate) fn pingpong_point_add_simulator_selfcheck() {
     eprintln!(
         "pingpong full affine add: {emitted_toffoli} emitted / {average_executed:.3} executed Toffoli, {num_qubits} qubits"
     );
+}
+
+/// Equivalence gate for the optional `doubled_out` loan.  It compares the
+/// fused inverse cell directly and then composes the production halve cell
+/// with its sign-adjusted doubling inverse.  Identical measurement randomness
+/// makes the phase check relative, lane by lane, rather than absolute.
+#[allow(dead_code)]
+pub(crate) fn doubled_out_lifecycle_selfcheck() {
+    use crate::circuit::QubitOrBit;
+    use sha3::digest::XofReader;
+
+    struct FixedReader([u8; 8]);
+    impl XofReader for FixedReader {
+        fn read(&mut self, buffer: &mut [u8]) {
+            for (i, byte) in buffer.iter_mut().enumerate() {
+                *byte = self.0[i % self.0.len()];
+            }
+        }
+    }
+
+    type Built = (
+        Vec<Op>,
+        QubitId,
+        Vec<QubitId>,
+        Vec<QubitId>,
+        usize,
+        usize,
+        u32,
+    );
+
+    let build = |evict: bool, roundtrip: bool| -> Built {
+        let mut b = B::new();
+        let sign = b.alloc_qubit();
+        let source = b.alloc_qubits(N);
+        let target = b.alloc_qubits(N);
+        let live_inputs = b.active_qubits;
+        if roundtrip {
+            signed_mod_add_pm_halve_fused(&mut b, sign, &source, &target);
+            b.x(sign);
+            signed_mod_double_add_pm_fused_impl(&mut b, sign, &source, &target, evict);
+            b.x(sign);
+        } else {
+            signed_mod_double_add_pm_fused_impl(&mut b, sign, &source, &target, evict);
+        }
+        assert_eq!(b.active_qubits, live_inputs, "cell leaked a live qubit");
+        let nq = b.next_qubit as usize;
+        let nb = b.next_bit as usize;
+        let peak = b.peak_qubits;
+        (b.take_ops(), sign, source, target, nq, nb, peak)
+    };
+
+    let p = SECP256K1_P;
+    let one = U256::from(1);
+    let half = p >> 1;
+    let high = one << (N - 1);
+    let mut sources = vec![
+        U256::ZERO,
+        half,
+        U256::ZERO,
+        half,
+        U256::ZERO,
+        one,
+        U256::ZERO,
+        p.wrapping_sub(U256::from(3)),
+    ];
+    let mut targets = vec![
+        U256::ZERO,
+        half,
+        p.wrapping_sub(U256::from(3)),
+        p.wrapping_sub(U256::from(3)),
+        U256::ZERO,
+        U256::ZERO,
+        p.wrapping_sub(U256::from(3)),
+        p.wrapping_sub(U256::from(3)),
+    ];
+    let mut signs = vec![false, false, false, false, true, true, true, true];
+    let edges = [
+        U256::ZERO,
+        one,
+        U256::from(2),
+        U256::from(3),
+        half.wrapping_sub(one),
+        half,
+        half.wrapping_add(one),
+        high.wrapping_sub(one),
+        high,
+        high.wrapping_add(one),
+        p.wrapping_sub(U256::from(3)),
+        p.wrapping_sub(U256::from(2)),
+        p.wrapping_sub(one),
+    ];
+    for shot in 8..64 {
+        sources.push(edges[(shot * 5 + 1) % edges.len()]);
+        targets.push(edges[(shot * 7 + 3) % edges.len()]);
+        signs.push(shot % 2 == 1);
+    }
+
+    // The first eight vectors cover every (sign, shifted-out, add-carry)
+    // branch that can affect a later doubled_out read.
+    let mut coverage = [false; 8];
+    for shot in 0..64 {
+        let doubled = targets[shot].bit(N - 1);
+        let shifted: U256 = targets[shot] << 1usize;
+        let framed = if signs[shot] { !shifted } else { shifted };
+        let sum = framed.wrapping_add(sources[shot]);
+        let add_out = sum < framed;
+        coverage[((signs[shot] as usize) << 2)
+            | ((doubled as usize) << 1)
+            | add_out as usize] = true;
+    }
+    assert!(coverage.into_iter().all(|covered| covered));
+
+    let run = |built: &Built, random_mask: u64| {
+        let (ops, sign, source, target, nq, nb, _) = built;
+        // The lifecycle adds one clean reset.  A repeated word couples each
+        // corresponding HMR outcome despite that extra, phase-inert RNG read.
+        let mut reader = FixedReader(random_mask.to_le_bytes());
+        let mut sim = Simulator::new(*nq, *nb, &mut reader);
+        let source_reg: Vec<QubitOrBit> = source.iter().copied().map(QubitOrBit::Qubit).collect();
+        let target_reg: Vec<QubitOrBit> = target.iter().copied().map(QubitOrBit::Qubit).collect();
+        for shot in 0..64 {
+            sim.set_register(&source_reg, sources[shot], shot);
+            sim.set_register(&target_reg, targets[shot], shot);
+            if signs[shot] {
+                *sim.qubit_mut(*sign) |= 1u64 << shot;
+            }
+        }
+        sim.apply_iter(ops.iter());
+        let source_out: Vec<U256> = (0..64)
+            .map(|shot| sim.get_register(&source_reg, shot))
+            .collect();
+        let target_out: Vec<U256> = (0..64)
+            .map(|shot| sim.get_register(&target_reg, shot))
+            .collect();
+        let live = |q: QubitId| q == *sign || source.contains(&q) || target.contains(&q);
+        for q in 0..*nq as u64 {
+            let q = QubitId(q);
+            if !live(q) {
+                assert_eq!(sim.qubit(q), 0, "dirty lifecycle ancilla {q:?}");
+            }
+        }
+        (
+            source_out,
+            target_out,
+            sim.qubit(*sign),
+            sim.phase,
+            sim.stats,
+        )
+    };
+
+    for roundtrip in [false, true] {
+        let baseline = build(false, roundtrip);
+        let candidate = build(true, roundtrip);
+        let baseline_t = baseline.0.iter()
+            .filter(|op| matches!(op.kind, OperationType::CCX | OperationType::CCZ))
+            .count();
+        let candidate_t = candidate.0.iter()
+            .filter(|op| matches!(op.kind, OperationType::CCX | OperationType::CCZ))
+            .count();
+        assert_eq!(candidate_t, baseline_t, "lifecycle changed emitted Toffoli");
+        // Four CX plus the reset emitted by the temporary free.
+        assert_eq!(candidate.0.len(), baseline.0.len() + 5);
+
+        for random_mask in [
+            0u64,
+            u64::MAX,
+            0xa5a5_5a5a_c3c3_3c3c,
+            0x6996_9669_0ff0_f00f,
+        ] {
+            let base_out = run(&baseline, random_mask);
+            let candidate_out = run(&candidate, random_mask);
+            assert_eq!(candidate_out.0, base_out.0, "source miter mismatch");
+            assert_eq!(candidate_out.1, base_out.1, "target miter mismatch");
+            assert_eq!(candidate_out.2, base_out.2, "sign miter mismatch");
+            assert_eq!(candidate_out.3, base_out.3, "relative-phase miter mismatch");
+            assert_eq!(candidate_out.4.toffoli_gates, base_out.4.toffoli_gates);
+
+            let mut inherited_boundary_debt = 0usize;
+            for shot in 0..64 {
+                assert_eq!(candidate_out.0[shot], sources[shot], "source changed, shot {shot}");
+                assert_eq!((candidate_out.2 >> shot) & 1, signs[shot] as u64,
+                    "sign changed, shot {shot}");
+                let expected = if roundtrip {
+                    targets[shot]
+                } else {
+                    let doubled = targets[shot].add_mod(targets[shot], p);
+                    if signs[shot] {
+                        if doubled >= sources[shot] {
+                            doubled - sources[shot]
+                        } else {
+                            p - (sources[shot] - doubled)
+                        }
+                    } else {
+                        doubled.add_mod(sources[shot], p)
+                    }
+                };
+                let got_value = candidate_out.1[shot] % p;
+                let baseline_value = base_out.1[shot] % p;
+                if shot < 8 {
+                    assert_eq!(got_value, expected,
+                        "complete branch-cover value mismatch, shot {shot}");
+                } else if baseline_value != expected {
+                    // These deliberately adversarial high-edge states can hit
+                    // the inherited truncated-fold approximation.  They stay
+                    // in the miter as relative equivalence witnesses; the
+                    // production-domain component checks below remain exact.
+                    inherited_boundary_debt += 1;
+                }
+            }
+            eprintln!(
+                "doubled_out {} mask {random_mask:#018x}: relative value/phase 64/64; inherited adversarial-edge value debt {inherited_boundary_debt}/56",
+                if roundtrip { "forward/inverse" } else { "inverse-cell" },
+            );
+        }
+
+        eprintln!(
+            "doubled_out lifecycle {}: relative value/phase/ancilla 64/64 and exact branch cover 8/8 PASS; peak {} -> {}; emitted Toffoli {}",
+            if roundtrip { "forward/inverse" } else { "inverse-cell" },
+            baseline.6,
+            candidate.6,
+            candidate_t,
+        );
+    }
 }
 
 /// Full 64-lane target-simulator diagnostic for both public directions.

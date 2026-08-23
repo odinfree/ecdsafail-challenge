@@ -22,12 +22,14 @@ Strict rounded-T ceilings: Q1272 ≤914961; Q1271 ≤915681; Q1270 ≤916402.
 | Q1271 | EVICT_DOUBLED_OUT=1 PEAK=1271 SQ=241 | 1271 | 915685.693 | 915686 | 915681 | 1,163,836,906 | +5,567 WORSE | 13/11/0 (miss by 5 rnd T) |
 
 `EVICT_DOUBLED_OUT` = the default-off `doubled_out` rematerialization lever
-(implemented, traced, then REVERTED). It only relieves `pp_mul_replay`; the
+(now implemented and source-gated). It only relieves `pp_mul_replay`; the
 Q1271 floor is `pp_mul_walkback`, so Q1271 also needs PEAK=1271, whose extra
 replay-ladder narrowing pushes avg T to 915686 (misses the ceiling by ~5
-rounded Toffoli). The eviction was NOT independently falsified for
-function-neutrality (its only run is confounded with ladder narrowing); do not
-rely on it without a focused values/inverse/phase/ancilla selfcheck.
+rounded Toffoli). Its focused 64-lane direct and forward/inverse relative
+value/phase/ancilla miter, full affine component, and square component now pass.
+The inherited default-nonce 13/11/0 row also reproduced at identical
+12,926,780 operations and exact T915685.693.  See
+`Q1271-FIVE-T-STRUCTURAL-PASS.md`; frozen-eight calibration is pending.
 
 ## Binder map (control, all four independently @1273)
 - pp_div_replay + pp_mul_replay: shared fused-fold cell (`fused_fold_maskfree`
