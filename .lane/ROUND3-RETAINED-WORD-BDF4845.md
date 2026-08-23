@@ -18,6 +18,15 @@ toggle. Applying it is harmless but costs 508 candidate operations for zero
 benefit; the default here omits it. `SUB4_PP_R3_FORCE_TOGGLE=1` re-applies it
 and reproduces the `40d0170` receipt exactly.
 
+Regime caveat: after each normalization every replay round here runs on
+all-zero registers (`x <- (0 ± 0)/2`), so what the prefix exercises is sentinel
+bookkeeping and sign reconstruction, not modular arithmetic on live data.
+"Round 3 is flag-free" holds precisely because round 3's source is the
+canonical `y=0` (the add contributes nothing and only the halve touches the
+sentinel). It is NOT a claim that odd rounds are generally free: round 4 makes
+`x`'s sentinel the add SOURCE again and is expected to need the flag like round
+2. Do not read the flag-free result past this regime without re-deriving.
+
 This is a bounded semantic prototype. It does not prove the full divide, does
 not quantify a live-score-beating static composition price, and does not
 authorize a submission, scan, or hunt. This lane is research-only.
@@ -91,6 +100,21 @@ retained word, and phase. The independent reference obtains signs 0..3 from the
 exact production value walk, runs the same replay cells, and reverses the walk
 exactly. Candidate `x`/`y` match the reference on every shot; all non-output
 qubits return to zero.
+
+## Receipt caveats
+
+- `normalization_flag_peak=1`, `normalization_flag_cleared_before_sign=1`, and
+  `concurrent_normalization_flags=0` are printed as literals; they are
+  structural invariants of the construction (exactly one `normalization_flag`
+  qubit is allocated, and the harness ASSERTS it is zero at every round
+  checkpoint and at each toggle-in boundary, with full ancilla-zero at
+  terminal), not independently measured counters. The assertions are what make
+  the claims true; treat the literals as labels for those invariants.
+- The final `expected_x` check keys `x`'s `{0,p}` branch on `denominator.bit(2)`
+  and passed 4096/4096, but the sign-1 oracle uses ANF terms `[0, 4]`, not bit
+  2. The equality is validated for this census (512 low residues x 8 prefixes);
+  it may be census-specific rather than a general semantic identity. A wider
+  census should re-confirm it.
 
 ## Kill conditions — none triggered
 
