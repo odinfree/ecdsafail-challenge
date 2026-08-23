@@ -22,10 +22,27 @@ Any overturn must clear this bar net of its own Toffoli cost.
 - Wall: replay pins tape + coefficient + numerator (512) simultaneously at every binder.
 - Overturn candidate: segment-aggregate replay — apply a whole segment's effect on the
   coefficient pair via its 2×2 transition matrix instead of per-round signs.
-- Status: OPEN, unpriced. Matrix entries for a k-round segment are data-dependent and
-  ~k bits wide, so naive materialization rebuys the tape width. Needs a redundant/
-  streamed-representation design before a falsifier exists. This is the only surviving
-  in-family structural direction.
+- Falsifier run (2026-08-23, exact — E6/E7): **KILLED, lower bound.** Three exact walls:
+  1. *Zero release*: `walk_back_round` (pingpong_div.rs:1109) consumes each tape[r] as
+     the control of the reverse signed add and uncomputes it against that round's
+     boundary state, so NO replay-side representation frees a tape bit at either Q1278
+     binder (r1 batch op 2,636,142 or terminal). Tape bits released = 0.
+  2. *No compression*: exact sweep (E6, all 2^k patterns, k=1..14, both directions,
+     both parities) — s ↦ M_seg is injective, so any register applying the segment
+     action holds ≥ k qubits; entry width is exactly b(k)=k+1 signed bits (proved
+     bound, tight), so a materialized matrix costs ≥ 3(k+1) qubits. The transition
+     monoid is free: aggregation never compresses.
+  3. *Application dominates* (E7): streamed application (each sign touched once) is
+     circuit-identical to per-round replay — gain exactly 0. Materialized application
+     is 4 quantum×quantum multiplies + inverse-application erasure (measured erasure
+     barred by the phase-garbage gate) = 8(k+1) controlled 256-bit adds ≥ 2040(k+1) T
+     vs a per-round cost < 900 T (one adder pass + O(window) fold, by circuit shape).
+- Numerical verdict: best-possible case (representation at the injectivity floor k,
+  zero T overhead) is Δscore ≥ +k·915,947; real materialized k=2 is ≥ +14M (+1.2%).
+  ΔQ > 0 with 0 released ⇒ A2 never enters the 716.7 T/qubit tradeoff. **CLOSED.**
+- Corollary: the coefficient register is tape-redundant mid-replay ((x,y) =
+  num·(column of M_partial) since x₀=0), but exploiting the redundancy requires
+  exactly the materialized aggregate application priced above. Same wall.
 
 ## A3 — "The r1 batch replay must pause the walk holding u,v (2×139=278 wires)"
 - KILLED by arithmetic: walk and replay act on disjoint registers, so any interleaving
@@ -46,8 +63,29 @@ Any overturn must clear this bar net of its own Toffoli cost.
   requires shedding ALL THREE simultaneously; the square co-binder is the closed-lane
   territory (Q1275 packet), leaving A2 as the only in-lane opening.
 
+## A6 — "A tape-free (data-independent-schedule) inversion could beat Q·T" (outside ping-pong)
+- Claim: the 698-bit sign tape is a ping-pong artifact; an inversion with a classical
+  schedule (Fermat x^(p−2), multiplication ladder) carries no tape and could win on Q.
+- Falsifier run (2026-08-23, arithmetic on repo-measured costs — E7): **KILLED.**
+  Dichotomy: a data-independent schedule cannot branch on data, so it must be a
+  multiplication ladder; every add-based inversion (ping-pong, divstep/Bernstein–Yang,
+  Kaliski) branches per step and carries the decision log (A1's forced-information
+  argument applies to each).
+  - Whole-circuit: one 256-bit modular squaring costs ~54k executed T in this codebase
+    (WAYFINDER: square = 5.9% of T). Fermat needs ≥ ~270 mult/sq → ≥ 14.6M T; even at
+    a generous Q=900 that is ≥ 13.1B score ≈ 11× the 1.17B target.
+  - Hybrid margin (stop the walk early, finish multiplicatively): cutting one walk bit
+    saves ~2.7 rounds ≈ 2.7 tape qubits (1,935 T-equivalent at 716.7) plus those
+    rounds' walk/replay adds (~4 adder passes/round ≈ 5.4k T) ≈ 7.3k T-equivalent
+    total, but costs ~2 mults ≈ 108k T per bit — dead by ≥14× at every stopping point.
+- Consequence: the tape is not an artifact; it is the price of the add-only structure,
+  and the add-only structure is ~10× cheaper than the tape-free alternative.
+
 ## Verdict
-The tape cannot be removed, checkpointed, streamed, dirtied, or classically recomputed
-within the current replay primitive — closed with exact arguments, not samples. The
-burn must move one level up: replace the sign-consuming replay (A2) or leave the
-ping-pong family. Q1278 stands as the family's score optimum.
+The tape cannot be removed, checkpointed, streamed, dirtied, classically recomputed,
+or aggregated into transition matrices (A1–A4 + A2 closed with exact arguments); the
+family's score optimum is Q1278 (A5); and the tape-free escape outside ping-pong loses
+~10× on Toffoli (A6). The inversion-architecture space reachable by this lane is
+exhausted: bdf4845's ping-pong at Q1278 stands. Residual in-worktree surface is only
+the never-edge-ground square (~−1% bounded, T-side polish, incumbent territory), not
+a burn-lane architecture target. Recommend concluding this lane.

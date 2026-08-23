@@ -35,9 +35,17 @@ Score = Q × T_avg. At Q=1278, T=915,947.392:
 - [x] Peak plateau inventory: 3-family plateau — pp_div_replay, pp_mul_walkback,
       square_product_register — all allowance-spenders at 1278 (E2, E3).
 - [x] Falsifiers executed: A1 killed (information-forced, E4), A3 killed (arithmetic),
-      A4 killed (exchange-rate, E5). A2 (segment-matrix replay) is the sole open door.
-- **Lane verdict: tape removal/checkpoint/stream/dirty/recompute closed exactly.
-  Next: design A2 (aggregate-transition replay) or burn outside the ping-pong family.**
+      A4 killed (exchange-rate, E5).
+- [x] A2 killed (2026-08-23, exact — E6 sweep + E7 pricing): segment-matrix replay
+      releases 0 tape bits (walk-back consumes signs as values), cannot compress
+      (s ↦ M_seg injective, entries exactly k+1 bits), and application costs ≥ 2.3×
+      baseline T while adding ≥ 3(k+1) qubits. Floor case Δscore ≥ +k·915,947.
+- [x] A6 (tape-free escape outside ping-pong) killed by arithmetic: multiplication
+      ladders cost ≥ 11× score whole-circuit and ≥ 14× at every hybrid margin (E7).
+- **Lane verdict: EXHAUSTED. In-family Q1278 is exact-optimal (A1–A5), aggregate
+  replay is net-positive-score by lower bound (A2), and the tape-free alternative
+  loses ~10× on Toffoli (A6). No open architecture door remains in this lane;
+  recommend concluding the burn and preserving bdf4845 as-is.**
 
 ## Key structural facts (from source read)
 
