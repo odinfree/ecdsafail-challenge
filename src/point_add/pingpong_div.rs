@@ -455,23 +455,6 @@ fn fold_selector_evicted() -> bool {
     std::env::var("SUB4_PP_FOLD_SELECTOR_EVICT").ok().as_deref() == Some("1")
 }
 
-/// Opt-in (default off): drop the roving `operand` qubit from
-/// [`fused_fold_maskfree`] entirely.  With `S = xor(selectors)`, previous
-/// carry `p` and pre-toggle accumulator bit `a`, the per-position carry delta
-///
-///     (S ^ p)(a ^ p) ^ p = S*a ^ S*p ^ p*a
-///
-/// is emitted directly into the carry — one `CCX(c,a,carry)` and one
-/// `CCX(c,p,carry)` per selector `c`, then `CCX(p,a,carry)`, then `CX(p,a)` —
-/// so the selector XOR is never materialised on a wire.  The reverse measured
-/// erasure corrects the `(S^p)&acc` phase with `cz_if(p,acc,m)` plus one
-/// `cz_if(c,acc,m)` per selector, then finishes `acc ^= S` with one CX per
-/// selector.  The selector-empty branch is untouched.  Read per call (not
-/// cached) so the micro-miter can compare both paths in one process.
-fn fold_operandless() -> bool {
-    std::env::var("SUB4_PP_FOLD_OPERANDLESS").ok().as_deref() == Some("1")
-}
-
 fn mux_round0_correction_enabled() -> bool {
     std::env::var_os("SUB4_PINGPONG_SPLIT_ROUND0").is_none()
 }
@@ -1568,9 +1551,7 @@ fn fused_operand_controls(
 
 /// Add the one-hot selected member of {-f,0,+f,+2f} without materialising a
 /// 56-bit operand.  A single roving bit supplies the classical per-position
-/// XOR of the three selectors; under [`fold_operandless`] even that bit is
-/// elided and the selector XOR is distributed into the carry CCXs and the
-/// reverse phase corrections.
+/// XOR of the three selectors.
 fn fused_fold_maskfree(
     b: &mut B,
     acc: &[QubitId],
@@ -1600,11 +1581,7 @@ fn fused_fold_maskfree(
 
     let start = 1;
     let num_carries = width - 1 - start;
-    let operand = if fold_operandless() {
-        None
-    } else {
-        Some(b.alloc_qubit())
-    };
+    let operand = b.alloc_qubit();
     let carries = b.alloc_qubits(num_carries);
 
     for offset in 0..num_carries {
@@ -1619,7 +1596,7 @@ fn fused_fold_maskfree(
             b.cx(previous, acc[i]);
             b.ccx(previous, acc[i], carries[offset]);
             b.cx(previous, carries[offset]);
-        } else if let Some(operand) = operand {
+        } else {
             for &control in &selectors {
                 b.cx(control, operand);
             }
@@ -1631,13 +1608,6 @@ fn fused_fold_maskfree(
             for &control in &selectors {
                 b.cx(control, operand);
             }
-        } else {
-            for &control in &selectors {
-                b.ccx(control, acc[i], carries[offset]);
-                b.ccx(control, previous, carries[offset]);
-            }
-            b.ccx(previous, acc[i], carries[offset]);
-            b.cx(previous, acc[i]);
         }
     }
 
@@ -1659,7 +1629,7 @@ fn fused_fold_maskfree(
             let measured = b.alloc_bit();
             b.hmr(carries[offset], measured);
             b.cz_if(previous, acc[i], measured);
-        } else if let Some(operand) = operand {
+        } else {
             for &control in &selectors {
                 b.cx(control, operand);
             }
@@ -1673,23 +1643,10 @@ fn fused_fold_maskfree(
             for &control in &selectors {
                 b.cx(control, operand);
             }
-        } else {
-            b.cx(previous, carries[offset]);
-            let measured = b.alloc_bit();
-            b.hmr(carries[offset], measured);
-            b.cz_if(previous, acc[i], measured);
-            for &control in &selectors {
-                b.cz_if(control, acc[i], measured);
-            }
-            for &control in &selectors {
-                b.cx(control, acc[i]);
-            }
         }
     }
     b.free_vec(&carries);
-    if let Some(operand) = operand {
-        b.free(operand);
-    }
+    b.free(operand);
 }
 
 fn signed_mod_add_pm_halve_fused(b: &mut B, sign: QubitId, source: &[QubitId], target: &[QubitId]) {
@@ -2611,414 +2568,6 @@ pub(crate) fn fold_selector_evict_selftest() {
     eprintln!(
         "FOLD_SELECTOR_EVICT_SELFTEST: PASS (64/64 values exact both lifecycles, phase 0, \
          ancilla 0, all 8 selector arms, Toffoli identical, +4 CX +1 R, peak {peak_p} -> {peak_e})"
-    );
-}
-
-/// Focused exact miter for the `SUB4_PP_FOLD_OPERANDLESS` fold algebra.
-///
-/// Builds `fused_fold_maskfree` standalone twice per schedule — protected
-/// (roving operand) and operandless — and checks, exhaustively for every
-/// width 1..=6 x every fold constant `f < 2^width` x every accumulator value
-/// x both first-carry values x all 8 selector wire states, plus the real
-/// 53-bit `f = 2^256 - p` multi-selector schedule on covering pseudorandom
-/// lanes:
-///
-/// * both streams match the exact classical ripple model (bit 0 is a bare
-///   XOR with no generated carry; positions >=1 add the selected operand
-///   with the externally supplied first carry) and each other, lane for
-///   lane;
-/// * selector wires and the first carry are preserved, the full phase mask
-///   is zero, and every non-input qubit ends zero on both streams;
-/// * op deltas are attributed exactly from the schedule (`P` nonempty
-///   internal positions, selector multiplicity sum `M`): operandless adds
-///   `2M` CCX and `M` conditioned CZ, removes `3M + 6P` CX and 1 R, leaves
-///   Hmr/CCZ unchanged (net `-(6P + 1)` ops), and peaks exactly one qubit
-///   lower; widths 1..=2 emit byte-identical streams;
-/// * coverage is asserted: a selector-empty internal position, every
-///   feasible selector multiplicity (0, 1, 2 — multiplicity 3 is infeasible
-///   because `-f` and `f` agree only at the lowest set bit of `f`, whose
-///   lower neighbour is clear; asserted absent everywhere), all 8 selector
-///   states, both first-carry values, and the real 53-bit schedule (51
-///   internal positions, all nonempty, multiplicity sum 58).
-#[allow(dead_code)]
-pub(crate) fn fold_operandless_selftest() {
-    use crate::circuit::QubitOrBit;
-    use sha3::{
-        digest::{ExtendableOutput, Update, XofReader},
-        Shake256,
-    };
-
-    // Internal carry positions are 1..=width-2; a position's selector
-    // multiplicity is how many of {plus_f, plus_2f, minus_f} control it.
-    let schedule = |f: U256, width: usize| -> (usize, usize, [usize; 4]) {
-        let negative_f = twos_complement_bits(f, width);
-        let mut nonempty = 0usize;
-        let mut mult_sum = 0usize;
-        let mut counts = [0usize; 4];
-        for i in 1..width.saturating_sub(1) {
-            let k = usize::from(f.bit(i)) + usize::from(f.bit(i - 1)) + usize::from(negative_f[i]);
-            counts[k] += 1;
-            if k > 0 {
-                nonempty += 1;
-                mult_sum += k;
-            }
-        }
-        (nonempty, mult_sum, counts)
-    };
-
-    // Effective addend under an arbitrary (not only one-hot) selector wire
-    // state: the fold is GF(2)-linear in the selectors, so pattern bits XOR.
-    let operand_value = |f: U256, negative_f: &[bool], width: usize, sel: usize| -> u64 {
-        let mut v = 0u64;
-        for i in 0..width {
-            let mut bit = false;
-            if sel & 1 != 0 && f.bit(i) {
-                bit = !bit;
-            }
-            if sel & 2 != 0 && i > 0 && f.bit(i - 1) {
-                bit = !bit;
-            }
-            if sel & 4 != 0 && negative_f[i] {
-                bit = !bit;
-            }
-            if bit {
-                v |= 1 << i;
-            }
-        }
-        v
-    };
-
-    let model = |acc: u64, v: u64, carry: bool, width: usize| -> u64 {
-        let low = (acc ^ v) & 1;
-        if width == 1 {
-            return low;
-        }
-        let high = ((acc >> 1) + (v >> 1) + u64::from(carry)) & ((1u64 << (width - 1)) - 1);
-        low | high << 1
-    };
-
-    let build = |f: U256, width: usize, operandless: bool| {
-        let saved = std::env::var("SUB4_PP_FOLD_OPERANDLESS").ok();
-        if operandless {
-            std::env::set_var("SUB4_PP_FOLD_OPERANDLESS", "1");
-        } else {
-            std::env::remove_var("SUB4_PP_FOLD_OPERANDLESS");
-        }
-        let negative_f = twos_complement_bits(f, width);
-        let mut b = B::new();
-        let acc = b.alloc_qubits(width);
-        let plus_f = b.alloc_qubit();
-        let plus_2f = b.alloc_qubit();
-        let minus_f = b.alloc_qubit();
-        let first_carry = b.alloc_qubit();
-        fused_fold_maskfree(&mut b, &acc, f, &negative_f, plus_f, plus_2f, minus_f, first_carry);
-        match saved {
-            Some(v) => std::env::set_var("SUB4_PP_FOLD_OPERANDLESS", v),
-            None => std::env::remove_var("SUB4_PP_FOLD_OPERANDLESS"),
-        }
-        let num_qubits = b.next_qubit as usize;
-        let num_bits = b.next_bit as usize;
-        let peak = b.peak_qubits;
-        (
-            b.take_ops(),
-            acc,
-            [plus_f, plus_2f, minus_f],
-            first_carry,
-            num_qubits,
-            num_bits,
-            peak,
-        )
-    };
-
-    let count = |ops: &[Op], kind: OperationType| ops.iter().filter(|op| op.kind == kind).count();
-
-    // Lanes are (acc, first_carry, selector wire state, expected acc).
-    let run = |tag: &str,
-               ops: &[Op],
-               acc: &[QubitId],
-               selectors: &[QubitId; 3],
-               first_carry: QubitId,
-               nq: usize,
-               nb: usize,
-               lanes: &[(u64, bool, usize, u64)]|
-     -> Vec<U256> {
-        let mut seed = Shake256::default();
-        seed.update(b"fold operandless miter sim ");
-        seed.update(tag.as_bytes());
-        let mut reader = seed.finalize_xof();
-        let mut sim = Simulator::new(nq, nb, &mut reader);
-        let acc_reg: Vec<QubitOrBit> = acc.iter().copied().map(QubitOrBit::Qubit).collect();
-        for (shot, &(a, carry, sel, _)) in lanes.iter().enumerate() {
-            sim.set_register(&acc_reg, U256::from(a), shot);
-            for (j, &s) in selectors.iter().enumerate() {
-                if sel >> j & 1 != 0 {
-                    *sim.qubit_mut(s) |= 1 << shot;
-                }
-            }
-            if carry {
-                *sim.qubit_mut(first_carry) |= 1 << shot;
-            }
-        }
-        sim.apply_iter(ops.iter());
-        let mut out = Vec::with_capacity(lanes.len());
-        for (shot, &(_, carry, sel, expected)) in lanes.iter().enumerate() {
-            let got = sim.get_register(&acc_reg, shot);
-            assert_eq!(
-                got,
-                U256::from(expected),
-                "{tag}: value mismatch in shot {shot}"
-            );
-            for (j, &s) in selectors.iter().enumerate() {
-                assert_eq!(
-                    sim.qubit(s) >> shot & 1,
-                    u64::from(sel >> j & 1 != 0),
-                    "{tag}: selector {j} clobbered in shot {shot}"
-                );
-            }
-            assert_eq!(
-                sim.qubit(first_carry) >> shot & 1,
-                u64::from(carry),
-                "{tag}: first carry clobbered in shot {shot}"
-            );
-            out.push(got);
-        }
-        assert_eq!(sim.phase, 0, "{tag}: phase garbage");
-        for &q in acc.iter().chain(selectors.iter()) {
-            *sim.qubit_mut(q) = 0;
-        }
-        *sim.qubit_mut(first_carry) = 0;
-        for q in 0..nq as u64 {
-            assert_eq!(sim.qubit(QubitId(q)), 0, "{tag}: dirty ancilla q{q}");
-        }
-        out
-    };
-
-    let mut seen_sel_states = [false; 8];
-    let mut seen_carry = [false; 2];
-    let mut seen_mult = [false; 4];
-    let mut seen_empty_internal = false;
-
-    // Attributed structural deltas for one protected/operandless pair.
-    let check_deltas = |tag: &str, ops_p: &[Op], ops_e: &[Op], p_cnt: usize, m_sum: usize| {
-        assert_eq!(
-            count(ops_e, OperationType::CCX),
-            count(ops_p, OperationType::CCX) + 2 * m_sum,
-            "{tag}: operandless must add exactly 2M CCX"
-        );
-        assert_eq!(
-            count(ops_p, OperationType::CX),
-            count(ops_e, OperationType::CX) + 3 * m_sum + 6 * p_cnt,
-            "{tag}: operandless must remove exactly 3M+6P CX"
-        );
-        assert_eq!(
-            count(ops_e, OperationType::CZ),
-            count(ops_p, OperationType::CZ) + m_sum,
-            "{tag}: operandless must add exactly M conditioned CZ"
-        );
-        assert_eq!(
-            count(ops_p, OperationType::R),
-            count(ops_e, OperationType::R) + 1,
-            "{tag}: operandless must remove exactly the operand release"
-        );
-        assert_eq!(
-            count(ops_p, OperationType::Hmr),
-            count(ops_e, OperationType::Hmr),
-            "{tag}: operandless must not change Hmr"
-        );
-        assert_eq!(
-            count(ops_p, OperationType::CCZ),
-            count(ops_e, OperationType::CCZ),
-            "{tag}: operandless must not change CCZ"
-        );
-        assert_eq!(
-            ops_p.len(),
-            ops_e.len() + 6 * p_cnt + 1,
-            "{tag}: unexpected op-stream delta"
-        );
-    };
-
-    // Part 1: exhaustive small widths, exhaustive fold constants.
-    for width in 1..=6usize {
-        for fv in 0u64..1 << width {
-            let f = U256::from(fv);
-            let negative_f = twos_complement_bits(f, width);
-            let (p_cnt, m_sum, counts) = schedule(f, width);
-            assert_eq!(
-                counts[3], 0,
-                "w{width} f{fv:#x}: selector multiplicity 3 must be infeasible"
-            );
-            for (k, &c) in counts.iter().enumerate() {
-                if c > 0 {
-                    seen_mult[k] = true;
-                }
-            }
-            if counts[0] > 0 {
-                seen_empty_internal = true;
-            }
-
-            let (ops_p, acc_p, sel_p, fc_p, nq_p, nb_p, peak_p) = build(f, width, false);
-            let (ops_e, acc_e, sel_e, fc_e, nq_e, nb_e, peak_e) = build(f, width, true);
-            assert_eq!(acc_p, acc_e);
-            assert_eq!(sel_p, sel_e);
-            assert_eq!(fc_p, fc_e);
-            let tag = format!("w{width} f{fv:#x}");
-            if width < 3 {
-                assert_eq!(
-                    ops_p, ops_e,
-                    "{tag}: widths without a carry chain must emit identical streams"
-                );
-                assert_eq!(peak_p, peak_e, "{tag}: peak must be unchanged");
-            } else {
-                check_deltas(&tag, &ops_p, &ops_e, p_cnt, m_sum);
-                assert_eq!(
-                    peak_e + 1,
-                    peak_p,
-                    "{tag}: operandless must return exactly one peak qubit"
-                );
-            }
-
-            let total = 1usize << (width + 4);
-            let mut states = Vec::with_capacity(total);
-            for s in 0..total {
-                let a = (s as u64) & ((1u64 << width) - 1);
-                let carry = s >> width & 1 != 0;
-                let sel = s >> (width + 1) & 7;
-                let v = operand_value(f, &negative_f, width, sel);
-                states.push((a, carry, sel, model(a, v, carry, width)));
-                seen_sel_states[sel] = true;
-                seen_carry[usize::from(carry)] = true;
-            }
-            let mut batch_start = 0;
-            let mut batch = 0usize;
-            while batch_start < total {
-                let lanes: Vec<(u64, bool, usize, u64)> =
-                    (0..64).map(|l| states[(batch_start + l) % total]).collect();
-                let out_p = run(
-                    &format!("protected {tag} b{batch}"),
-                    &ops_p,
-                    &acc_p,
-                    &sel_p,
-                    fc_p,
-                    nq_p,
-                    nb_p,
-                    &lanes,
-                );
-                let out_e = run(
-                    &format!("operandless {tag} b{batch}"),
-                    &ops_e,
-                    &acc_e,
-                    &sel_e,
-                    fc_e,
-                    nq_e,
-                    nb_e,
-                    &lanes,
-                );
-                assert_eq!(out_p, out_e, "{tag} b{batch}: lane values diverge");
-                batch_start += 64;
-                batch += 1;
-            }
-        }
-    }
-
-    // Part 2: the real 53-bit multi-selector schedule.
-    let width = replay_fold_window();
-    assert_eq!(width, 53, "miter requires the shipped fold window");
-    let f = U256::MAX
-        .wrapping_sub(SECP256K1_P)
-        .wrapping_add(U256::from(1));
-    let negative_f = twos_complement_bits(f, width);
-    let (p_cnt, m_sum, counts) = schedule(f, width);
-    assert_eq!(p_cnt, 51, "real schedule must have 51 nonempty positions");
-    assert_eq!(m_sum, 58, "real schedule multiplicity sum must be 58");
-    assert_eq!(counts[0], 0, "real schedule has no selector-empty position");
-    assert_eq!(counts[3], 0, "real schedule multiplicity 3 must be absent");
-    assert!(
-        counts[1] > 0 && counts[2] > 0,
-        "real schedule must exercise multiplicities 1 and 2"
-    );
-
-    let (ops_p, acc_p, sel_p, fc_p, nq_p, nb_p, peak_p) = build(f, width, false);
-    let (ops_e, acc_e, sel_e, fc_e, nq_e, nb_e, peak_e) = build(f, width, true);
-    assert_eq!(acc_p, acc_e);
-    assert_eq!(sel_p, sel_e);
-    assert_eq!(fc_p, fc_e);
-    check_deltas("real53", &ops_p, &ops_e, p_cnt, m_sum);
-    assert_eq!(
-        count(&ops_e, OperationType::CCX),
-        count(&ops_p, OperationType::CCX) + 116,
-        "real53: static price must be exactly +116 CCX"
-    );
-    assert_eq!(
-        peak_e + 1,
-        peak_p,
-        "real53: operandless must return exactly one peak qubit"
-    );
-
-    let mut acc_seed = Shake256::default();
-    acc_seed.update(b"fold operandless miter real accs");
-    let mut acc_reader = acc_seed.finalize_xof();
-    for batch in 0..4usize {
-        let lanes: Vec<(u64, bool, usize, u64)> = (0..64)
-            .map(|l: usize| {
-                let sel = l % 8;
-                let carry = (l / 8) % 2 != 0;
-                let mut bytes = [0u8; 8];
-                XofReader::read(&mut acc_reader, &mut bytes);
-                let a = u64::from_le_bytes(bytes) & ((1u64 << width) - 1);
-                let v = operand_value(f, &negative_f, width, sel);
-                seen_sel_states[sel] = true;
-                seen_carry[usize::from(carry)] = true;
-                (a, carry, sel, model(a, v, carry, width))
-            })
-            .collect();
-        let out_p = run(
-            &format!("protected real53 b{batch}"),
-            &ops_p,
-            &acc_p,
-            &sel_p,
-            fc_p,
-            nq_p,
-            nb_p,
-            &lanes,
-        );
-        let out_e = run(
-            &format!("operandless real53 b{batch}"),
-            &ops_e,
-            &acc_e,
-            &sel_e,
-            fc_e,
-            nq_e,
-            nb_e,
-            &lanes,
-        );
-        assert_eq!(out_p, out_e, "real53 b{batch}: lane values diverge");
-    }
-
-    assert!(
-        seen_empty_internal,
-        "coverage: no selector-empty internal position was exercised"
-    );
-    assert!(
-        seen_mult[0] && seen_mult[1] && seen_mult[2],
-        "coverage: selector multiplicities 0..=2 not all exercised: {seen_mult:?}"
-    );
-    assert!(
-        !seen_mult[3],
-        "coverage: multiplicity 3 appeared despite infeasibility argument"
-    );
-    assert!(
-        seen_sel_states.iter().all(|&s| s),
-        "coverage: selector wire states incomplete: {seen_sel_states:?}"
-    );
-    assert!(
-        seen_carry[0] && seen_carry[1],
-        "coverage: both first-carry values must be exercised"
-    );
-
-    eprintln!(
-        "FOLD_OPERANDLESS_SELFTEST: PASS (widths 1..=6 exhaustive over f/acc/carry/selectors, \
-         real 53-bit schedule P=51 M=58, values exact vs classical model both paths, phase 0, \
-         ancilla 0, deltas +2M CCX / -(3M+6P) CX / +M CZ / -1 R, peak {peak_p} -> {peak_e})"
     );
 }
 
