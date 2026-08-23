@@ -1165,7 +1165,7 @@ fn plan(rounds: usize) -> Option<Plan> {
     // byte: at r1=509 no walk round is ever over budget, so nothing splits.
     let r1 = env("SUB4_PP_R1", 298).min(rounds);
     let r2 = env("SUB4_PP_R2", 613).min(rounds.saturating_sub(1));
-    let peak = env("SUB4_PP_PEAK", 1278);
+    let peak = env("SUB4_PP_PEAK", 1274);
     Some(Plan { r1, r2, peak })
 }
 
