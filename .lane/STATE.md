@@ -53,7 +53,7 @@ The current universal gate is `Q * T < 1175485230`. Exact strict T ceilings are 
 
 ## Current phase
 
-`FULL_FIELD_ROUND3_CLOSED_HOLD` (bdf4845 lane).
+`NUMERATOR_ABI_FALSIFIER_RESOLVED` (bdf4845 lane).
 
 The round-3 falsifier is answered: the exact rounds-0..3 retained-word replay
 prefix is clean at Q1114 (this lane, commits on
@@ -63,9 +63,20 @@ prefix is clean at Q1114 (this lane, commits on
 at round 2 ONLY; round 3 is provably flag-free (its `p` sentinel is the halve
 target, not a modular-add source), so it improves on `40d0170`'s unnecessary
 round-3 toggle. `SUB4_PP_R3_FORCE_TOGGLE=1` reproduces `40d0170` byte-for-byte
-from the independently re-derived `384823f` base. Next gate is the nonzero-numerator production-splice ABI closure,
-already recorded KILLED on the 9805dee line (`34c1b50`) with the reference
-itself failing reverse cleanup.
+from the independently re-derived `384823f` base.
+
+The `KILL_LIVE_NUMERATOR_ABI_CLOSURE` production-splice falsifier (`34c1b50`,
+9805dee line) is now RESOLVED on the `a9af194` base (see
+`.lane/FALSIFIER-NUMERATOR-ABI-BDF4845.md` and
+`.lane/PREDECLARATION-NUMERATOR-ABI-BDF4845.md`). A four-pair forward∘inverse
+probe (`SUB4_PP_NUMERATOR_ABI_PAIR_PROBE=1`) localized the reverse-cleanup
+failure to ONE shared cell pair, `signed_mod_add_pm_halve_fused` /
+`signed_mod_double_add_pm_fused` (incomplete modular reduction → `value + p`
+representative off the production trajectory). The three retained-word-specific
+pairs are exact inverses. So the reference-side failure is a property of a shared
+nonce-tuned production arithmetic cell, NOT the retained-word architecture. The
+splice gate stays closed until that cell is characterized on its production
+trajectory or rebuilt bit-exact (priced next overturns in the falsifier doc).
 
 ## Current hypothesis
 

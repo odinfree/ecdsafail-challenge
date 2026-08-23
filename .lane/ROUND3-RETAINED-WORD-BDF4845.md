@@ -147,18 +147,31 @@ improvement is claimed. The current live gate is `Q*T < 1175485230`; the global
 binder remains the Q1278 production divide, which this local component does not
 yet touch.
 
-## Next falsifier
+## Next falsifier — RESOLVED (see FALSIFIER-NUMERATOR-ABI-BDF4845.md)
 
-The production splice (nonzero numerator, full component ABI closure) is the
-next gate and is already recorded KILLED on the adjacent `9805dee` line as
-`KILL_LIVE_NUMERATOR_ABI_CLOSURE` (commit `34c1b50`): the nonzero-numerator
-midpoint matches the unchanged continuation, but complete reverse cleanup fails
-for BOTH candidate AND reference. Because the *reference* (unchanged production
-path) also fails there, the failure most likely lives in the walk-back / ABI
-closure harness rather than in the retained-word component. The next bounded
-experiment is to audit that reference-side reverse-cleanup failure directly on
-the a9af194 base before treating the production splice as architecturally dead.
-Do not integrate globally, run a nonce/fleet hunt, or claim any credit until
-that closure is exact and the static price clears the live gate.
+The production splice's `KILL_LIVE_NUMERATOR_ABI_CLOSURE` (commit `34c1b50`,
+`9805dee` line) has now been audited directly on the `a9af194` base. The earlier
+guess that the reference-side failure "most likely lives in the walk-back / ABI
+closure harness" is WRONG and is corrected here.
+
+A gate-level `G ∘ G⁻¹` restores every input, so the closure failure could only
+be a non-inverse primitive pair (the zero seed hides it). A four-pair
+forward∘inverse probe (`SUB4_PP_NUMERATOR_ABI_PAIR_PROBE=1`) on a nonzero
+`[0,p)` corpus localized the defect to ONE shared cell pair:
+`signed_mod_add_pm_halve_fused` / `signed_mod_double_add_pm_fused` (the fused
+round-≥2 replay cell and its dormant inverse). The other three pairs —
+`mod_halve_pm`/`mod_double_pm`, `seed_round_one`/`seed_round_one_inverse`, and
+the `retained_normalization_toggle` involution — are exact inverses. The fused
+inverse performs an incomplete modular reduction, returning `value + p` for
+boundary inputs (confirmed at full window width: survivors are exactly
+`got == seed + p`). Because both candidate and reference use this shared cell,
+both failed identically (1688 each) — this is a shared production-arithmetic
+property off the production coefficient trajectory, NOT a retained-word failure.
+
+Consequence: the nonzero-midpoint ABI-closure retest and the production splice
+gate do not open until the shared fused cell is either characterized on its
+production trajectory or rebuilt with a bit-exact inverse (priced next overturns
+in the falsifier doc). Do not integrate globally, run a nonce/fleet hunt, or
+claim any credit until then.
 
 Model: Claude Opus 4.8, single-lane research worktree.

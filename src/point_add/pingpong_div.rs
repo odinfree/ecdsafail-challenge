@@ -2975,6 +2975,230 @@ fn retained_normalization_toggle(
     retained_denominator_sign_1_to_7_oracle(b, retained, 1, oracle_scratch, flag);
 }
 
+/// Discriminating audit for `KILL_LIVE_NUMERATOR_ABI_CLOSURE`.
+///
+/// A gate-level `G ∘ G⁻¹` circuit restores its input for EVERY input, so a
+/// nonzero-numerator closure failure can only mean some forward/reverse cell is
+/// not an exact gate-level inverse (the all-zero seed hides it because zero is a
+/// fixed point). This probe drives each replay/reverse primitive pair the
+/// production prefix shares, seeded with deterministic nonzero values in [0,p),
+/// and reports per-pair restoration / phase / ancilla cleanliness. Env-gated by
+/// `SUB4_PP_NUMERATOR_ABI_PAIR_PROBE`; changes no normal build byte.
+pub(crate) fn retained_numerator_abi_pair_probe() {
+    use crate::circuit::QubitOrBit;
+    use sha3::{
+        digest::{ExtendableOutput, Update, XofReader},
+        Shake256,
+    };
+
+    let p = SECP256K1_P;
+    let mut seeds: Vec<U256> = vec![
+        U256::ZERO,
+        U256::from(1u64),
+        U256::from(2u64),
+        U256::from(3u64),
+        p.wrapping_sub(U256::from(1u64)),
+        p.wrapping_sub(U256::from(2u64)),
+        p >> 1usize,
+    ];
+    let mut seed_reader = {
+        let mut s = Shake256::default();
+        s.update(b"numerator-abi-probe-seeds");
+        s.finalize_xof()
+    };
+    while seeds.len() < 16 {
+        let mut buf = [0u8; 32];
+        seed_reader.read(&mut buf);
+        seeds.push(U256::from_le_bytes(buf) % p);
+    }
+    let n_seeds = seeds.len();
+    let source_seeds: Vec<U256> = (0..n_seeds).map(|i| seeds[(i + 1) % n_seeds]).collect();
+
+    let verify = |name: &str,
+                  ops: &[Op],
+                  total_q: usize,
+                  total_b: usize,
+                  target: &[QubitId],
+                  source: Option<&[QubitId]>,
+                  sign: Option<QubitId>,
+                  retained: Option<&[QubitId]>| {
+        let to_reg =
+            |qs: &[QubitId]| qs.iter().copied().map(QubitOrBit::Qubit).collect::<Vec<_>>();
+        let target_reg = to_reg(target);
+        let source_reg = source.map(to_reg);
+        let retained_reg = retained.map(to_reg);
+        let mut shake = Shake256::default();
+        shake.update(b"numerator-abi-probe-sim");
+        shake.update(name.as_bytes());
+        let mut reader = shake.finalize_xof();
+        let mut sim = Simulator::new(total_q, total_b, &mut reader);
+        for shot in 0..n_seeds {
+            sim.set_register(&target_reg, seeds[shot], shot);
+            if let Some(r) = &source_reg {
+                sim.set_register(r, source_seeds[shot], shot);
+            }
+            if let Some(r) = &retained_reg {
+                sim.set_register(r, seeds[shot], shot);
+            }
+            if let Some(sq) = sign {
+                let sb = if shot % 2 == 1 { U256::from(1u64) } else { U256::ZERO };
+                sim.set_register(&[QubitOrBit::Qubit(sq)], sb, shot);
+            }
+        }
+        sim.apply_iter(ops.iter());
+        let verbose = std::env::var_os("SUB4_PP_NUMERATOR_ABI_PAIR_PROBE_VERBOSE").is_some();
+        let mut restore_fail = 0u64;
+        for shot in 0..n_seeds {
+            let got = sim.get_register(&target_reg, shot);
+            if got != seeds[shot] {
+                restore_fail += 1;
+                if verbose {
+                    eprintln!(
+                        "  FAIL {name} shot={shot} target_seed={:#x} source_seed={:#x} sign={} got={:#x}",
+                        seeds[shot],
+                        source_seeds[shot],
+                        u64::from(shot % 2 == 1),
+                        got,
+                    );
+                }
+            }
+            if let Some(r) = &source_reg {
+                if sim.get_register(r, shot) != source_seeds[shot] {
+                    restore_fail += 1;
+                }
+            }
+            if let Some(sq) = sign {
+                let sb = u64::from(shot % 2 == 1);
+                if (sim.qubit(sq) >> shot) & 1 != sb {
+                    restore_fail += 1;
+                }
+            }
+        }
+        let phase_fail = sim.phase.count_ones() as u64;
+        for wire in target_reg
+            .iter()
+            .chain(source_reg.iter().flatten())
+            .chain(retained_reg.iter().flatten())
+        {
+            if let QubitOrBit::Qubit(q) = *wire {
+                *sim.qubit_mut(q) = 0;
+            }
+        }
+        if let Some(sq) = sign {
+            *sim.qubit_mut(sq) = 0;
+        }
+        let mut ancilla_fail = 0u64;
+        for q in 0..total_q as u64 {
+            ancilla_fail += sim.qubit(QubitId(q)).count_ones() as u64;
+        }
+        let verdict = if restore_fail == 0 && phase_fail == 0 && ancilla_fail == 0 {
+            "EXACT_INVERSE"
+        } else {
+            "NOT_INVERSE"
+        };
+        eprintln!(
+            "NUMERATOR_ABI_PAIR name={name} seeds={n_seeds} restore_fail={restore_fail} phase_fail={phase_fail} ancilla_fail={ancilla_fail} verdict={verdict}"
+        );
+    };
+
+    // Pair 1: mod_halve_pm / mod_double_pm (round 0/1 replay target arithmetic).
+    {
+        let mut b = B::new();
+        let target = b.alloc_qubits(N);
+        let entry = b.active_qubits;
+        mod_halve_pm(&mut b, &target);
+        mod_double_pm(&mut b, &target);
+        assert_eq!(b.active_qubits, entry, "mod_halve_pm/mod_double_pm leaked qubits");
+        let tq = b.next_qubit as usize;
+        let tb = b.next_bit as usize;
+        let ops = b.take_ops();
+        verify("mod_halve_pm|mod_double_pm", &ops, tq, tb, &target, None, None, None);
+    }
+
+    // Pair 2: seed_round_one / seed_round_one_inverse.
+    {
+        let mut b = B::new();
+        let source = b.alloc_qubits(N);
+        let target = b.alloc_qubits(N);
+        let sign = b.alloc_qubit();
+        let entry = b.active_qubits;
+        seed_round_one(&mut b, sign, &source, &target);
+        seed_round_one_inverse(&mut b, sign, &source, &target);
+        assert_eq!(b.active_qubits, entry, "seed_round_one pair leaked qubits");
+        let tq = b.next_qubit as usize;
+        let tb = b.next_bit as usize;
+        let ops = b.take_ops();
+        verify(
+            "seed_round_one|seed_round_one_inverse",
+            &ops,
+            tq,
+            tb,
+            &target,
+            Some(&source),
+            Some(sign),
+            None,
+        );
+    }
+
+    // Pair 3: signed_mod_add_pm_halve_fused / X;signed_mod_double_add_pm_fused;X
+    // (the fused round >= 2 replay cell and its dormant inverse).
+    {
+        let mut b = B::new();
+        let source = b.alloc_qubits(N);
+        let target = b.alloc_qubits(N);
+        let sign = b.alloc_qubit();
+        let entry = b.active_qubits;
+        signed_mod_add_pm_halve_fused(&mut b, sign, &source, &target);
+        b.x(sign);
+        signed_mod_double_add_pm_fused(&mut b, sign, &source, &target);
+        b.x(sign);
+        assert_eq!(b.active_qubits, entry, "fused add-halve pair leaked qubits");
+        let tq = b.next_qubit as usize;
+        let tb = b.next_bit as usize;
+        let ops = b.take_ops();
+        verify(
+            "signed_mod_add_pm_halve_fused|signed_mod_double_add_pm_fused",
+            &ops,
+            tq,
+            tb,
+            &target,
+            Some(&source),
+            Some(sign),
+            None,
+        );
+    }
+
+    // Pair 4: retained_normalization_toggle applied twice (involution check on a
+    // general value, not only the {0,p} sentinel).
+    {
+        let mut b = B::new();
+        let x = b.alloc_qubits(N);
+        let retained = b.alloc_qubits(N);
+        let scratch_vec = b.alloc_qubits(2);
+        let scratch = [scratch_vec[0], scratch_vec[1]];
+        let flag = b.alloc_qubit();
+        let entry = b.active_qubits;
+        retained_normalization_toggle(&mut b, &retained, &scratch, flag, &x);
+        retained_normalization_toggle(&mut b, &retained, &scratch, flag, &x);
+        assert_eq!(b.active_qubits, entry, "toggle involution leaked qubits");
+        let tq = b.next_qubit as usize;
+        let tb = b.next_bit as usize;
+        let ops = b.take_ops();
+        verify(
+            "retained_normalization_toggle^2",
+            &ops,
+            tq,
+            tb,
+            &x,
+            None,
+            None,
+            Some(&retained),
+        );
+    }
+
+    eprintln!("NUMERATOR_ABI_PAIR_PROBE done pairs=4 corpus=nonzero_mod_p");
+}
+
 fn retained_denominator_full_replay_selfcheck(raw_phase_probe: bool) {
     use crate::circuit::QubitOrBit;
     use sha3::{
