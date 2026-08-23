@@ -17,4 +17,5 @@
 - fail-closed qualification: `NEGATIVES_PASS.md`
 - fresh holdout predeclaration: `FRESH_PREDECL.md` / `F16.nonces`
 - fresh holdout qualification: `F16_PASS.md`
+- read-only future Q1270 delta: `Q1270_DONOR_DELTA.md` (`IMPORT HOLD`)
 - provider/CUDA/range/hunt/submission/public: forbidden
