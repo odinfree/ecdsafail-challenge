@@ -131,3 +131,55 @@ Before any hunt, qualify an exact classical predictor against unchanged full
 9,024-shot fixtures and prove CPU/GPU parity on this exact op hash. Only after
 that gate should a bounded first-predicted-clean canary be evaluated. A final
 candidate still requires full `0/0/0` on the unchanged evaluator.
+
+---
+
+# Lane continuation — Q1272 density overturn (from checkpoint 091abce)
+
+Date: 2026-08-23 (Europe/Zurich). Objective: minimize expected time to a clean
+Q1272 nonce with a strict score beat (clean rounded T <= 921139); re-descend
+density on the exact 696/696 stream.
+
+## D0 — baseline reproduced byte-for-byte (clean rebuild)
+
+- `cargo clean` + release rebuild at 091abce; `build_circuit` emitted
+  12,901,167 ops, ops.bin sha256
+  `ecc3d9f0bb1dd4e68e6d337e39c4cdb66cfbfe83928a81fec28e22797fca4cfd` — exact
+  match to the frozen receipt. VERIFIED.
+- 64-lane diag (`PP_PROFILE=1`): T914748.17 total, Q1272, peak op 2,527,023 in
+  `pp_div_replay`, 0 classical / phase 0x0 / 0 dirty — exact match.
+
+## D1 — tooling ported (route 1), byte-neutral
+
+- Ported the Q1274 lane's `SUB4_DUMP_WSCHED` (schedule dump through the real
+  `value_width` path) and `SUB4_PP_WSCHED_FILE` (sampled-table CSV override,
+  default-off) into `mod.rs`/`pingpong_div.rs`. No `WIDTH_REPAIR` const
+  imported — repairs must be refitted on this stream.
+- Byte-neutrality: default rebuild after the port reproduces sha256
+  `ecc3d9f0...` exactly. VERIFIED. (Note: a `SUB4_DUMP_WSCHED=1` run clobbers
+  `ops.bin` with an empty stream; always rebuild after dumping.)
+- Effective 696-map schedule dumped: `round*703/695` compression; effective
+  width hits the 8-bit floor from round ~614 (rescale) vs ~692 (base).
+
+## D2 — classical fault oracle validated on THIS stream
+
+- ppfilter binary sha256 `f763f770527117be409123ae23ab8ceeecac1d5b8d7ee4e698d468f375f58128`
+  (the exact binary the Q1274 lane cross-checked against its trusted 18/10/0
+  and 22/11/0 receipts), source `/Users/olifreuler/ecdsa-ppfilter-rl`.
+- `PPF_OPS=<this ops.bin> PPF_ROUNDS_DIV=696 PPF_ROUNDS_MUL=696
+  PPF_WSCHED=<effective rescaled schedule>` breakdown @ inherited nonce
+  251000962439: **pred_cls=17** == the trusted full-eval receipt (17/16/0).
+  Split: walk_div=10 replay_div=0 walk_mul=5 replay_mul=2; causes: width=11
+  term=4 walkback=0 shell=0; first faulting shot 889.
+
+## D3 — corpus predeclaration (BEFORE any census observation)
+
+Committed before any fit/census run on these draws:
+
+- Training sample A: nonces 111000000000 .. 111000000319 (320 draws).
+- Held-out sample B: nonces 222000000000 .. 222000000319 (320 draws).
+- Held-out sample C: nonces 333000000000 .. 333000000319 (320 draws).
+- Fitting uses A only (refits may use A+B, then validate on C, mirroring the
+  Q1274 protocol). Controls (direct Q1274 r100/r200 index transfer) are
+  priced on A and validated on B without refitting.
+- The inherited nonce 251000962439 is a fixture only, never a density sample.
