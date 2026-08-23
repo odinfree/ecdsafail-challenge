@@ -22,10 +22,11 @@
 - H64 masks: `64/64` complete rows, results `da0ca6fe...e3a6e`, manifest
   `07e4a192...ba20a`, aggregate classical/raw/clean/ancilla
   `1177/871/286/0`;
+- model family: `q1270_native_recurrence_v1`, empty implementation,
+  predeclaration pending commit;
 - model status: no donor source, binary, table, checkpoint, or output imported;
-- decision: `H64 SEALED / SOURCE-BOUND MODEL PREDECL NEXT / NO HUNT`.
+- decision: `MODEL FAMILY PREDECLARED / NATIVE DERIVATION NEXT / NO HUNT`.
 
-Next action: commit/push the H64 receipt, then use the read-only Q1271 donor
-manifest at `f054ed0` only as a replacement checklist. Predeclare a Q1270-native
-port with no donor artifact reuse and freeze a new independent holdout before
-broader qualification. D32 remains unopened.
+Next action: commit/push the model predeclaration, rerun the Q1270-native
+derivation identities, and implement the recurrence from empty target files.
+D32 remains unopened; F16 is frozen only after inherited+H64 model equality.
