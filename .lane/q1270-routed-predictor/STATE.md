@@ -17,8 +17,10 @@
 - oracle design: current-core output-only two-pass complete-mask executable;
 - deterministic build: two fresh release/locked/offline targets matched at
   `de84cf86...9acfd`;
+- inherited masks: exact 141-word classical/raw/clean/ancilla row
+  `a2515e89...8f004`, totals `23/15/4/0`, repeat byte-identical;
 - model status: no donor source, binary, table, checkpoint, or output imported;
-- decision: `ORACLE BUILD PASS / INHERITED CALIBRATION NEXT / NO HUNT`.
+- decision: `INHERITED PASS / H64 AUTHORIZED / NO HUNT`.
 
-Next action: commit/push the build gate, then seal the inherited complete masks
-and deterministic repeat before exposing H64 to the oracle.
+Next action: commit/push the inherited receipt, then expose only the frozen H64
+to the unchanged oracle and seal all 64 complete rows atomically.
