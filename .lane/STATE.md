@@ -92,6 +92,35 @@ R1 far from 340 (walk-split exact cost explodes).
 - [ ] One inherited-nonce full 9024-shot eval (nonce 251000962439 baked):
       RUNNING — result to be appended below.
 
-## Full-eval receipt (one authorized run)
+## Full-eval receipt (one authorized run, inherited nonce 251000962439)
 
-(pending)
+- artifact sha256 60b6fe451b0cea31c2deffee907c74a1327e175f1adbe9dd41d6e9d76e6ea933,
+  12,913,879 loaded ops
+- trusted evaluator: **qubits = 1274** (max-id scan confirms the width cut)
+- fingerprint: **18 classical / 10 phase / 0 ancilla** over 9,024 shots
+- NOT 0/0/0 -> per the pre-registered gate, NO hunt is proposed from this lane;
+  the inherited-nonce route is closed. The evaluator exits before printing avg
+  T on failure, so the exact full-count T receipt awaits a clean draw; the
+  deterministic diag T915,905.50 (offset -23.4, draw SD ~9) prices rounded full
+  T at ~915,882, score ~1,166,833,668 (-4.86M vs live).
+
+Calibration context for whoever owns density: the other lane's EXACT L-001 cut
+read 13/17/0 on its inherited draw; e928-era fresh-draw calibration on an
+accepted-class config measured lambda ~10.9 (1 clean per ~52k nonces).
+18/10/0 here is one Poisson-ish draw from a config whose paid-boundary census
+is BELOW live (2290 vs 2313) but whose width schedule is ~+3.2 lambda_cls
+hotter (the 940e34a rescale screen's number). Density calibration (FN-gated
+screener, GPU lane) decides huntability; this lane does not start it.
+
+## Verdict / next binder
+
+The composition stands as the priced Q1274 candidate: it passes the score gate
+with ~3.8k T margin where the exact carry-host composition missed by 226, and
+it does so with FEWER approximate boundary repairs than the live stream. The
+next binder is not schedule geometry (R1/R2/PEAK grid is at a sharp local
+optimum; Q1273 is score-negative) — it is the width-violation lambda of the
+compressed schedule: a per-round +1-bit repair of the ~6 narrowest rescaled
+rounds (SUB4_PP_WSCHED_FILE-style table edit, tooling exists on the 940e34a
+lane) could buy back most of the +3.2 lambda_cls for tens of T, well inside
+the 3.8k margin. That is the highest-EV next experiment before any fleet
+density run.
