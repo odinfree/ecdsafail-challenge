@@ -1,32 +1,65 @@
-# Claude Fable lane: burn the tape, exact live 087cafa
+# Claude Fable lane: Q1272 density overturn
 
-You own this isolated worktree and branch. Start from the exact promoted public source at commit `087cafaef46a4e339644a6191ff2df2e7031cb80`.
+You own only this isolated worktree and branch. Start from the exact audited
+Q1272 source at commit `091abce0c0ac73f5e1965034fa976fa14c855594`.
+The frozen artifact is 12,901,167 loaded operations, SHA-256
+`ecc3d9f0bb1dd4e68e6d337e39c4cdb66cfbfe83928a81fec28e22797fca4cfd`,
+Q1272, diagnostic T914748.17, and inherited full result 17/16/0 with exact
+average T914792.720. Live is Q1275/T918972/score 1171689300. At Q1272 a clean
+rounded T must be <=921139, leaving roughly 6.3k T of density-repair room.
 
 ## Objective
 
-Find the smallest clean architectural composition that strictly beats the live leader while lowering peak qubits. The current live target is Q1275, rounded T918972, score 1171689300. A Q1274 candidate must have rounded T at most 919693.
+Minimize expected time to a clean Q1272 nonce while retaining a strict score
+beat. Re-descend on this exact 696/696 stream; do not assume the Q1274 density
+frontier transfers. First price the transfer exactly, then attack the hard
+terminal/replay/tape channels if schedule widening saturates.
 
-Another lane has already proved an exact Q1274 source-host composition. It passes 8-state and 32-state miters and the 64-lane production self-check at diagnostic T919919.48, but it misses the score gate by 226 rounded T. Its exact hosting cost is 963 T against a 721-T allowance. Do not duplicate that implementation.
+Use the completed Q1274 repair lane only as evidence and tooling:
+`/Users/olifreuler/Documents/Codex/2026-08-21/par/work/fable-rescale-repair-82a742b`
+at source commit `fe0b7ba` and evidence commit `d793aa2`. Its 100-index repair
+measured about -0.95 held-out classical lambda for +519 diagnostic T, but it
+uses the 698-round map `floor(r*703/697)`. This lane uses the distinct
+696-round map `floor(r*703/695)` and must refit on its own stream.
 
-Use the burn-the-house-down method: re-descend from the exact live source, overturn the tape/replay architecture, test bounded saddles, compose only measured wins, and grind nonces last. Teddy's newest advice was to point agents at the tape or replace it. Matt also observed that an older baseline could remove two paid-error rounds by tightening `SUB4_SQUARE_LADDER`; audit the adjacent history and determine whether the mechanism transfers to the exact live source.
+## Routes
 
-Priority routes:
-
-1. Remove or replace replay/walk tape state so at least 226 rounded T disappears without losing Q1274.
-2. Recover the two paid-error rounds through a genuinely exact ladder or replay change, not a diagnostic-only parameter tweak.
-3. Find at least 242 clean carriers that avoid UMA/source-host cost, or an equivalent exact Toffoli cut.
+1. Reproduce the Q1272 artifact byte-for-byte before editing. Port only the
+   byte-neutral schedule dump/override and deficit-census tooling from the
+   Q1274 lane. Never import generated artifacts or logs.
+2. Predeclare training and held-out nonce corpora before observation. Measure
+   the Q1272 fault decomposition and evaluate direct Q1274 r100/r200 transfer
+   as controls, then refit sparse +1 and bounded +2 repairs on Q1272.
+3. Price the measured Pareto frontier in diagnostic T, Q, held-out classical
+   fault density, and remaining strict-beat margin. Prefer the best expected
+   search-economics knee, not the lowest T in isolation.
+4. If width repair saturates, isolate schedule-independent terminal, replay,
+   walkback, and tape channels. Test the smallest bounded architectural
+   overturn with focused exact miters. Do not claim a tape cut from a parameter
+   change alone.
+5. Audit Matt's old-baseline `SUB4_SQUARE_LADDER` clue only against current
+   binders. The present Q1272 cut is replay ladder 130->128 plus square ladder
+   244->242; another cut needs measured co-binder and exact-test evidence.
 
 ## Gates
 
-- Reopen and inspect exact source and adjacent accepted diffs before editing.
-- Keep a durable experiment ledger in `.lane/STATE.md` with hypothesis, exact diff, Q, diagnostic T, validation status, and verdict.
-- Force clean rebuilds. Treat stale artifacts as failure.
-- Every structural primitive needs a focused Boolean/exhaustive miter where feasible, then the production 64-lane self-check.
-- Profile all peak co-binders. Q1274 and rounded T <= 919693 are required before any full 9024-shot evaluation.
-- If and only if the score gate passes, run one inherited-nonce full 9024-shot diagnostic unchanged. Require classical/phase/ancilla `0/0/0` before proposing any hunt.
-- Do not start provider compute, a fleet hunt, or a submission. Do not modify any other worktree.
-- Do not commit generated ops, logs, helper binaries, temporary evaluators, or artifacts.
-- Critique, fix, and verify each claimed result. Record dead ends rather than hiding them.
-- Commit and push durable source and lane state at a useful checkpoint.
+- Keep `.lane/STATE.md` append-only from this checkpoint with hypotheses,
+  exact diffs/configs, corpus commitments, Q/T/density measurements, tests,
+  verdicts, and next binder.
+- Force clean rebuilds. Stale artifacts invalidate results.
+- Use held-out data and report uncertainty. A single inherited draw is not a
+  density estimate.
+- Every frozen candidate must keep all peak co-binders at Q1272, pass focused
+  square and affine selftests, production 64-lane selfcheck, and `git diff
+  --check`.
+- One inherited 9,024-shot full diagnostic is allowed only after the Q/T and
+  structural gates pass. A dirty inherited draw does not kill a density repair.
+- Do not run a nonce scan, provider compute, fleet mutation, submission, or
+  public communication. Do not modify any other worktree.
+- Do not commit `ops.bin`, `results.tsv`, score files, logs, helper binaries,
+  temporary evaluators, generated tables, or other artifacts.
+- Critique, fix, and verify every claimed result. Commit and push durable
+  source/state checkpoints when useful.
 
-End with a terse handoff containing the exact commit, Q/T/score, validation evidence, and next binder.
+End with exact commits, Q/T/estimated strict-beat score, held-out density
+change, validation evidence, and the next binder.
