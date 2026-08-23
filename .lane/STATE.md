@@ -1,5 +1,26 @@
 # Burn plateau re-descent from 940e34a
 
+## Restart recovery overlay - 2026-08-23
+
+Status: `RECOVERED_UNCOMMITTED_PROTOTYPE`; do not treat the source diff as a
+measurement or candidate.
+
+- Branch HEAD remains `464ea805356a`.
+- `src/point_add/pingpong_div.rs` has an uncommitted 104-line,
+  `pp_mul_walkback`-only source-carry prototype.
+- No matching process is running and no durable miter, 64-lane result, full
+  9,024-shot result, operation hash, or Q/T receipt was found for this diff.
+- The measured Q1277/T917898.890/full `8/13/0` receipt below belongs to HEAD's
+  sparse-square composition, not to the recovered uncommitted prototype.
+
+Next falsifier: before building the complete circuit, exhaust the MAJ/UMA
+cell's full Boolean domain and prove restoration of the hosted source,
+accumulator, and incoming carry with phase/ancilla zero. If it passes, run the
+unchanged 64-lane point-add check and complete owner census. KILL if the cut is
+multiply-only at a still-tied plateau or if any cleanup channel is dirty. Do
+not delete, commit, or continue the recovered source diff until its owner
+chooses that gate explicitly.
+
 Updated: 2026-08-23
 
 ## Decision
