@@ -437,14 +437,42 @@ fn sched_bias() -> i32 {
     })
 }
 
+/// Optional runtime replacement for the embedded `WIDTH_SCHEDULE`, loaded from
+/// a `round,width` CSV named by `SUB4_PP_WSCHED_FILE`.  Default-off (returns
+/// `None`), so the shipped stream is byte-identical.  Used only to price
+/// alternative width tables (e.g. sparse +1-bit repair sets) on this base.
+/// Rows index the SAMPLED table (the compressed `width_round_index` output),
+/// not the raw round.
+fn wsched_override() -> Option<&'static Vec<u16>> {
+    static SLOT: std::sync::OnceLock<Option<Vec<u16>>> = std::sync::OnceLock::new();
+    SLOT.get_or_init(|| {
+        let path = std::env::var("SUB4_PP_WSCHED_FILE").ok()?;
+        let text = std::fs::read_to_string(&path).ok()?;
+        let mut table = vec![0u16; WIDTH_SCHEDULE.len()];
+        for line in text.lines() {
+            let mut it = line.split(',');
+            let (Some(a), Some(b)) = (it.next(), it.next()) else { continue };
+            let (Ok(r), Ok(w)) = (a.trim().parse::<usize>(), b.trim().parse::<u16>()) else {
+                continue;
+            };
+            if r < table.len() {
+                table[r] = w;
+            }
+        }
+        Some(table)
+    })
+    .as_ref()
+}
+
 fn value_width(round: usize) -> usize {
     if std::env::var_os("SUB4_PP_SCHED_LINEAR").is_none() {
         if round == 0 {
             return VALUE_WIDTH; // the fused round-0 lift works on the full envelope
         }
         let r = width_round_index(round);
-        if r < WIDTH_SCHEDULE.len() {
-            return ((WIDTH_SCHEDULE[r] as i32 + sched_bias()).max(8) as usize).clamp(8, VALUE_WIDTH);
+        let table = wsched_override().map_or(&WIDTH_SCHEDULE[..], |v| &v[..]);
+        if r < table.len() {
+            return ((table[r] as i32 + sched_bias()).max(8) as usize).clamp(8, VALUE_WIDTH);
         }
         return 8;
     }
@@ -2372,4 +2400,20 @@ pub(crate) fn pingpong_simulator_selfcheck() {
 #[test]
 fn divide_and_multiply_preserve_the_abi_and_clean_ancillas() {
     pingpong_simulator_selfcheck();
+}
+
+/// Diagnostic: print the per-round value-width schedule for both the base
+/// (identity index, `SUB4_PP_WIDTH_RESCALE=0`) and rescaled (default-on
+/// `round*697/697` compression) traversals, through the real `value_width`
+/// code path.  Gated by `SUB4_DUMP_WSCHED` in `build`, so it never runs in
+/// the shipped stream.
+pub(crate) fn dump_width_schedule() {
+    std::env::set_var("SUB4_PP_WIDTH_RESCALE", "0");
+    let base: Vec<usize> = (0..700).map(value_width).collect();
+    std::env::remove_var("SUB4_PP_WIDTH_RESCALE");
+    let resc: Vec<usize> = (0..700).map(value_width).collect();
+    println!("round,base,rescale");
+    for r in 0..700 {
+        println!("{},{},{}", r, base[r], resc[r]);
+    }
 }
