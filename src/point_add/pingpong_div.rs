@@ -678,6 +678,17 @@ fn walk_split_disabled() -> bool {
     std::env::var_os("SUB4_PP_NO_WALK_SPLIT").is_some()
 }
 
+/// Reuse the live walk sign as one clean high-ladder carry only at the exact
+/// divide-replay binder.  After the complement sandwich, target bit zero is
+/// `sign ^ target0_is_one`, so it preserves the logical sign while the sign
+/// wire is reset, used as a carry, reset again, and restored.
+fn sign_host_walk_carry_enabled(b: &B, stock_high: usize) -> bool {
+    std::env::var_os("SUB4_PP_SIGN_HOST_CARRY").is_some()
+        && matches!(b.phase, "pp_div_replay" | "pp_mul_walkback")
+        && stock_high > 0
+        && b.active_qubits as usize + stock_high > 1274
+}
+
 /// Width of the low chunk of the walk add at `round`, or `None` for the
 /// single-ladder form.
 ///
@@ -758,16 +769,33 @@ fn signed_add_wrapping_sigma_split(
     b.cx(c_lo[0], source[1]);
     b.cx(source[1], c_lo[1]);
     b.cx(source[1], target[1]);
-    if target0_is_one {
-        b.x(c_lo[0]);
+
+    let high = n - 1 - low;
+    let host_sign = sign_host_walk_carry_enabled(b, high);
+    if host_sign {
+        // target[0] still holds the complemented-frame carry zero.  Use it to
+        // clear both c_lo[0] and the original sign without allocating a copy.
+        b.cx(target[0], c_lo[0]);
+        b.cx(target[0], sign);
+        if target0_is_one {
+            b.x(sign);
+        }
+    } else {
+        if target0_is_one {
+            b.x(c_lo[0]);
+        }
+        b.cx(sign, c_lo[0]);
+        b.cx(source[0], target[0]);
     }
-    b.cx(sign, c_lo[0]);
-    b.cx(source[0], target[0]);
     b.free_vec(&c_lo[..low - 1]);
 
     // High chunk: positions low..n, carry-in `boundary`.
-    let high = n - 1 - low;
-    let c_hi = b.alloc_qubits(high);
+    let clean_high = b.alloc_qubits(high - usize::from(host_sign));
+    let mut c_hi = Vec::with_capacity(high);
+    if host_sign {
+        c_hi.push(sign);
+    }
+    c_hi.extend_from_slice(&clean_high);
     for j in 0..high {
         let i = low + j;
         let previous = if j == 0 { boundary } else { c_hi[j - 1] };
@@ -789,7 +817,18 @@ fn signed_add_wrapping_sigma_split(
         b.cx(previous, source[i]);
         b.cx(source[i], target[i]);
     }
-    b.free_vec(&c_hi);
+    b.free_vec(&clean_high);
+    if host_sign {
+        // The hosted carry was measurement-uncomputed but remains allocated.
+        // Reset it in place, restore the logical sign from untouched target0,
+        // then finish the delayed low sum bit.
+        b.r(sign);
+        if target0_is_one {
+            b.x(sign);
+        }
+        b.cx(target[0], sign);
+        b.cx(source[0], target[0]);
+    }
 
     // `target[..low]` now holds the low bits of the complemented-frame sum and
     // `source[..low]` the untouched addend, so this comparison is the boundary
@@ -833,11 +872,25 @@ fn signed_add_wrapping_sigma(
     for &q in target {
         b.cx(sign, q);
     }
-    let carries = b.alloc_qubits(n - 1);
+    let host_sign = sign_host_walk_carry_enabled(b, n - 1);
+    let allocated = b.alloc_qubits(n - 1 - usize::from(host_sign));
+    let mut carries = Vec::with_capacity(n - 1);
+    if host_sign {
+        carries.push(sign);
+    }
+    carries.extend_from_slice(&allocated);
 
-    b.cx(sign, carries[0]);
-    if target0_is_one {
-        b.x(carries[0]);
+    if host_sign {
+        // target[0] now equals the complemented-frame carry zero.  The sign
+        // itself can hold that same bit until the ladder is unwound.
+        if target0_is_one {
+            b.x(sign);
+        }
+    } else {
+        b.cx(sign, carries[0]);
+        if target0_is_one {
+            b.x(carries[0]);
+        }
     }
     b.cx(source[1], carries[1]);
     b.cx(carries[0], source[1]);
@@ -865,12 +918,23 @@ fn signed_add_wrapping_sigma(
     b.cx(carries[0], source[1]);
     b.cx(source[1], carries[1]);
     b.cx(source[1], target[1]);
-    if target0_is_one {
-        b.x(carries[0]);
+    if host_sign {
+        b.cx(target[0], sign);
+    } else {
+        if target0_is_one {
+            b.x(carries[0]);
+        }
+        b.cx(sign, carries[0]);
+        b.cx(source[0], target[0]);
     }
-    b.cx(sign, carries[0]);
-    b.cx(source[0], target[0]);
-    b.free_vec(&carries);
+    b.free_vec(&allocated);
+    if host_sign {
+        if target0_is_one {
+            b.x(sign);
+        }
+        b.cx(target[0], sign);
+        b.cx(source[0], target[0]);
+    }
 
     for &q in target {
         b.cx(sign, q);
@@ -901,6 +965,9 @@ thread_local! {
     /// Live-ladder budget for the chunked adder, in qubits.  `None` = use the
     /// default chunk width.
     static LADDER_TARGET: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
+    /// A caller-owned clean wire that may replace one owned Gidney carry at a
+    /// binding allocation.  The adder resets it but never releases it.
+    static CLEAN_CARRY_HOST: std::cell::Cell<Option<QubitId>> = const { std::cell::Cell::new(None) };
 }
 fn ladder_target_now() -> Option<usize> {
     LADDER_TARGET.with(|c| c.get())
@@ -910,6 +977,25 @@ fn set_ladder(target: usize) {
 }
 fn clear_chunks() {
     LADDER_TARGET.with(|c| c.set(None));
+}
+
+fn set_clean_carry_host(host: QubitId) {
+    CLEAN_CARRY_HOST.with(|c| c.set(Some(host)));
+}
+
+fn clear_clean_carry_host() {
+    CLEAN_CARRY_HOST.with(|c| c.set(None));
+}
+
+fn clean_carry_host_now(b: &B, owned: usize) -> Option<QubitId> {
+    if std::env::var_os("SUB4_PP_SIGN_HOST_CARRY").is_none()
+        || !matches!(b.phase, "pp_mul_replay" | "pp_mul_walkback")
+        || owned == 0
+        || b.active_qubits as usize + owned <= 1274
+    {
+        return None;
+    }
+    CLEAN_CARRY_HOST.with(|c| c.get())
 }
 
 fn set_chunks_width(width: usize) {
@@ -1317,6 +1403,17 @@ fn and_uncompute(b: &mut B, out: QubitId, a: QubitId, c: QubitId) {
     b.free(out);
 }
 
+/// The two residual owners have no locally recoverable clean sign at their
+/// binding generic add.  Host one carry in the source bit through a coherent
+/// MAJ/UMA pair.  This costs one additional executed Toffoli per activation
+/// but restores every operand.
+fn remaining_source_carry_enabled(b: &B, owned: usize) -> bool {
+    std::env::var_os("SUB4_REMAINING_SOURCE_CARRY_Q1274").is_some()
+        && matches!(b.phase, "pp_div_replay" | "square_product_register")
+        && owned > 0
+        && b.active_qubits as usize + owned > 1274
+}
+
 /// One Gidney chunk, preserving the addend and carry-in and optionally
 /// retaining the carry-out.  Every owned carry is measurement-uncomputed.
 fn chunk_add(
@@ -1345,7 +1442,106 @@ fn chunk_add(
     }
 
     let owned = num_carries - usize::from(carry_out.is_some());
-    let mut carries = b.alloc_qubits(owned);
+
+    // Cuccaro MAJ/UMA hybrid for the one binder that has no clean sign host.
+    // The hosted source and incoming carry are restored coherently before the
+    // remaining clean carries are measurement-uncomputed.
+    let source_host = if remaining_source_carry_enabled(b, owned) {
+        let candidate = usize::from(carry_in.is_none());
+        (candidate < owned).then_some(candidate)
+    } else {
+        None
+    };
+    if let Some(host_index) = source_host {
+        let clean_carries = b.alloc_qubits(owned - 1);
+        let mut clean_index = 0;
+        let mut carries = Vec::with_capacity(num_carries);
+        for i in 0..num_carries {
+            if i == host_index {
+                carries.push(addend[i]);
+            } else if carry_out.is_some() && i + 1 == num_carries {
+                carries.push(carry_out.expect("final carry exists"));
+            } else {
+                carries.push(clean_carries[clean_index]);
+                clean_index += 1;
+            }
+        }
+        debug_assert_eq!(clean_index, clean_carries.len());
+
+        for i in 0..num_carries {
+            let previous = if i == 0 {
+                carry_in
+            } else {
+                Some(carries[i - 1])
+            };
+            if i == host_index {
+                let previous = previous.expect("source carry has an incoming carry");
+                b.cx(addend[i], acc[i]);
+                b.cx(addend[i], previous);
+                b.ccx(acc[i], previous, addend[i]);
+            } else {
+                if let Some(previous) = previous {
+                    b.cx(previous, addend[i]);
+                    b.cx(previous, acc[i]);
+                }
+                b.ccx(addend[i], acc[i], carries[i]);
+                if let Some(previous) = previous {
+                    b.cx(previous, carries[i]);
+                }
+            }
+        }
+
+        if carry_out.is_some() {
+            let i = width - 1;
+            let previous = if i == 0 {
+                carry_in
+            } else {
+                Some(carries[i - 1])
+            };
+            if let Some(previous) = previous {
+                b.cx(previous, addend[i]);
+            }
+            b.cx(addend[i], acc[i]);
+        } else {
+            b.cx(carries[num_carries - 1], acc[width - 1]);
+            b.cx(addend[width - 1], acc[width - 1]);
+        }
+
+        for i in (0..owned).rev() {
+            let previous = if i == 0 {
+                carry_in
+            } else {
+                Some(carries[i - 1])
+            };
+            if i == host_index {
+                let previous = previous.expect("source carry has an incoming carry");
+                b.ccx(acc[i], previous, addend[i]);
+                b.cx(addend[i], previous);
+                b.cx(previous, acc[i]);
+            } else {
+                if let Some(previous) = previous {
+                    b.cx(previous, carries[i]);
+                }
+                let measured = b.alloc_bit();
+                b.hmr(carries[i], measured);
+                b.cz_if(addend[i], acc[i], measured);
+                if let Some(previous) = previous {
+                    b.cx(previous, addend[i]);
+                }
+                b.cx(addend[i], acc[i]);
+            }
+        }
+        b.free_vec(&clean_carries);
+        return;
+    }
+
+    let clean_host = clean_carry_host_now(b, owned);
+    let allocated = b.alloc_qubits(owned - usize::from(clean_host.is_some()));
+    let mut carries = Vec::with_capacity(num_carries);
+    if let Some(host) = clean_host {
+        carries.push(host);
+    }
+    carries.extend_from_slice(&allocated);
     if let Some(carry) = carry_out {
         carries.push(carry);
     }
@@ -1399,7 +1595,10 @@ fn chunk_add(
         }
         b.cx(addend[i], acc[i]);
     }
-    b.free_vec(&carries[..owned]);
+    b.free_vec(&allocated);
+    if let Some(host) = clean_host {
+        b.r(host);
+    }
 }
 
 fn chunk_bounds(width: usize, chunk: usize) -> Vec<(usize, usize)> {
@@ -1755,6 +1954,16 @@ fn signed_mod_double_add_pm_fused(
     for &q in target {
         b.cx(sign, q);
     }
+
+    // The left shift makes target[0]=0 before the complement, hence target[0]
+    // now equals the logical sign.  Park that sign in target[0] and lend the
+    // reset sign wire to whichever replay chunk would otherwise cross Q1274.
+    let host_sign = std::env::var_os("SUB4_PP_SIGN_HOST_CARRY").is_some()
+        && matches!(b.phase, "pp_mul_replay" | "pp_mul_walkback");
+    if host_sign {
+        b.cx(target[0], sign);
+        set_clean_carry_host(sign);
+    }
     let add_out = if std::env::var_os("SUB4_PP_LEGACY_CHUNK_ORDER").is_some() {
         let add_out = b.alloc_qubit();
         add_chunked_measured(b, source, target, Some(add_out));
@@ -1762,6 +1971,13 @@ fn signed_mod_double_add_pm_fused(
     } else {
         add_chunked_measured_late_carry(b, source, target)
     };
+    if host_sign {
+        clear_clean_carry_host();
+        // Low-bit addition has no carry-in, so target[0]=sign^source[0].
+        // Recover the logical sign after the hosted carry has reset to zero.
+        b.cx(target[0], sign);
+        b.cx(source[0], sign);
+    }
 
     // In the complemented subtraction frame the correction multiple is
     // d+o when sign=0 and o-d when sign=1, hence {-1,0,+1,+2}.
@@ -2030,6 +2246,182 @@ pub(crate) fn build_pingpong_point_add() -> Vec<Op> {
         );
     }
     ops
+}
+
+/// Complete reachable-domain miter for the sign-hosted high-carry cell.
+/// Each target-bit-zero arm covers all 64 assignments of logical sign,
+/// incoming carry, source/target cell bits, and the two top output bits.
+#[allow(dead_code)]
+pub(crate) fn sign_host_cell_selfcheck() {
+    use sha3::{
+        digest::{ExtendableOutput, Update},
+        Shake256,
+    };
+
+    for target0_is_one in [false, true] {
+        let mut b = B::new();
+        let sign = b.alloc_qubit();
+        let target0 = b.alloc_qubit();
+        let previous = b.alloc_qubit();
+        let source = b.alloc_qubit();
+        let target = b.alloc_qubit();
+        let source_top = b.alloc_qubit();
+        let target_top = b.alloc_qubit();
+
+        // Park logical sign in target0, leaving a clean carry host.
+        b.cx(target0, sign);
+        if target0_is_one {
+            b.x(sign);
+        }
+
+        // One normal Gidney carry cell with the clean sign as its carry wire.
+        b.cx(previous, source);
+        b.cx(previous, target);
+        b.ccx(source, target, sign);
+        b.cx(previous, sign);
+        b.cx(sign, target_top);
+        b.cx(source_top, target_top);
+
+        // Exact measurement uncompute, in-place reset, and sign recovery.
+        b.cx(previous, sign);
+        let measured = b.alloc_bit();
+        b.hmr(sign, measured);
+        b.cz_if(source, target, measured);
+        b.cx(previous, source);
+        b.cx(source, target);
+        b.r(sign);
+        if target0_is_one {
+            b.x(sign);
+        }
+        b.cx(target0, sign);
+
+        let num_qubits = b.next_qubit as usize;
+        let num_bits = b.next_bit as usize;
+        let ops = b.take_ops();
+        let mut shake = Shake256::default();
+        let seed: &[u8] = if target0_is_one {
+            b"sign host cell target0 one"
+        } else {
+            b"sign host cell target0 zero"
+        };
+        shake.update(seed);
+        let mut reader = shake.finalize_xof();
+        let mut sim = Simulator::new(num_qubits, num_bits, &mut reader);
+
+        for shot in 0..64 {
+            let logical_sign = (shot >> 0) & 1;
+            let incoming = (shot >> 1) & 1;
+            let source_bit = (shot >> 2) & 1;
+            let target_bit = (shot >> 3) & 1;
+            let source_top_bit = (shot >> 4) & 1;
+            let target_top_bit = (shot >> 5) & 1;
+            let complemented_target0 = logical_sign ^ usize::from(target0_is_one);
+            for (q, value) in [
+                (sign, logical_sign),
+                (target0, complemented_target0),
+                (previous, incoming),
+                (source, source_bit),
+                (target, target_bit),
+                (source_top, source_top_bit),
+                (target_top, target_top_bit),
+            ] {
+                if value != 0 {
+                    *sim.qubit_mut(q) |= 1u64 << shot;
+                }
+            }
+        }
+        sim.apply_iter(ops.iter());
+
+        for shot in 0..64 {
+            let logical_sign = (shot >> 0) & 1;
+            let incoming = (shot >> 1) & 1;
+            let source_bit = (shot >> 2) & 1;
+            let target_bit = (shot >> 3) & 1;
+            let source_top_bit = (shot >> 4) & 1;
+            let target_top_bit = (shot >> 5) & 1;
+            let carry = (source_bit & target_bit)
+                | (source_bit & incoming)
+                | (target_bit & incoming);
+            let expected = [
+                (sign, logical_sign),
+                (target0, logical_sign ^ usize::from(target0_is_one)),
+                (previous, incoming),
+                (source, source_bit),
+                (target, source_bit ^ target_bit ^ incoming),
+                (source_top, source_top_bit),
+                (target_top, target_top_bit ^ source_top_bit ^ carry),
+            ];
+            for (q, value) in expected {
+                assert_eq!(
+                    (sim.qubit(q) >> shot) & 1,
+                    value as u64,
+                    "sign-host cell mismatch arm={target0_is_one} shot={shot} q={q:?}"
+                );
+            }
+        }
+        assert_eq!(sim.phase, 0, "sign-host cell phase debt");
+    }
+
+    // Complete MAJ/UMA source-host cell domain, including both output states.
+    {
+        let mut b = B::new();
+        let source = b.alloc_qubit();
+        let target = b.alloc_qubit();
+        let previous = b.alloc_qubit();
+        let top = b.alloc_qubit();
+        b.cx(source, target);
+        b.cx(source, previous);
+        b.ccx(target, previous, source);
+        b.cx(source, top);
+        b.ccx(target, previous, source);
+        b.cx(source, previous);
+        b.cx(previous, target);
+
+        let ops = b.take_ops();
+        let mut shake = Shake256::default();
+        shake.update(b"source host cell complete domain");
+        let mut reader = shake.finalize_xof();
+        let mut sim = Simulator::new(b.next_qubit as usize, b.next_bit as usize, &mut reader);
+        for shot in 0..16 {
+            for (q, value) in [
+                (source, (shot >> 0) & 1),
+                (target, (shot >> 1) & 1),
+                (previous, (shot >> 2) & 1),
+                (top, (shot >> 3) & 1),
+            ] {
+                if value != 0 {
+                    *sim.qubit_mut(q) |= 1u64 << shot;
+                }
+            }
+        }
+        sim.apply_iter(ops.iter());
+        for shot in 0..16 {
+            let source_bit = (shot >> 0) & 1;
+            let target_bit = (shot >> 1) & 1;
+            let previous_bit = (shot >> 2) & 1;
+            let top_bit = (shot >> 3) & 1;
+            let carry = (source_bit & target_bit)
+                | (source_bit & previous_bit)
+                | (target_bit & previous_bit);
+            for (q, value) in [
+                (source, source_bit),
+                (target, source_bit ^ target_bit ^ previous_bit),
+                (previous, previous_bit),
+                (top, top_bit ^ carry),
+            ] {
+                assert_eq!(
+                    (sim.qubit(q) >> shot) & 1,
+                    value as u64,
+                    "source-host cell mismatch shot={shot} q={q:?}"
+                );
+            }
+        }
+        assert_eq!(sim.phase, 0, "source-host cell phase debt");
+    }
+
+    eprintln!(
+        "SIGN_HOST_CELL PASS arms=2 states=128; SOURCE_HOST_CELL PASS states=16; phase=0 ancilla=0"
+    );
 }
 
 /// One bit-parallel batch through the complete affine-add candidate.  This is
