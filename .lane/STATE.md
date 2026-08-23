@@ -321,3 +321,14 @@ No open blocker in this worktree: local canary green, sources sealed. The one
 gate this branch cannot itself close is a fresh Linux+CUDA parity run (no local
 nvcc) — `run_linux_parity.sh` is the sealed, self-verifying reproduction for
 that host; the original run already passed with the receipt hashes above.
+
+---
+
+# Fast phase-screen lane — PREDECLARATION
+
+This independent lane begins at the sealed classical packet `a7326a9` and is
+bound to source `fe0b7ba` / operations
+`4c68597468ed1dbb4f2e33042842227bf57c011c51f41e9cdaf13c73194b1f8c`.
+The implementation family, frozen corpora, exact shot-set gates, negatives,
+and economic falsifier are fixed in `.lane/PHASE-SCREEN-TASK.md` before any
+new oracle result. This lane cannot start a range or hunt.
