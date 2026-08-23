@@ -184,3 +184,24 @@ binary, ops stream, log, or result row is retained in Git. E-001c remains a
 held structural component, not a predictor or hunt stream. A future turn must
 predeclare a real boundary-carry representation; further window shifting is a
 measured anti-lever.
+
+## E-006 boundary-borrow terminal update
+
+E-006 represented the missing state explicitly rather than shifting its
+boundary: one borrow qubit crossed low53 into an exact controlled decrement of
+the high203 suffix and was then erased from a corrected low copy. Its static
+price bound was final-phase Q1186 and incremental T930.
+
+The only implementation fixed both original E-004 inputs exactly. Candidate
+SHA `760e6d76504a8f444c0945af3903f6f4be0ccc6beaced9b061a108f35f1c78b2`
+had 12,942,597 ops and Q1272. Same-seed diagnostic T was 916996.73 with
+classical/phase/dirty `0/0/0`; final-y peak stayed Q1026. The actual diagnostic
+price was +879.61 T.
+
+The focused 64-lane reversible miter then failed with phase mask `0x2c` on
+lanes 2, 3, and 5. It aborted before full value/ancilla assertions, so no wider
+correctness claim survives. The candidate and all temporary harness code were
+removed immediately; inherited full and H64 did not run. The explicit borrow
+repairs the observed value fault but this micro-composition is phase-dirty on
+frozen corner cases and remains killed. Any later phase-clean construction
+requires a new predeclaration rather than an amendment to E-006.
