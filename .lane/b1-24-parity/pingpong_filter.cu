@@ -45,6 +45,7 @@ typedef unsigned char      u8;
 #define N_BITS       256
 #define VALUE_WIDTH  259          // N + 3
 #define NUM_TESTS    9024
+#define FAULT_MASK_WORDS ((NUM_TESTS + 63) / 64)
 #define RATE         136          // SHAKE256 rate
 #define TAIL_OPS     96
 #define ABSORB_BPO   49
@@ -930,7 +931,8 @@ __device__ __forceinline__ void comb_mul2(Jac *ja, Jac *jb, const u64 k1[4], con
 __global__ __launch_bounds__(128, MODEL_MINBLOCKS)
 void model_kernel(const u64 *__restrict__ xof, const u64 *__restrict__ comb,
                   int n, int shot_lo, int shot_hi, int win_words,
-                  unsigned long long *counts, int *dead, int screen) {
+                  unsigned long long *counts, unsigned long long *fault_masks,
+                  int *dead, int screen) {
     const int lane   = threadIdx.x & 31;
     const int wpb    = blockDim.x >> 5;
     const int nwarps = gridDim.x * wpb;
@@ -994,6 +996,10 @@ void model_kernel(const u64 *__restrict__ xof, const u64 *__restrict__ comb,
             int mm = shot_verdict(tx, ty, ox, oy, t_inf, o_inf, tape);
             unsigned ball = __ballot_sync(0xffffffffu, mm);
             acc += (unsigned long long)__popc(ball);
+            if (fault_masks && lane == 0 && ball) {
+                size_t mi = (size_t)slot * FAULT_MASK_WORDS + ((unsigned)s0 >> 6);
+                fault_masks[mi] |= (unsigned long long)ball << (s0 & 63);
+            }
             if (screen && ball) { aborted = 1; break; }
         }
         if (lane == 0) {
@@ -1146,9 +1152,11 @@ static HModel build_model(int verbose) {
 static void usage() {
     fprintf(stderr,
       "usage: pingpong_gpu --checkpoint <blob> --ops <count> --from <n> --to <n>\n"
-      "       [--device N] [--batch N] [--window N] [--screen] [--selftest] [--verbose]\n"
+      "       [--device N] [--batch N] [--window N] [--screen] [--faultshots]\n"
+      "       [--selftest] [--verbose]\n"
       "       [--allow-op-mismatch]\n"
       "stdout: one \"<nonce> <classical_mismatch_count>\" line per nonce, ascending.\n"
+      "--faultshots appends the complete 9,024-bit mask as 141 ascending u64 hex words.\n"
       "Default is EXACT mode (full count; diffable against pingpong_filter).\n"
       "--screen enables first-mismatch early exit; count is then 0 (clean) or 1 (dirty).\n"
       "THIS IS A SCREEN, NOT A VALIDATOR: phase-channel failures are invisible here, so\n"
@@ -1170,7 +1178,8 @@ int main(int argc, char **argv) {
 #endif
     const char *ckpath = 0;
     long long want_ops = -1, from = -1, to = -1;
-    int device = 0, batch = 1024, window = 1024, screen = 0, selftest = 0, verbose = 0, allow_mm = 0;
+    int device = 0, batch = 1024, window = 1024, screen = 0, faultshots = 0;
+    int selftest = 0, verbose = 0, allow_mm = 0;
 
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
@@ -1183,6 +1192,7 @@ int main(int argc, char **argv) {
         else if (a == "--batch")   batch = atoi(NEXT());
         else if (a == "--window")  window = atoi(NEXT());
         else if (a == "--screen")  screen = 1;
+        else if (a == "--faultshots") faultshots = 1;
         else if (a == "--selftest") selftest = 1;
         else if (a == "--verbose" || a == "-v") verbose = 1;
         else if (a == "--allow-op-mismatch") allow_mm = 1;
@@ -1191,6 +1201,10 @@ int main(int argc, char **argv) {
     }
     if (!ckpath) usage();
     if (!selftest && (from < 0 || to < 0 || to < from)) usage();
+    if (screen && faultshots) {
+        fprintf(stderr, "pingpong_gpu: --faultshots is incompatible with incomplete --screen mode.\n");
+        exit(2);
+    }
     if (want_ops < 0) {
         fprintf(stderr, "pingpong_gpu: --ops <count> is REQUIRED (it is the circuit fingerprint).\n");
         exit(2);
@@ -1354,12 +1368,15 @@ int main(int argc, char **argv) {
     size_t win_words = (size_t)window * 8;
     u64 *d_nonces = 0, *d_xof = 0;
     unsigned long long *d_counts = 0;
+    unsigned long long *d_fault_masks = 0;
     int *d_dead = 0;
     SqState *d_sq = 0;
     CUCHK(cudaMalloc(&d_nonces, (size_t)batch * 8));
     CUCHK(cudaMalloc(&d_sq, (size_t)batch * sizeof(SqState)));
     CUCHK(cudaMalloc(&d_xof, (size_t)batch * win_words * 8));
     CUCHK(cudaMalloc(&d_counts, (size_t)batch * 8));
+    if (faultshots)
+        CUCHK(cudaMalloc(&d_fault_masks, (size_t)batch * FAULT_MASK_WORDS * 8));
     CUCHK(cudaMalloc(&d_dead, (size_t)batch * 4));
     if (verbose) fprintf(stderr, "xof buffer: %.1f MB (batch=%d window=%d) mode=%s\n",
                          (double)batch * win_words * 8 / 1048576.0, batch, window,
@@ -1369,6 +1386,8 @@ int main(int argc, char **argv) {
     int max_blocks = prop.multiProcessorCount * 8;         // 8 blocks/SM of 4 warps
     std::vector<u64> hn(batch);
     std::vector<unsigned long long> hc(batch);
+    std::vector<unsigned long long> hmasks;
+    if (faultshots) hmasks.resize((size_t)batch * FAULT_MASK_WORDS);
     double t0 = now_s();
 
     for (long long b0 = from; b0 <= to; b0 += batch) {
@@ -1376,6 +1395,8 @@ int main(int argc, char **argv) {
         for (int i = 0; i < nb; ++i) hn[i] = (u64)(b0 + i);
         CUCHK(cudaMemcpy(d_nonces, hn.data(), (size_t)nb * 8, cudaMemcpyHostToDevice));
         CUCHK(cudaMemset(d_counts, 0, (size_t)nb * 8));
+        if (faultshots)
+            CUCHK(cudaMemset(d_fault_masks, 0, (size_t)nb * FAULT_MASK_WORDS * 8));
         CUCHK(cudaMemset(d_dead, 0, (size_t)nb * 4));
         fs_init_kernel<<<(nb + 127) / 128, 128>>>(d_nonces, nb, d_sq);
         CUCHK(cudaGetLastError());
@@ -1388,12 +1409,23 @@ int main(int argc, char **argv) {
             if (blocks > max_blocks) blocks = max_blocks;
             if (blocks < 1) blocks = 1;
             model_kernel<<<blocks, TPB>>>(d_xof, d_comb, nb, lo, hi, (int)win_words,
-                                          d_counts, d_dead, screen);
+                                          d_counts, d_fault_masks, d_dead, screen);
             CUCHK(cudaGetLastError());
             CUCHK(cudaDeviceSynchronize());
         }
         CUCHK(cudaMemcpy(hc.data(), d_counts, (size_t)nb * 8, cudaMemcpyDeviceToHost));
-        for (int i = 0; i < nb; ++i) printf("%llu %llu\n", (unsigned long long)(b0 + i), hc[i]);
+        if (faultshots)
+            CUCHK(cudaMemcpy(hmasks.data(), d_fault_masks,
+                             (size_t)nb * FAULT_MASK_WORDS * 8, cudaMemcpyDeviceToHost));
+        for (int i = 0; i < nb; ++i) {
+            printf("%llu %llu", (unsigned long long)(b0 + i), hc[i]);
+            if (faultshots) {
+                putchar(' ');
+                for (int w = 0; w < FAULT_MASK_WORDS; ++w)
+                    printf("%016llx", hmasks[(size_t)i * FAULT_MASK_WORDS + w]);
+            }
+            putchar('\n');
+        }
         fflush(stdout);
     }
     double dt = now_s() - t0;
