@@ -39,7 +39,8 @@ summary="$out/summary.tsv.tmp"
 printf 'corpus\tnonce\texpected_count\tpredicted_count\tmask_sha256\tstatus\n' >"$summary"
 
 run_one() {
-  local corpus=$1 nonce=$2 expected=$3 dir="$out/$corpus/$nonce"
+  local corpus=$1 nonce=$2 expected=$3 dir
+  dir="$out/$corpus/$nonce"
   local expected_count predicted_count expected_hash predicted_hash
   mkdir -p "$dir"
   PPF_OPS="$ops" "$bin" faultshots "$nonce" >"$dir/predictor.raw" 2>"$dir/predictor.stderr"
