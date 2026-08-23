@@ -24,6 +24,19 @@ CUDA comb8, and CUDA comb16 for every row of `fixtures.tsv`. No model output is
 a circuit result; every retained nonce still needs unchanged full 9,024-shot
 evaluation with classical, phase, and ancilla all zero.
 
-`build.sh` writes binaries beside this file, so run it only in a disposable
-copy or remove the binaries afterward. Set `PPGPU_CUDA_ARCH=120` on Blackwell;
-the only other admitted architecture is 89.
+`build.sh` writes fixture-only binaries beside this file and compiles both
+range entry points with `PP_DISABLE_SCAN=1`. Set `PPGPU_CUDA_ARCH=120` on
+Blackwell; the only other admitted architecture is 89.
+
+`stage_dedicated.sh` is the prepared clean-host parity path. It requires an
+idle single GPU, validates all exact hashes, compares CPU/CUDA comb8/comb16 on
+the four frozen breakdowns and inherited full fault-shot set, and proves both
+wrong-count and same-count/wrong-SHA rejection. It has not been run.
+
+`stage_borrowed.sh` and `pilot_tolerant.sh` are committed unarmed. The former
+requires a later commit with exact incumbent assignment and immutable-input
+guards. The latter requires a global proof that the fail-closed model
+overcounts by at most a fixed `B <= 3`, then uses `max_faults >= B` so a true
+zero is retained. Strict model-zero filtering is not globally safe here.
+
+See `../PARITY-STAGE.md` for the frozen receipt contract and current holds.

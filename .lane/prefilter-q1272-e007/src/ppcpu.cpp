@@ -1,7 +1,8 @@
 // ppcpu.cpp — CPU bit-exact reference of the ppgpu kernel logic.
 // Uses the exact same pp_model.h arithmetic the CUDA device code compiles.
 // CLI mirrors the ppfilter oracle output formats for diffing:
-//   ppcpu scan FROM COUNT [THREADS]     -> "NONCE pred_cls=0" lines
+//   ppcpu scan FROM COUNT [THREADS] [--max-faults 0..3]
+//                                           -> "NONCE pred_cls=N" lines
 //   ppcpu faultshots NONCE              -> "IDX MASK" lines (mask != 0)
 //   ppcpu shot NONCE IDX                -> corpus dump for one shot
 //   ppcpu breakdown NONCE               -> per-cause counts
@@ -11,6 +12,10 @@
 #include <thread>
 #include <vector>
 #include "pp_host.h"
+
+#ifndef PP_DISABLE_SCAN
+#define PP_DISABLE_SCAN 0
+#endif
 
 static const char* ops_path() {
     const char* p = getenv("PPF_OPS");
@@ -25,10 +30,17 @@ static void limbs_hex(const u64 a[4], char* out) {
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        fprintf(stderr, "usage: ppcpu scan FROM COUNT [THREADS] | faultshots NONCE | shot NONCE IDX | breakdown NONCE | statedigest\n");
+        fprintf(stderr, "usage: ppcpu scan FROM COUNT [THREADS] [--max-faults 0..3] | faultshots NONCE | shot NONCE IDX | breakdown NONCE | statedigest\n");
         return 2;
     }
     std::string mode = argv[1];
+
+#if PP_DISABLE_SCAN
+    if (mode == "scan") {
+        fprintf(stderr, "ppcpu: range scanning is disabled in this parity build\n");
+        return 78;
+    }
+#endif
 
     if (mode == "shaketest") {
         PP_Shake s;
@@ -163,9 +175,35 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (mode == "scan") {
+        if (argc < 4) {
+            fprintf(stderr, "ppcpu: scan requires FROM and COUNT\n");
+            return 2;
+        }
         u64 start = strtoull(argv[2], 0, 10);
         u64 count = strtoull(argv[3], 0, 10);
-        int threads = argc > 4 ? atoi(argv[4]) : 8;
+        int threads = 8;
+        u32 max_faults = 0;
+        int i = 4;
+        if (i < argc && argv[i][0] != '-') threads = atoi(argv[i++]);
+        while (i < argc) {
+            std::string a = argv[i++];
+            if (a == "--max-faults" && i < argc) {
+                char* end = nullptr;
+                unsigned long v = strtoul(argv[i++], &end, 10);
+                if (!end || *end != '\0' || v > 3) {
+                    fprintf(stderr, "ppcpu: --max-faults must be in 0..3\n");
+                    return 2;
+                }
+                max_faults = (u32)v;
+            } else {
+                fprintf(stderr, "ppcpu: unknown scan argument %s\n", a.c_str());
+                return 2;
+            }
+        }
+        if (threads < 1) {
+            fprintf(stderr, "ppcpu: thread count must be positive\n");
+            return 2;
+        }
         std::atomic<u64> next_i(0), done(0), survivors(0);
         std::vector<std::thread> pool;
         for (int t = 0; t < threads; t++) {
@@ -177,16 +215,16 @@ int main(int argc, char** argv) {
                     u64 nonce = start + i;
                     std::vector<PP_Shot> shots;
                     pp_derive_corpus(&pfx, nonce, comb.data(), shots);
-                    bool fault = false;
+                    u32 faults = 0;
                     for (auto& s : shots) {
                         if (pp_shot_fault_mask(s.tx, s.ty, s.ox, s.oy, s.lam) != 0) {
-                            fault = true;
-                            break;
+                            faults++;
+                            if (faults > max_faults) break;
                         }
                     }
-                    if (!fault) {
+                    if (faults <= max_faults) {
                         survivors.fetch_add(1, std::memory_order_relaxed);
-                        printf("%llu pred_cls=0\n", (unsigned long long)nonce);
+                        printf("%llu pred_cls=%u\n", (unsigned long long)nonce, faults);
                         fflush(stdout);
                     }
                     done.fetch_add(1, std::memory_order_relaxed);
@@ -194,8 +232,9 @@ int main(int argc, char** argv) {
             });
         }
         for (auto& t : pool) t.join();
-        fprintf(stderr, "ppcpu done: %llu nonces, survivors %llu\n",
-                (unsigned long long)count, (unsigned long long)survivors.load());
+        fprintf(stderr, "ppcpu done: %llu nonces, max_faults %u, survivors %llu\n",
+                (unsigned long long)count, max_faults,
+                (unsigned long long)survivors.load());
         return 0;
     }
     fprintf(stderr, "unknown mode %s\n", mode.c_str());

@@ -232,3 +232,25 @@ Post-clean reproduction again matched default `ecc3d9f0...4cfd`, promoted
 `d9737f51...b124`, candidate `4618d4af...9f37`, and held
 `d4ecab6d...f920`. Temporary evaluator instrumentation and generated rows were
 removed.
+
+## E007 predictor and parity-stage preparation
+
+The isolated `research/q1272-e007-model-prep` lane rebound the CPU/CUDA model
+to exact E007 count `12,943,345`, operation SHA `4618d4af...9f37`, and state
+digest `963a662d2e392804`. Local CPU calibration matches four frozen unchanged
+full-evaluator totals and first failures; the inherited fixture also matches
+all 11 ordered classical mismatch indices and cause masks.
+
+The Linux/CUDA stage is prepared but unrun. Its build compiles range entry
+points disabled, freezes CPU/CUDA comb8/comb16 equality, tests both wrong-count
+and same-count/wrong-SHA rejection, and emits receipts only after all gates
+pass. The dedicated-host path is armed only for an already-present idle GPU;
+the incumbent-borrow path remains explicitly unarmed until exact incumbent
+hashes, assignment, and coverage are committed.
+
+Strict predicted-zero filtering remains held. The fold55 restoration branch
+can conservatively overcount a benign wrapped overflow. Source supports
+bounded `max_faults=0..3`, but the tolerant pilot remains unarmed until a
+global source-bound overcount proof establishes a bound `B <= 3`; any future
+threshold must be at least `B`. No CUDA parity, provider action, range, hunt,
+or submission occurred. The exact contract is in `PARITY-STAGE.md`.

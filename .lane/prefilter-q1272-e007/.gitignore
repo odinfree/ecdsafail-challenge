@@ -1,0 +1,15 @@
+/ops.bin
+/ppcpu
+/ppgpu
+/ppgpu-scan-enabled
+/*.tmp
+/FINGERPRINTS
+/PARITY.complete
+/DEDICATED.complete
+/BORROW.complete
+/OVERCOUNT_BOUND.complete
+/SCAN-ENABLED.complete
+/fixtures/
+/negative/
+/runs/
+/*.lock

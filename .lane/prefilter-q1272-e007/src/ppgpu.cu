@@ -1,7 +1,7 @@
 // ppgpu.cu — CUDA port of the ppfilter classical prefilter (pingpong fault
-// model, ROUNDS_DIV=696/ROUNDS_MUL=696) for the ecdsa.fail Q1272 rescaled
-// width-schedule stream at source commit
-// 091abce0c0ac73f5e1965034fa976fa14c855594. RTX 4090 (sm_89).
+// model, ROUNDS_DIV=696/ROUNDS_MUL=696) for the ecdsa.fail Q1272 E007
+// phase-clean stream at source commit
+// ea93a131e2bc488bff6fa12010d1f3606c7771b0 (sm_89 or sm_120).
 //
 // Bit-exactness contract: per-shot fault masks and per-nonce survivor
 // verdicts must equal the unchanged trusted evaluator (see FIXTURES.md). All
@@ -22,6 +22,10 @@
 
 #include "pp_model.h"
 #include "pp_host.h"
+
+#ifndef PP_DISABLE_SCAN
+#define PP_DISABLE_SCAN 0
+#endif
 
 #define MAX_WAVE 256
 // atomicAdd for uint64_t (unsigned long on LP64) via the ULL overload.
@@ -342,8 +346,9 @@ __global__ void probe_batchinv_kernel(u64* out) {
 }
 
 // ─── production scan kernel ────────────────────────────────────────────────
-__global__ void scan_kernel(u64 start, u64 count, u32* out_cnt, u64* out_list,
-                            int max_out, u64* waves_done, u64* fault_counter) {
+__global__ void scan_kernel(u64 start, u64 count, u32 max_faults, u32* out_cnt,
+                            u64* out_list, u32* out_faults, int max_out,
+                            u64* waves_done, u64* fault_counter) {
     extern __shared__ unsigned char smem[];
     int t = threadIdx.x;
     int wave = blockDim.x;
@@ -355,7 +360,7 @@ __global__ void scan_kernel(u64 start, u64 count, u32* out_cnt, u64* out_list,
     u64* signs_d = &signs_all[t * 11];
     u64* signs_m = &signs_all[wave * 11 + t * 11];
     __shared__ PP_Shake sq;
-    __shared__ int hard_flag;
+    __shared__ u32 hard_count;
     __shared__ u16 ws[700];
     for (int i = t; i < 700; i += wave) ws[i] = PP_WIDTH_SCHEDULE_D[i];
     __syncthreads();
@@ -364,12 +369,12 @@ __global__ void scan_kernel(u64 start, u64 count, u32* out_cnt, u64* out_list,
         u64 nonce = start + nidx;
         if (t == 0) {
             dev_nonce_absorb(&sq, nonce);
-            hard_flag = 0;
+            hard_count = 0;
         }
         __syncthreads();
-        u64 my_waves = 0, my_faults = 0;
+        u64 my_waves = 0;
         for (int base_shot = 0; base_shot < PP_NUM_TESTS; base_shot += wave) {
-            if (hard_flag) break;
+            if (hard_count > max_faults) break;
             int n_this =
                 (PP_NUM_TESTS - base_shot < wave) ? (PP_NUM_TESTS - base_shot) : wave;
             if (t == 0) dev_squeeze_wave(&sq, wbytes, n_this * 64);
@@ -390,8 +395,7 @@ __global__ void scan_kernel(u64 start, u64 count, u32* out_cnt, u64* out_list,
                 u32 mask = dev_stage2(jx, jy, jz, kx, ky, kz, num, za_inv, den_inv,
                                       signs_d, signs_m, ws);
                 if (mask != 0) {
-                    hard_flag = 1;
-                    my_faults++;
+                    atomicAdd(&hard_count, 1u);
                 }
             }
             my_waves++;
@@ -399,10 +403,13 @@ __global__ void scan_kernel(u64 start, u64 count, u32* out_cnt, u64* out_list,
         }
         if (t == 0) {
             pp_atomic_add_u64(waves_done, my_waves);
-            pp_atomic_add_u64(fault_counter, my_faults);
-            if (!hard_flag) {
+            pp_atomic_add_u64(fault_counter, hard_count);
+            if (hard_count <= max_faults) {
                 u32 pos = atomicAdd(out_cnt, 1u);
-                if (pos < (u32)max_out) out_list[pos] = nonce;
+                if (pos < (u32)max_out) {
+                    out_list[pos] = nonce;
+                    out_faults[pos] = hard_count;
+                }
             }
         }
         __syncthreads();
@@ -555,6 +562,7 @@ int main(int argc, char** argv) {
     int wave = 128;
     int blocks = 0; // 0 = auto
     int comb_bits = 16;
+    u32 max_faults = 0;
     u64 faultshots_nonce = ~0ULL;
     u64 shot_nonce = ~0ULL;
     int shot_idx = -1;
@@ -572,6 +580,7 @@ int main(int argc, char** argv) {
         else if (a == "--threads-block") wave = atoi(next());
         else if (a == "--blocks") blocks = atoi(next());
         else if (a == "--comb-bits") comb_bits = atoi(next());
+        else if (a == "--max-faults") max_faults = (u32)strtoul(next(), 0, 10);
         else if (a == "--faultshots") faultshots_nonce = strtoull(next(), 0, 10);
         else if (a == "--shot") {
             shot_nonce = strtoull(next(), 0, 10);
@@ -589,13 +598,26 @@ int main(int argc, char** argv) {
         fprintf(stderr,
                 "usage: ppgpu --ops OPS.bin (--from A --to B | --faultshots N | "
                 "--shot N IDX | --breakdown N) [--threads-block 128] [--blocks N] "
-                "[--comb-bits 8|16]\n");
+                "[--comb-bits 8|16] [--max-faults 0..3]\n");
         return 2;
     }
     if (wave < 32) wave = 32;
     if (wave > MAX_WAVE) wave = MAX_WAVE;
     if (wave % 32) wave = ((wave + 31) / 32) * 32;
     if (comb_bits != 8 && comb_bits != 16) comb_bits = 16;
+    if (max_faults > 3) {
+        fprintf(stderr, "ppgpu: --max-faults must be in 0..3\n");
+        return 2;
+    }
+
+#if PP_DISABLE_SCAN
+    if (faultshots_nonce == ~0ULL && shot_nonce == ~0ULL &&
+        breakdown_nonce == ~0ULL && probe_bytes_nonce == ~0ULL &&
+        probe_jac_nonce == ~0ULL && !probe_batchinv) {
+        fprintf(stderr, "ppgpu: range scanning is disabled in this parity build\n");
+        return 78;
+    }
+#endif
 
     // host prefix load (includes the op-count fingerprint guard)
     PP_Prefix prefix;
@@ -811,6 +833,8 @@ int main(int argc, char** argv) {
     const int MAXOUT = 65536;
     u64* dlist;
     cudaMalloc(&dlist, MAXOUT * 8);
+    u32* dfault_list;
+    cudaMalloc(&dfault_list, MAXOUT * 4);
     u64* dwaves;
     cudaMalloc(&dwaves, 8);
     cudaMemset(dwaves, 0, 8);
@@ -818,15 +842,15 @@ int main(int argc, char** argv) {
     cudaMalloc(&dfaults, 8);
     cudaMemset(dfaults, 0, 8);
 
-    fprintf(stderr, "ppgpu: scan [%llu,%llu) blocks=%d wave=%d shmem=%zu comb_bits=%d\n",
+    fprintf(stderr, "ppgpu: scan [%llu,%llu) blocks=%d wave=%d shmem=%zu comb_bits=%d max_faults=%u\n",
             (unsigned long long)from, (unsigned long long)to, blocks, wave, shmem,
-            comb_bits);
+            comb_bits, max_faults);
     cudaEvent_t t0, t1;
     cudaEventCreate(&t0);
     cudaEventCreate(&t1);
     cudaEventRecord(t0);
-    scan_kernel<<<blocks, wave, shmem>>>(from, count, dcnt, dlist, MAXOUT, dwaves,
-                                         dfaults);
+    scan_kernel<<<blocks, wave, shmem>>>(from, count, max_faults, dcnt, dlist,
+                                         dfault_list, MAXOUT, dwaves, dfaults);
     cudaError_t ce = cudaDeviceSynchronize();
     cudaEventRecord(t1);
     cudaEventSynchronize(t1);
@@ -846,16 +870,19 @@ int main(int argc, char** argv) {
         return 3;
     }
     std::vector<u64> hlist(cnt);
+    std::vector<u32> hfault_list(cnt);
     cudaMemcpy(hlist.data(), dlist, cnt * 8, cudaMemcpyDeviceToHost);
-    for (u32 i = 0; i < cnt; i++) printf("%llu pred_cls=0\n", (unsigned long long)hlist[i]);
+    cudaMemcpy(hfault_list.data(), dfault_list, cnt * 4, cudaMemcpyDeviceToHost);
+    for (u32 i = 0; i < cnt; i++)
+        printf("%llu pred_cls=%u\n", (unsigned long long)hlist[i], hfault_list[i]);
     double secs = ms / 1000.0;
     fprintf(stderr,
             "TELEMETRY {\"from\":%llu,\"to\":%llu,\"count\":%llu,\"blocks\":%d,"
-            "\"wave\":%d,\"comb_bits\":%d,\"kernel_ms\":%.1f,\"nonces_per_s\":%.1f,"
+            "\"wave\":%d,\"comb_bits\":%d,\"max_faults\":%u,\"kernel_ms\":%.1f,\"nonces_per_s\":%.1f,"
             "\"waves\":%llu,\"fault_shots\":%llu,\"survivors\":%u,"
             "\"state_digest\":\"%016llx\"}\n",
             (unsigned long long)from, (unsigned long long)to, (unsigned long long)count,
-            blocks, wave, comb_bits, ms, count / secs, (unsigned long long)hwaves,
+            blocks, wave, comb_bits, max_faults, ms, count / secs, (unsigned long long)hwaves,
             (unsigned long long)hfaults, cnt, (unsigned long long)pp_state_digest(&prefix));
     return 0;
 }

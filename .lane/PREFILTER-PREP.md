@@ -4,7 +4,7 @@ Date: 2026-08-23 (Europe/Zurich)
 
 ## Verdict
 
-`HOLD_GPU_PARITY`
+`HOLD_GPU_PARITY / HOLD_OVERCOUNT_BOUND`
 
 The exact E007 stream was byte-reproduced from clean committed source. A
 source-bound CPU model was assembled from the previously qualified Q1272
@@ -116,11 +116,22 @@ Committed packet hashes:
 
 - `src/pp_host.h`: `ff609173d16d2cb6d3d69f81b22a1361b42772c3d58c8b83ac836222028ccbaa`;
 - `src/pp_model.h`: `609d21cab5ad8dd40180f1a20311d1578b2b6d243133a0137951d3f2dddcc81d`;
-- `src/ppcpu.cpp`: `59d74a15055885f4299e257213cb70d6a47d6dec34d9b34b2f92e84843626e1f`;
-- `src/ppgpu.cu`: `f42ea4ba033b46c6c4d372bc24dfce6a319dcb215716d3d08ff10ad7882b8fd2`.
+- `src/ppcpu.cpp`: `47061664fa5365793e01427c0834dcbee9e01daca16981ba980b9c4f22bbc460`;
+- `src/ppgpu.cu`: `bc3acb5867a477d8d50b00a997b38fcab78d92267f9e8906bba9ddff5ab28872`;
+- scan-disabled `build.sh`: `349287129102bc97aec491c2e0fd6cc7470cbc9ebef64fa567770f94547b2cd7`.
+
+The CPU/CUDA source change after local calibration is confined to bounded
+`max_faults=0..3` range retention and an independent compile-time range
+disable. Fixture `breakdown`, `faultshots`, shared model arithmetic, loader,
+operation count, and state digest paths are unchanged. The parity build sets
+`PP_DISABLE_SCAN=1`, so this source packet cannot launch a range during the
+prepared fixture stage.
 
 These hashes are pre-commit file hashes and are independently reproducible.
 Generated ops, evaluator rows, binaries, logs, temporary digest tools, and
-CUDA artifacts are excluded from Git. The next allowed action is the four-row
-CUDA parity gate only; a successful parity receipt still does not authorize a
-scan.
+CUDA artifacts are excluded from Git. `PARITY-STAGE.md` freezes the dedicated
+and unarmed incumbent-borrow receipts, four fixture rows, inherited complete
+set, and two negative streams. A successful parity receipt still does not
+authorize a scan. Strict predicted-zero filtering remains unsafe until a
+global fail-closed overcount bound is proven; the tolerant pilot is committed
+unarmed and requires `max_faults >= bound` with `bound <= 3`.
