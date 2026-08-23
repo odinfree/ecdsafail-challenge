@@ -56,3 +56,12 @@ new Q1274 co-binder.
 ## Results
 
 Pending.
+
+### Near-gate calibration addendum
+
+Predeclared after the seed-0 result, before revealing any seed-1 measurement:
+because seed 0 leaves less than 100 T of projected ceiling headroom, run exactly
+one quiet paired remeasurement at `PP_PROFILE_SEED=1`. The candidate and the
+runtime-restored Q1274 ancestor use the same inputs and simulator randomness.
+Both paired deltas must be <= +719 T; disagreement closes the route as HOLD
+rather than inviting another seed or parameter change.
