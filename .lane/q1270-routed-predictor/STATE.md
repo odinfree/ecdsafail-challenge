@@ -19,8 +19,13 @@
   `de84cf86...9acfd`;
 - inherited masks: exact 141-word classical/raw/clean/ancilla row
   `a2515e89...8f004`, totals `23/15/4/0`, repeat byte-identical;
+- H64 masks: `64/64` complete rows, results `da0ca6fe...e3a6e`, manifest
+  `07e4a192...ba20a`, aggregate classical/raw/clean/ancilla
+  `1177/871/286/0`;
 - model status: no donor source, binary, table, checkpoint, or output imported;
-- decision: `INHERITED PASS / H64 AUTHORIZED / NO HUNT`.
+- decision: `H64 SEALED / SOURCE-BOUND MODEL PREDECL NEXT / NO HUNT`.
 
-Next action: commit/push the inherited receipt, then expose only the frozen H64
-to the unchanged oracle and seal all 64 complete rows atomically.
+Next action: commit/push the H64 receipt, then use the read-only Q1271 donor
+manifest at `f054ed0` only as a replacement checklist. Predeclare a Q1270-native
+port with no donor artifact reuse and freeze a new independent holdout before
+broader qualification. D32 remains unopened.
