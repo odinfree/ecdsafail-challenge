@@ -124,3 +124,50 @@ rounds (SUB4_PP_WSCHED_FILE-style table edit, tooling exists on the 940e34a
 lane) could buy back most of the +3.2 lambda_cls for tens of T, well inside
 the 3.8k margin. That is the highest-EV next experiment before any fleet
 density run.
+
+---
+
+# Lane continuation — rescale-repair (from checkpoint 82a742b)
+
+Objective: keep Q1274/T915905.50 composition, cut the compressed width
+schedule's classical-fault density (~+3.2 lambda_cls) with a sparse +1-bit
+repair of the narrowest/highest-exposure rescaled rounds.
+
+## R0 — starting candidate reproduced (clean rebuild)
+
+- cargo clean -p quantum_ecc + rebuild at 82a742b; build_circuit emitted
+  12,913,879 ops, ops.bin sha256
+  60b6fe451b0cea31c2deffee907c74a1327e175f1adbe9dd41d6e9d76e6ea933 — exact
+  match to the lane receipt. VERIFIED.
+
+## R1 — tooling recovered (route 1)
+
+- Ported ca85409's byte-neutral tooling from the 940e34a lane, adapted to
+  default-on rescale: SUB4_DUMP_WSCHED (dump through real value_width),
+  SUB4_PP_WSCHED_FILE (sampled-table override, default-off). Commit 320e278.
+- Byte-neutrality re-verified after port: same ops.bin sha256 60b6fe45....
+- Schedule dump matches old lane's E5: rescale removes 666 bit-rounds per
+  traversal across 457 narrowed rounds.
+
+## R2 — classical fault model validated on THIS stream
+
+- ppfilter binary sha256 f763f770... (the exact binary the 940e34a lane
+  screen-validated: 32 nonces, zero FN) with PPF_OPS=<candidate ops.bin>,
+  PPF_WSCHED=<effective rescaled schedule from SUB4_DUMP_WSCHED>,
+  PPF_ROUNDS_DIV=698, PPF_ROUNDS_MUL=696:
+  breakdown @ inherited nonce 251000962439 -> pred_cls=18
+  == the paid trusted full-eval receipt (18/10/0). Width channel 12/18.
+- Scratch instrumented copy (NOT committed; /tmp only): "deficit" mode
+  computes per-shot schedule-independent walk trajectories, records for every
+  faulting shot the exact (round, excess-bits) width deficits vs the current
+  schedule plus a hard-fault flag for schedule-independent channels
+  (terminal/walkback/replay/square-zero/result). Cross-checked per shot
+  against the validated shot_fault_mask path: pred=18 xchk=18 at the
+  inherited nonce. Because walk trajectories do not depend on the schedule,
+  widening-only candidate schedules are exactly evaluable from these deficit
+  profiles (widening can never create a new classical fault in the model).
+- Key structural observation at the inherited nonce: 6/18 faults have no
+  width deficit at all (hard channels), most width-deficit shots are ALSO
+  hard-faulted non-converging walks with deficits growing to +8 (unrepairable
+  by +1); exactly one shot (4815) is hard=0 with all-excess-1 deficits
+  (div rounds 432,444,445,446) — the repairable class.
