@@ -10,5 +10,7 @@
   `51d9802bee64c6865b294b1e3ac7f40d6717ce258677ea7b9bbfa4a5841a413d`
 - final manifest SHA-256:
   `fa458ea4af5766df3660380943e3fc83e502d379f2cd9945c3e4c38e2f22d93c`
-- next gate: predeclare and qualify the exact conditional phase composition;
-  preserve the qualified classical model and all complete-mask receipts
+- combined phase gate: predeclared against `031083cc`; no phase source edit or
+  result preceded `.lane/q1273-wrap-exact/COMBINED_PHASE_PREDECL.md`
+- next gate: source-event-preserving conditional-phase composition, followed
+  by exact 113-row classical and 17-row phase replay plus negatives
