@@ -1,6 +1,6 @@
 # Promoted-source Q1272 predictor state
 
-- decision: `ADD3X_REPAIR_RETRO_PASS / NEW_HOLDOUT_REQUIRED / HOLD_CUDA / HOLD_RANGE`
+- decision: `ADD3X_REPAIR_RETRO_PASS / V64_CPP_DISAGREEMENT / HOLD_CUDA / HOLD_RANGE`
 - target: `73422709` / tree `fe77bddf...` / ops `ea19759d...`
 - evidence: `41dd0b45` / exact diagnostic `23/8/0`
 - predictor source SHA-256: `39371fca9e77d7aab3cfda7111bdbc03c11d8cfc03966cd15b2ea77d79836e38`
@@ -16,8 +16,11 @@
 - D32 reveal SHA-256: `e2754ae5090b52ff6318920b9385579690213f5712bdf5ce1bed696bedc54c83`
 - retrospective result: inherited 23/23, H64 1,144/1,144, spent D32
   559/559, all complete masks exact
+- V64 pre-evaluator disagreement: nonce `90522024612912`, Rust/C++ 18/17,
+  Rust-only shot `2544`; trusted V64 unopened at seal time
 - scan mode: disabled and negative-tested
 - phase: independently owned by the combined-phase lane; no phase claim here
 - provider/range/hunt/submission: none
-- next action: freeze and push a genuinely new disjoint holdout before any
-  prediction or evaluator reveal; require exact Rust/shared/trusted masks
+- next action: reveal sealed V64 predictions to the unchanged trusted evaluator,
+  isolate shot 2544, repair only the falsified model, then freeze another new
+  disjoint holdout
