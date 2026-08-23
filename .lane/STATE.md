@@ -53,19 +53,19 @@ The current universal gate is `Q * T < 1175485230`. Exact strict T ceilings are 
 
 ## Current phase
 
-`NONZERO_ABI_ABSOLUTE_PHASE_KILL`
+`RELATIVE_PHASE_ABI_PREDECLARED`
 
 ## Current hypothesis
 
-`H10 KILL`: X008's absolute-phase nonzero replay ABI cannot be established. The unchanged raw production-forward reference develops phase mask `000000400000004f` after round2 in the first frozen denominator batch (`d=1`); the first dirty lane is production-ABI seed0 `(coefficient=0,numerator=1)`. The predeclared stop-first gate fires before finite-inverse construction or retained-candidate parity. X007 remains exact only on its frozen all-zero replay seed.
+`H11`: although X008 proves the isolated raw nonzero-seed reference is not absolute-phase clean, X007's retained rounds0..3 prefix may still be an exact relative replacement: same per-round coefficient/numerator continuation and same complete phase mask as unchanged raw production under source-event-bound replay randomness. X009 reuses the immutable4,096-row corpus and every inverse/restoration/cleanup/Q/state gate; equal nonzero masks remain disclosed inherited debt, not an absolute-phase pass.
 
 ## Current falsifier
 
-The first declared failing class is `KILL_PHASE_DEBT_REFERENCE` at raw reference round2, denominator index0, seed index0. The complete first-batch phase mask covers seeds `{0,1,2,3,6,38}`. Static candidate gates pass at Q1114/T960 with the round2 fused cell as binder, one flag, no concurrent flag, and no persistent carrier, but executed T and semantic parity are not results because the authority gate blocks the candidate.
+H11 fails on the first per-round value difference, candidate/reference phase-mask difference, raw forward collision, inverse/restoration/cleanup failure, X008 canary drift, extra candidate stochastic event, reference-only walk/walkback phase change, Q>1114, emitted T>960, second/concurrent flag, persistent carrier, unavailable predecessor, or dirty sign/scratch/flag/ancilla. Candidate replay consumes the exact `Hmr`/`R` words extracted from the unchanged raw replay cells; independent SHAKE alignment is not an oracle.
 
 ## Next action
 
-Seal and push the terminal X008 KILL receipt. Any changed-premise relative-phase ABI test must be a new predeclared experiment that compares complete candidate/reference phase masks exactly and retains every value/inverse/restoration/cleanup/Q/state gate. Do not infer a production splice from X008, extend to round4, optimize, grind, hunt, or touch a provider.
+Commit and push the X009 predeclaration before source edits or semantic execution. Then implement only the event-bound stochastic-tape miter and run the raw reference from the start. Stop on the first frozen KILL class. A complete pass authorizes only a later opt-in whole-production divide-splice prototype; do not implement the splice, extend round4, optimize, grind, hunt, or touch a provider in X009.
 
 ## Last verified result
 

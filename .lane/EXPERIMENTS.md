@@ -257,6 +257,19 @@
 - Evidence: `.lane/TEDDY-NONZERO-ABI-PREDECLARATION.md`, `.lane/TEDDY-NONZERO-ABI-KILL.md`, frozen complete fixture, and its hash-checking generator.
 - Exact next action: stop X008. A separate predeclared relative-phase experiment may compare complete candidate/reference phase masks on the same frozen corpus while retaining exact value/inverse/restoration/cleanup gates. No repair ladder, round4, optimization, grind, hunt, or provider.
 
+## X009 — source-bound relative-phase nonzero ABI
+
+- Status: predeclared before X009 source edit or semantic result.
+- Ancestor/source identity: clean pushed terminal X008 `85f52c9a9f1416542adf2084ef9b0a1b48c06f50`, tree `a4ebb1eb710980aa960a0557141df10490e95134`; production SHA-256 `22c4820a9ba3b2356eb785d0d0d452b0939a643cb6c65241706554d19b7df376`; opt-in module SHA-256 `fe6ca1a784291c50fb2a0d1a3ec67d6bb4fd785862e23214643bacee44767262`; X008 receipt SHA-256 `45ef2800c3fd9f1d5985e9b0a9c1ba34840fa8122d5455e4bab650439ff4fbc4`.
+- Changed premise: X008's inherited raw phase mask is disclosed rather than required to be zero. Candidate and unchanged raw reference must instead have identical complete per-round and post-cleanup phase masks under event-bound replay randomness. This is relative source equivalence only, never raw-phase or full-circuit correctness.
+- Frozen corpus: unchanged X008 Cartesian4,096 fixture SHA-256 `53b06714ffdf079be23b2d3e1d25706c0d2853ab08d13345588f9a505c9409b0`; same64 denominators, same64 seed pairs/classes, same order, same denominator/seed/generator hashes.
+- Stochastic binding: unchanged raw reference retains the exact X008 SHAKE stream. Candidate replay receives the exact random words consumed by reference `Hmr`/`R` events inside the corresponding raw replay cell. Per-round stochastic kind sequences must match; candidate-only sign/T/cleanup ranges must contain zero `Hmr`/`R`. X008 first-batch mask `000000400000004f` is a required raw-reference canary.
+- Unchanged hard gates: per-round coefficient/numerator equality; raw-image collision-free finite inverse; denominator/retained restoration; sign/scratch/flag cleanup; phase-preserving cleanup; all non-output quantum ancilla zero; Q<=1114; emitted T<=960 split65/141/377/377; one existing flag, concurrent flags0, carrier0, max live sign1.
+- Kill: first value mismatch, relative phase-mask mismatch, raw forward collision/inverse failure, canary drift, extra stochastic event, reference-only auxiliary phase, Q/T/state growth, or cleanup debt. No repair ladder.
+- Pass boundary: complete4,096/4,096 gates plus byte-identical repeat authorize only a subsequent opt-in prototype of the whole-production divide replay rounds1..3 splice. No production splice is implemented by X009 and no provider/range/hunt/submission/full-circuit claim follows.
+- Evidence: `.lane/TEDDY-NONZERO-ABI-RELATIVE-PHASE-PREDECLARATION.md` plus immutable X008 fixture and receipts.
+- Exact next action: push this predeclaration, implement only the event-bound relative-phase miter, run raw authority first, and stop on the first declared KILL. Do not extend round4.
+
 ## Experiment template
 
 - Status:
