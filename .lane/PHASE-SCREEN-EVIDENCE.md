@@ -77,6 +77,23 @@ The two anchors were:
 - inherited `251000962439`: classical `22`, clean phase `{4388,4629}`;
 - canary `100000035106674`: classical `0`, clean phase `{1753,5833}`.
 
+## Blinded disjoint32 gate
+
+PASS: `32/32` exact complete masked shot-index sets after restarting at the
+first declared nonce. The corpus is
+`nonce[i] = 700000000000 + i * 10000019`, `0 <= i < 32`; its newline-delimited
+nonce-list SHA-256 is
+`6ec35ba16b516b8571c13c26ee503bf7de58af6a7f8d8aff37f3e37076db863a`.
+It covers `288,768` shots and `146` clean-phase faults, including one exact
+empty set. `.lane/stage-packet/PHASE_D32_FIXTURES.tsv` records every complete
+sorted set plus its byte-level SHA-256; the ledger SHA-256 is
+`fee237d38468963ec114bf722467886cd5b97b117211480c0cef9a1ccf9df2de`.
+
+The gate took `203.6s` by the command runner, about `1,418` shots/s. Each of
+the 32 standalone invocations reloaded the prefix and rebuilt the combination
+table, so this is end-to-end gate throughput rather than a steady-state kernel
+claim.
+
 Host compile command:
 
 ```sh
