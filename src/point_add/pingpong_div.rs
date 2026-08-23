@@ -417,7 +417,8 @@ fn restore_wire_layout(
 }
 
 fn value_width(round: usize) -> usize {
-    const BREAK_1: usize = 30;
+    static BREAK1_SLOT: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    let break_1 = tuned_window("VW_BREAK1", &BREAK1_SLOT, 30);
     const BREAK_2: usize = 304;
     const SLOPE_1: usize = 17;
     const SLOPE_2: usize = 34;
@@ -426,14 +427,14 @@ fn value_width(round: usize) -> usize {
 
     let start = N + MARGIN;
     let round = width_round_index(round);
-    let width = if round < BREAK_1 {
+    let width = if round < break_1 {
         start.saturating_sub(SLOPE_1 * round / 100)
     } else {
-        let at_first = start.saturating_sub(SLOPE_1 * BREAK_1 / 100);
+        let at_first = start.saturating_sub(SLOPE_1 * break_1 / 100);
         if round < BREAK_2 {
-            at_first.saturating_sub(SLOPE_2 * (round - BREAK_1) / 100)
+            at_first.saturating_sub(SLOPE_2 * (round - break_1) / 100)
         } else {
-            let at_second = at_first.saturating_sub(SLOPE_2 * (BREAK_2 - BREAK_1) / 100);
+            let at_second = at_first.saturating_sub(SLOPE_2 * (BREAK_2 - break_1) / 100);
             at_second.saturating_sub(SLOPE_3 * (round - BREAK_2) / 100)
         }
     };
