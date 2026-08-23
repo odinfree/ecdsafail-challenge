@@ -1079,6 +1079,277 @@ fn coord_rsub_circuit(reg: &U4, coord: &U4) -> U4 {
     out
 }
 
+// The product-register square is not exact field arithmetic. Its modular
+// reductions use a low-56 F window and guarded partial-product windows whose
+// outgoing carries are deliberately dropped. Keep this value model separate
+// from the ping-pong walk/replay model so CPU and CUDA ports can share it.
+const SQUARE_F_LSBS: usize = 56;
+const SQUARE_GUARD: usize = 24;
+const SQUARE_F_NAF: [(usize, bool); 5] = [
+    (0, false),
+    (4, false),
+    (6, true),
+    (10, false),
+    (32, false),
+];
+
+type SquareWide = [u64; 6];
+
+#[inline]
+fn square_wide_from4(a: &U4) -> SquareWide {
+    [a[0], a[1], a[2], a[3], 0, 0]
+}
+
+#[inline]
+fn square_wide_low4(a: &SquareWide) -> U4 {
+    [a[0], a[1], a[2], a[3]]
+}
+
+fn square_wide_get(v: &SquareWide, lo: usize, width: usize) -> SquareWide {
+    let mut out = [0u64; 6];
+    if width == 0 {
+        return out;
+    }
+    let limb = lo / 64;
+    let offset = lo % 64;
+    let nlimbs = (width + 63) / 64;
+    for i in 0..nlimbs {
+        let mut value = if limb + i < 6 { v[limb + i] } else { 0 };
+        if offset != 0 {
+            value = (value >> offset)
+                | if limb + i + 1 < 6 {
+                    v[limb + i + 1] << (64 - offset)
+                } else {
+                    0
+                };
+        }
+        out[i] = value;
+    }
+    if width % 64 != 0 {
+        out[width / 64] &= (1u64 << (width % 64)) - 1;
+    }
+    for value in out.iter_mut().skip(width / 64 + 1) {
+        *value = 0;
+    }
+    out
+}
+
+fn square_wide_set(v: &mut SquareWide, lo: usize, width: usize, value: &SquareWide) {
+    if width == 0 {
+        return;
+    }
+    let limb = lo / 64;
+    let offset = lo % 64;
+    let nlimbs = (width + 63) / 64;
+    for i in 0..nlimbs {
+        let mut chunk = value[i];
+        if width % 64 != 0 && i == width / 64 {
+            chunk &= (1u64 << (width % 64)) - 1;
+        }
+        if offset == 0 {
+            let mask = if width % 64 != 0 && i == width / 64 {
+                (1u64 << (width % 64)) - 1
+            } else {
+                u64::MAX
+            };
+            if limb + i < 6 {
+                v[limb + i] = (v[limb + i] & !mask) | (chunk & mask);
+            }
+        } else {
+            let low = chunk << offset;
+            let high = chunk >> (64 - offset);
+            let low_mask = if width % 64 != 0 && i == width / 64 {
+                ((1u64 << (width % 64)) - 1) << offset
+            } else {
+                u64::MAX << offset
+            };
+            if limb + i < 6 {
+                v[limb + i] = (v[limb + i] & !low_mask) | (low & low_mask);
+            }
+            if limb + i + 1 < 6 {
+                let high_mask = if width % 64 != 0 && i == width / 64 {
+                    ((1u64 << (width % 64)) - 1) >> (64 - offset)
+                } else {
+                    u64::MAX >> (64 - offset)
+                };
+                v[limb + i + 1] =
+                    (v[limb + i + 1] & !high_mask) | (high & high_mask);
+            }
+        }
+    }
+}
+
+fn square_wide_add(a: &SquareWide, b: &SquareWide) -> (SquareWide, bool) {
+    let mut sum = [0u64; 6];
+    let mut carry = false;
+    for i in 0..6 {
+        let (value, carry1) = a[i].overflowing_add(b[i]);
+        let (value, carry2) = value.overflowing_add(carry as u64);
+        sum[i] = value;
+        carry = carry1 || carry2;
+    }
+    (sum, carry)
+}
+
+fn square_wide_mul(a: &SquareWide, b: &SquareWide) -> SquareWide {
+    let mut product = [0u64; 6];
+    for i in 0..6 {
+        let mut carry = 0u128;
+        for j in 0..6 - i {
+            let current =
+                product[i + j] as u128 + a[i] as u128 * b[j] as u128 + carry;
+            product[i + j] = current as u64;
+            carry = current >> 64;
+        }
+    }
+    product
+}
+
+fn square_wide_mask(width: usize) -> SquareWide {
+    let mut mask = [0u64; 6];
+    for bit in 0..width {
+        mask[bit / 64] |= 1u64 << (bit % 64);
+    }
+    mask
+}
+
+fn square_wide_xor(a: &SquareWide, b: &SquareWide) -> SquareWide {
+    let mut out = [0u64; 6];
+    for i in 0..6 {
+        out[i] = a[i] ^ b[i];
+    }
+    out
+}
+
+#[inline]
+fn square_wide_bit(value: &SquareWide, bit: usize) -> bool {
+    (value[bit / 64] >> (bit % 64)) & 1 == 1
+}
+
+fn square_f_window(reg: &mut SquareWide, control: bool) {
+    if !control {
+        return;
+    }
+    let low = square_wide_get(reg, 0, SQUARE_F_LSBS);
+    let (sum, _) = square_wide_add(&low, &square_wide_from4(&[FC, 0, 0, 0]));
+    square_wide_set(reg, 0, SQUARE_F_LSBS, &sum);
+}
+
+fn square_mod_add_top(
+    out: &mut SquareWide,
+    value: &SquareWide,
+    shift: usize,
+    subtract: bool,
+) {
+    let mask256 = square_wide_mask(256);
+    if subtract {
+        *out = square_wide_xor(out, &mask256);
+    }
+    let accumulator = square_wide_get(out, shift, 256 - shift);
+    let (sum, _) = square_wide_add(&accumulator, value);
+    let overflow = square_wide_bit(&sum, 256 - shift);
+    square_wide_set(out, shift, 256 - shift, &sum);
+    square_f_window(out, overflow);
+    if subtract {
+        *out = square_wide_xor(out, &mask256);
+    }
+}
+
+fn square_window_add(
+    out: &mut SquareWide,
+    value: &SquareWide,
+    width: usize,
+    shift: usize,
+    subtract: bool,
+) {
+    let guarded_width = width + SQUARE_GUARD;
+    let mut accumulator = square_wide_get(out, shift, guarded_width);
+    let mask = square_wide_mask(guarded_width);
+    if subtract {
+        accumulator = square_wide_xor(&accumulator, &mask);
+    }
+    let (sum, _) = square_wide_add(&accumulator, value);
+    accumulator = if subtract {
+        square_wide_xor(&sum, &mask)
+    } else {
+        sum
+    };
+    square_wide_set(out, shift, guarded_width, &accumulator);
+}
+
+fn square_apply_f(
+    out: &mut SquareWide,
+    value: &SquareWide,
+    value_width: usize,
+    subtract: bool,
+) {
+    let mut sign = subtract;
+    for (shift, negate) in SQUARE_F_NAF {
+        if negate {
+            sign = !sign;
+        }
+        square_window_add(out, value, value_width, shift, sign);
+        if negate {
+            sign = !sign;
+        }
+    }
+}
+
+fn square_apply_shift_half(
+    out: &mut SquareWide,
+    product: &SquareWide,
+    product_width: usize,
+    subtract: bool,
+) {
+    let low = square_wide_get(product, 0, 128);
+    square_mod_add_top(out, &low, 128, subtract);
+    if product_width > 128 {
+        let high = square_wide_get(product, 128, product_width - 128);
+        square_apply_f(out, &high, product_width - 128, subtract);
+    }
+}
+
+fn square_apply_shift_full(out: &mut SquareWide, product: &SquareWide, subtract: bool) {
+    let mut sign = subtract;
+    for (shift, negate) in SQUARE_F_NAF {
+        if negate {
+            sign = !sign;
+        }
+        if shift == 0 {
+            square_mod_add_top(out, product, 0, sign);
+        } else {
+            let main = square_wide_get(product, 0, 256 - shift);
+            square_mod_add_top(out, &main, shift, sign);
+            let tail = square_wide_get(product, 256 - shift, shift);
+            square_apply_f(out, &tail, shift, sign);
+        }
+        if negate {
+            sign = !sign;
+        }
+    }
+}
+
+/// Value channel of `product_register::square_sub`: `out -= y^2`, including
+/// all source carry drops.
+fn square_sub_circuit(out0: &U4, y: &U4) -> U4 {
+    let ywide = square_wide_from4(y);
+    let ylow = square_wide_get(&ywide, 0, 128);
+    let yhigh = square_wide_get(&ywide, 128, 128);
+    let (ysum, _) = square_wide_add(&ylow, &yhigh);
+    let product_low = square_wide_mul(&ylow, &ylow);
+    let product_high = square_wide_mul(&yhigh, &yhigh);
+    let product_sum = square_wide_mul(&ysum, &ysum);
+    let mut out = square_wide_from4(out0);
+
+    square_mod_add_top(&mut out, &product_low, 0, true);
+    square_apply_shift_half(&mut out, &product_low, 256, false);
+    square_apply_shift_half(&mut out, &product_high, 256, false);
+    square_apply_shift_full(&mut out, &product_high, true);
+    square_apply_shift_half(&mut out, &product_sum, 258, true);
+
+    square_wide_low4(&out)
+}
+
 /// Scratch reused across shots so the hot loop never allocates.
 struct Scratch {
     tape: Vec<u8>,
@@ -1224,7 +1495,7 @@ fn point_add_classical_traced(
     let mut x = fe_add(&fe_norm(&dxr), &ox3);
     out.push(("tlm_coord_add3x", x, lam));
     let lamn = fe_norm(&lam);
-    x = fe_sub(&x, &fe_sqr(&lamn));
+    x = square_sub_circuit(&x, &lamn);
     out.push(("square_product_register", x, lam));
     let (x2, y2) = pingpong_multiply(&x, &lam, m, s, &mut nph);
     out.push(("pp_mul_restore", x2, y2));
@@ -1237,9 +1508,8 @@ fn point_add_classical_traced(
 
 /// The whole ping-pong affine point-add, classically.
 /// The observed coordinate subtraction and fused reverse-subtraction paths use
-/// their circuit-exact low-53 folds.  Coord-add3x and the Solinas square retain
-/// the upstream exact-field model; the blinded corpus below determines whether
-/// that bounded model remains sufficient for this source.
+/// their circuit-exact low-53 folds.  The product-register square uses its
+/// circuit-exact low-56 and guarded-window carry drops.
 fn point_add_classical(tx: &U4, ty: &U4, ox: &U4, oy: &U4, m: &Model, s: &mut Scratch, nphase: &mut u64) -> (U4, U4) {
     let dx = coord_sub_circuit(tx, ox);
     let dy = coord_sub_circuit(ty, oy);
@@ -1247,7 +1517,7 @@ fn point_add_classical(tx: &U4, ty: &U4, ox: &U4, oy: &U4, m: &Model, s: &mut Sc
     let ox3 = fe_add(&fe_add(ox, ox), ox);
     let mut x = fe_add(&fe_norm(&dxr), &ox3);
     let lamn = fe_norm(&lam);
-    x = fe_sub(&x, &fe_sqr(&lamn));
+    x = square_sub_circuit(&x, &lamn);
     let (x2, y2) = pingpong_multiply(&x, &lam, m, s, nphase);
     let y = coord_sub_circuit(&y2, oy);
     let x3 = coord_rsub_circuit(&x2, ox);
@@ -1754,6 +2024,54 @@ fn run_selftest(cp: &Checkpoint, comb: &CombTable, m: &Model) {
     let hex: String = out.iter().map(|b| format!("{b:02x}")).collect();
     let want = "46b9dd2b0ba88d13233b3feb743eeb243fcd52ea62b81b82b50c27646ed5762f";
     eprintln!("SHAKE256(\"\")[0..32] = {hex}  {}", if hex == want { "OK" } else { "MISMATCH" });
+
+    let square_kats = [
+        (
+            [
+                0xa6cf48537738e2ce,
+                0x8e6662f3f74fc75d,
+                0x6d6132df22d31a3d,
+                0x80435f41ef670385,
+            ],
+            [
+                0x049f80a3ccc5e99e,
+                0xefeba5e0c5ccc98e,
+                0x2de44327fd8b6a3d,
+                0x1bd19a15161f376a,
+            ],
+            [
+                0xf32f7d2a0c834497,
+                0xe7f66a929853fa84,
+                0x8775f63d2e1a0d73,
+                0x3927bb0c2509e9b8,
+            ],
+        ),
+        (
+            [
+                0x3f10c380de49e9dd,
+                0xe73f447979b2a810,
+                0xa1b12106c7325532,
+                0x3393a99df1edd316,
+            ],
+            [
+                0xabaf642d65d08608,
+                0x8458a464f1b3b3a1,
+                0x2cceaa80aff414de,
+                0x0ed829ffe14bb9bd,
+            ],
+            [
+                0x4bf53a42b031293e,
+                0x8a2cea241bd4bffc,
+                0x3c4de9820944421c,
+                0xc5e45d3156468c02,
+            ],
+        ),
+    ];
+    for (index, (square_out, square_y, expected)) in square_kats.into_iter().enumerate() {
+        let got = square_sub_circuit(&square_out, &square_y);
+        assert_eq!(got, expected, "square-register KAT {index} failed");
+        eprintln!("square-register KAT {index} = OK");
+    }
 
     eprintln!("n_ops = {}", cp.n_ops);
     eprintln!(
