@@ -70,8 +70,10 @@ byte-identical to the original full mirror log (SHA-256
 
 PASS: `23/23` exact complete masked shot-index sets, rerun from the first nonce
 after the shell-sub correction and compared byte-for-byte to the corrected
-two-pass mirror. The durable count and SHA-256 ledger is
-`.lane/stage-packet/PHASE_FIXTURES.tsv`; raw oracle rows remain scratch-only.
+two-pass mirror. The durable complete sorted sets, per-set hashes, and counts
+are in `.lane/stage-packet/PHASE_FIXTURES.tsv` (ledger SHA-256
+`591cc3c5e1f7140dadbe192f5b98b3c971fb4725fd357752b7ef55bb3a03fe22`);
+raw oracle rows remain scratch-only.
 The two anchors were:
 
 - inherited `251000962439`: classical `22`, clean phase `{4388,4629}`;
@@ -116,3 +118,53 @@ Inherited nonce, same local host and exact stream:
 
 This clears the CPU economic gate provisionally. Frozen repeated timing follows
 after disjoint32 and unchanged classical/negative regressions.
+
+## Unchanged classical regression
+
+PASS: the current phase-extended CPU source reproduced the unchanged
+`fixtures.local.tsv` ledger exactly: `22/22` cases and `323/323` complete
+per-shot rows set-equal. The fixture ledger SHA-256 is
+`4889313f27a6f1daabd71f6b0c171459da8bf702424174923ec045e2990161e6`;
+the sorted observed result SHA-256 is
+`91bd3788228a5da40183688b0ae0d4bdaf2ea41a0c288076b0c993e13aeecb9`.
+The mask histogram stayed `{1:136, 2:18, 4:148, 8:21}` with mask 16 absent.
+Wall time was `54.823s` for all 22 standalone nonce invocations.
+
+## Fail-closed stream and source binding
+
+All negatives failed before evaluation:
+
+- byte 0 framing mutation: SHA-256
+  `f0a120ef246eac3c76123dc478522977cbc543a773ba540ae23c9d6adf30ecf1`,
+  exit `1`;
+- wrong-count header `12,921,096`: SHA-256
+  `afb4eda48b819711710ae1e3f5eaf5fabdac2c1d19c2ffebe6a75d6e7d6abfeb`,
+  exit `2`;
+- same-count byte 16 mutation: SHA-256
+  `4daf97cffbdfd19fdd6df22d0d8861af49d6b11e0d87f43cb50aafbc85a04e38`,
+  exit `2`.
+
+`MANIFEST.sha256` binds the current CPU phase sources, generated schedule, both
+phase ledgers, and verification scripts. The ordinary loader independently
+requires the exact operation count, full stream SHA-256, and checkpoint digest.
+The corrected nonce-tail oracle rule above is the source-semantics negative.
+
+## Terminal local timing and verdict
+
+Three warm inherited-nonce phase runs completed in `6.84s`, `6.82s`, and
+`6.64s`, each emitting the identical exact masked set (SHA-256
+`832c1a0b584cb2775f6913bf3b950f36d28f51f80ffaa237f4ad539ccf210f53`).
+The median is `6.82s`, or about `1,323` shots/s for all `9,024` shots, including
+prefix load and combination-table construction. The classical breakdown median
+was `2.26s` across `2.58s`, `2.26s`, and `2.26s`.
+
+Against the recovered unchanged full-evaluator wall time of `15.890s`, the
+terminal CPU phase screen is about `2.33x` faster. The earlier cold checkpoint
+was `7.42s` versus the same `15.890s` reference. The blinded disjoint32 gate
+sustained about `1,418` shots/s end to end across `288,768` shots.
+
+This verdict is deliberately conditional-phase only: raw phase on
+classically dirty shots is not represented and no raw-phase parity is claimed.
+The only valid final clean predicate is
+`classical_mask == 0 && clean_phase_mask == 0`. No CUDA phase implementation,
+provider action, range scan, hunt, or submission occurred in this lane.

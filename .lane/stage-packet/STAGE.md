@@ -1,11 +1,13 @@
 # Q1274 repair-r100 — sealed Linux CPU/CUDA parity stage packet
 
 This packet is the durable, self-contained sealing of the classical-fault
-**search-model** qualification for the Fable Q1274 sparse width-repair stream.
-It vendors the exact frozen predictor sources, binds them by hash to the
-repaired artifact, and carries the two things this git branch was missing: a
-**local fail-closed CPU verification** that runs here, and a **Linux/CUDA
-parity stage runner** that reproduces the terminal parity gate.
+**search-model** qualification and the source-bound CPU-only clean-phase screen
+for the Fable Q1274 sparse width-repair stream. The host loader, CUDA source,
+and base build remain the frozen upstream payload. `pp_model.h` and `ppcpu.cpp`
+now carry a default-off CPU phase mode plus the generated source schedule, so
+their current hashes deliberately differ from the original qualification.
+`MANIFEST.sha256` seals the current packet and records both original hashes for
+provenance.
 
 It launches nothing. No provider, remote host, range scan, nonce hunt,
 submission, or public note is invoked by any file here.
@@ -40,13 +42,14 @@ canonical repaired artifact, before any corpus derivation:
    hash);
 4. canonical checkpoint/tail **state digest** `d2c95102cb9a277d`.
 
-Any failure exits `2`. Verified locally (see below) on the two frozen negatives.
+Bad framing exits `1`; count, hash, or digest mismatch exits `2`. Verified
+locally on all three frozen stream negatives below.
 
 ## What is proven, and where
 
-- **Local CPU (arm64, this machine) — RE-VALIDATED HERE.** `verify_local_cpu.sh`
-  reproduces `ops.bin` (`4c68597468…`), seals the vendored payload against
-  `MANIFEST.sha256`, builds `ppcpu` from the vendored source, and reproduces the
+- **Local CPU classical path (arm64, this machine) — RE-VALIDATED HERE.** `verify_local_cpu.sh`
+  reproduces `ops.bin` (`4c68597468…`), seals the current payload against
+  `MANIFEST.sha256`, builds `ppcpu` from the sealed source, and reproduces the
   frozen **323-row** classical failing-shot ledger EXACTLY over the 22
   regression cases (`fixtures.local.tsv`), mask totals `1:136 2:18 4:148 8:21
   16:0`. Both fail-closed negatives return exit `2` — the wrong-count stream
@@ -56,21 +59,34 @@ Any failure exits `2`. Verified locally (see below) on the two frozen negatives.
   arm64/Linux binaries); the binding is **behavioural** — identical per-shot
   masks.
 
-- **Linux CPU/CUDA parity — ALREADY PASSED upstream; reproducible here.** The
-  terminal 32-fixture parity gate ran on a Linux+CUDA host during the original
-  qualification and passed: 32/32 fixtures with CPU (comb8) == GPU comb8 ==
+- **Linux CPU/CUDA classical parity — HISTORICAL UPSTREAM PASS.** The terminal
+  32-fixture parity gate ran on a Linux+CUDA host during the original
+  qualification, before the current default-off CPU-only phase extension, and
+  passed: 32/32 fixtures with CPU (comb8) == GPU comb8 ==
   GPU comb16 complete per-shot mask sets, 64/64 CUDA state-digest checks, total
   predicted faults 457, mask totals `1:178 2:34 4:203 8:42 16:0`.
   - Linux CPU SHA-256 `18f170804a2ca40363a0df3a6f5a86ba33ba92d6fdbe372869e30e0950d7d65d`
   - Linux CUDA SHA-256 `e7b33611ef13bdd5fa89421cdd5ee802793ef9c2f60542419b2d19ed4ad79032`
   - parity-results SHA-256 `924e31aee95e360eb742fb3bb3de9122552d8efce2a74828dacd7bac1ef130d1`
 
-  `run_linux_parity.sh` re-runs exactly this gate from the committed packet on
-  any Linux+CUDA host (`nvcc` sm_89, `g++`, `zstd`). It rebuilds both binaries
+  These binary hashes do not bind the phase-extended current `ppcpu` source.
+  `run_linux_parity.sh` can re-run the same classical gate from the committed
+  packet on a Linux+CUDA host (`nvcc` sm_89, `g++`, `zstd`). It rebuilds both binaries
   (no pipeline may mask the compiler exit), records their hashes (gate 1),
   asserts the state digest on both GPU legs (gate 2), and requires exact
   complete mask-set equality — passing `--comb-bits 8` **explicitly** for the
-  CPU-matching leg, since `ppgpu` defaults to comb16.
+  CPU-matching leg, since `ppgpu` defaults to comb16. That runner has not been
+  launched for this recovery and neither implements nor claims CUDA phase parity.
+
+- **CPU clean-phase path — EXACT UNDER THE CONDITIONAL CONTRACT.**
+  `ppcpu phasefaultshots NONCE` emits the exact complete set
+  `evaluator_phase_mask & ~exact_classical_mask`. Frozen23 and blinded
+  disjoint32 both passed complete-set equality against the corrected-tail
+  two-pass evaluator oracle. A survivor is accepted only when
+  `classical_mask == 0 && clean_phase_mask == 0`. Raw phase parity on already
+  classically dirty shots is intentionally out of scope. See
+  `../PHASE-SCREEN-EVIDENCE.md`, `PHASE_FIXTURES.tsv`, and
+  `PHASE_D32_FIXTURES.tsv`.
 
 ## Limitation carried into the receipt
 
@@ -85,8 +101,10 @@ coverage.
 
 ## Provenance of the upstream evidence (read-only, not re-run here)
 
-- predictor sources + 323-row ledger: `~/ecdsa-ops/gpu-port-q1274-repair-r100`
-  (`PREDICTOR.md`, `CORE.sha256`); vendored here byte-identical (`MANIFEST.sha256`).
+- base predictor sources + 323-row ledger:
+  `~/ecdsa-ops/gpu-port-q1274-repair-r100` (`PREDICTOR.md`, `CORE.sha256`).
+  `pp_host.h`, `ppgpu.cu`, and `build.sh` remain byte-identical; the manifest
+  records the original and current hashes of the two CPU phase-extended files.
 - 32-fixture parity + Linux binaries + canary: `~/ecdsa-ops/q1274-repair-r100-packet`
   (`STATE.md`, `LINUX-PARITY-RECEIPT.md`, `CANARY-SHARD-RECEIPT.md`). The sole
   authorized lane04 canary there is terminal: one survivor `100000035106674`
@@ -97,10 +115,14 @@ coverage.
 
 ```
 src/pp_host.h  src/pp_model.h  src/ppcpu.cpp  src/ppgpu.cu  src/build.sh
+src/pp_phase_schedule.h generated, source-bound CPU phase schedule
 PARITY_FIXTURES.tsv    32 deterministic, self-verifying, <2^48 parity nonces
 fixtures.local.tsv     323-row classical failing-shot ledger (22 cases)
+PHASE_FIXTURES.tsv      frozen23 complete-set clean-phase hashes
+PHASE_D32_FIXTURES.tsv  blinded disjoint32 complete sorted clean-phase sets
 MANIFEST.sha256        seals every payload file above
 verify_local_cpu.sh    local fail-closed CPU canary (run here)
+verify_phase_cpu.sh    frozen23 exact clean-phase gate
 run_linux_parity.sh    Linux+CUDA 32-fixture parity stage runner
 ```
 

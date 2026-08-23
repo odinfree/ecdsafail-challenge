@@ -1,16 +1,24 @@
 # Q1274 repair-r100 stage-packet manifest — SHA-256 of every sealed payload file.
-# Vendored predictor sources are byte-identical to the upstream qualification
-# gpu-port-q1274-repair-r100/CORE.sha256 (verified equal at vendor time):
-#   src/pp_host.h  src/pp_model.h  src/ppcpu.cpp  src/ppgpu.cu  src/build.sh
+# src/pp_host.h, src/ppgpu.cu, and src/build.sh remain byte-identical to the
+# upstream gpu-port-q1274-repair-r100/CORE.sha256 qualification. The current
+# src/pp_model.h and src/ppcpu.cpp contain the default-off CPU phase extension;
+# their original upstream hashes were 68aa572a4fd84742b258560f3629798cf65849aed461af266642bde99d05432f
+# and f25a1d8a459810b02ce071e8bef1334f1abddac9e49dd013a8744b089b04a79a.
 # fixtures.local.tsv == upstream QUALIFICATION_SETS.tsv (323-row classical ledger).
 # PARITY_FIXTURES.tsv == q1274-repair-r100-packet/PARITY_FIXTURES.tsv (manifest 5cdc29d0...).
+# PHASE_FIXTURES.tsv and PHASE_D32_FIXTURES.tsv bind exact complete CPU
+# clean-phase sets under the conditional phase&~classical contract.
 #
 67055b7e2d43b3abfb53eae255cbc7c592f4502a7ee1c3d52e608ac3b7544b8c  src/pp_host.h
-68aa572a4fd84742b258560f3629798cf65849aed461af266642bde99d05432f  src/pp_model.h
-f25a1d8a459810b02ce071e8bef1334f1abddac9e49dd013a8744b089b04a79a  src/ppcpu.cpp
+0419bcf5bc1b2c1d73b4a92a15ca4c6da0d78ed869ecc4ea741dec628dcc5d32  src/pp_model.h
+89dee12cda2b0a99a2dcd29873752e39ba662af1de9732438d6bee5c2cf83ecc  src/ppcpu.cpp
 585d67a57edc5e953bb3c12792810e58e1a5fb8517788759e737cd214c194c26  src/ppgpu.cu
 95c6a842cf6afd71cea67bb7508ecae764add496ea18bef07349aa1aa3bd723e  src/build.sh
+934810f6647cf1e47cf947a852d1363cfbcf215384c85d1d366abc339119c811  src/pp_phase_schedule.h
 5cdc29d0008ea68c224f5b74a292b5f2337acccb349e72c2faf57571c09e8139  PARITY_FIXTURES.tsv
 4889313f27a6f1daabd71f6b0c171459da8bf702424174923ec045e2990161e6  fixtures.local.tsv
-15297d7adc3bf9dd6682c46fef0dfc027d1f75fa2f5bc98f0c9dc92784aab6e1  run_linux_parity.sh
-99f899f2c8fb22d6f3ab731b991f0956ce44f538f202d6d41ab478ca86d6a8e4  verify_local_cpu.sh
+591cc3c5e1f7140dadbe192f5b98b3c971fb4725fd357752b7ef55bb3a03fe22  PHASE_FIXTURES.tsv
+fee237d38468963ec114bf722467886cd5b97b117211480c0cef9a1ccf9df2de  PHASE_D32_FIXTURES.tsv
+335b28b4ae02567eaa02fb544a6cd3cdac3be8a347a3cf586595493f0bf10ab9  run_linux_parity.sh
+1b16ed6ccf2cec9283d9589bd61f70f7d855e1a5f3c4030a1750c6616e356585  verify_local_cpu.sh
+04acddfa0992e514479a176ae5982cfe780496cc0a428d05f50c900d7f56fba1  verify_phase_cpu.sh

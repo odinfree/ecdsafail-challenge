@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 # run_linux_parity.sh — Linux CPU/CUDA parity stage runner for the Q1274
 # repair-r100 predictor. Self-contained from this sealed packet: it rebuilds
-# both binaries from the vendored sources, binds them to the exact ops stream,
+# both binaries from the sealed sources, binds them to the exact ops stream,
 # and requires exact complete per-shot mask equality across CPU (comb8),
 # GPU comb8, and GPU comb16 for all 32 frozen parity fixtures.
 #
-# STATUS: this gate ALREADY PASSED on a Linux+CUDA host during the original
-# qualification (32/32 byte-identical, 64/64 CUDA state-digest checks,
+# STATUS: this gate ALREADY PASSED on a Linux+CUDA host for the original
+# classical source before the default-off CPU-only phase extension (32/32
+# byte-identical, 64/64 CUDA state-digest checks,
 # parity-results SHA-256 924e31aee95e360eb742fb3bb3de9122552d8efce2a74828dacd7bac1ef130d1).
-# This script reproduces that gate from the committed packet if it is ever
-# re-staged. It performs NO scan, provider, remote, or submission action.
+# This script re-runs the same classical gate against the current sealed packet
+# if it is ever re-staged. It performs NO scan, provider, remote, or submission
+# action. It does not implement or claim CUDA phase parity.
 #
 # Usage: PPF_OPS=/exact/path/ops.bin ./run_linux_parity.sh [OUTDIR]
 #   ops.bin must be the canonical repaired stream (SHA-256 gate enforced). It is
@@ -40,7 +42,7 @@ for tool in shasum zstd python3 g++ nvcc; do
 done
 
 # ---- seal: sources + fixtures unchanged --------------------------------------
-echo "== verifying vendored payload against MANIFEST.sha256"
+echo "== verifying sealed payload against MANIFEST.sha256"
 while read -r want rel; do
   [[ "$want" == \#* || -z "$want" ]] && continue
   got="$(sha "$pkt_dir/$rel")"

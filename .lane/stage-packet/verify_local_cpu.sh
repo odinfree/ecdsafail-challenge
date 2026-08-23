@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
-# verify_local_cpu.sh — local, fail-closed CPU re-validation of the vendored
+# verify_local_cpu.sh — local, fail-closed CPU re-validation of the sealed
 # Q1274 repair-r100 predictor payload. Reproduces the sealed evidence on THIS
 # host without any provider, remote, range-scan, hunt, or submission action.
 #
 # It proves, from this worktree's committed sources alone:
 #   1. the repaired circuit at HEAD emits ops.bin with the bound op count and
 #      full SHA-256 (byte-exact artifact reproduction);
-#   2. the vendored predictor sources are byte-identical to the qualified
-#      upstream (MANIFEST.sha256);
+#   2. every current packet source and fixture is byte-identical to its
+#      MANIFEST.sha256 entry (the manifest separately records which sources
+#      retain upstream identity and which carry the CPU-only phase extension);
 #   3. a locally-built CPU predictor reproduces the frozen 323-row classical
 #      failing-shot ledger EXACTLY over the 22 regression cases (behavioural
 #      binding — the local binary hash is NOT expected to match the frozen
 #      arm64/Linux binaries, only its per-shot mask output);
-#   4. the three-gate loader fails closed (exit 2) on a wrong op-count stream
-#      and on a same-count / wrong-SHA stream.
+#   4. the loader fails before evaluation on wrong framing (exit 1), wrong op
+#      count (exit 2), and a same-count / wrong-SHA stream (exit 2).
 #
 # Everything generated (ops.bin, patched negatives, the CPU binary) is written
 # under a throwaway scratch dir and removed on exit. Nothing is committed.
@@ -29,6 +30,7 @@ manifest="$pkt_dir/MANIFEST.sha256"
 EXP_OPS_SHA="4c68597468ed1dbb4f2e33042842227bf57c011c51f41e9cdaf13c73194b1f8c"
 EXP_OPS_COUNT="12920073"
 NEG_COUNT="12921096"          # PREDICTOR.md wrong-count negative
+NEG_MAGIC_SHA="f0a120ef246eac3c76123dc478522977cbc543a773ba540ae23c9d6adf30ecf1"
 NEG_SHA="4daf97cffbdfd19fdd6df22d0d8861af49d6b11e0d87f43cb50aafbc85a04e38"  # byte-16 XOR 0x01
 
 sha() { shasum -a 256 "$1" | awk '{print $1}'; }
@@ -50,9 +52,9 @@ trap 'rm -rf "$scratch"' EXIT
 echo "== scratch: $scratch"
 echo "== compiler: $cxx"
 
-# ---- gate 2: vendored sources match the sealed manifest -----------------------
-echo "== [gate 2] verifying vendored source hashes against MANIFEST.sha256"
-# MANIFEST rows are "<sha>  <relpath>" for the vendored payload files.
+# ---- gate 2: current packet matches the sealed manifest -----------------------
+echo "== [gate 2] verifying current packet hashes against MANIFEST.sha256"
+# MANIFEST rows are "<sha>  <relpath>" for sealed packet payload files.
 while read -r want rel; do
   [[ "$want" == \#* || -z "$want" ]] && continue
   got="$(sha "$pkt_dir/$rel")"
@@ -77,7 +79,7 @@ PY
 [[ "$got_sha"  == "$EXP_OPS_SHA"  ]] || fail "ops sha $got_sha != $EXP_OPS_SHA"
 echo "   OK: ops.bin count=$hdr_count sha=$got_sha"
 
-# ---- build the CPU predictor from vendored sources ----------------------------
+# ---- build the CPU predictor from sealed sources ------------------------------
 echo "== building CPU predictor (behavioural reference)"
 pp="$scratch/ppcpu"
 "$cxx" -O3 -std=c++17 -pthread -o "$pp" "$src_dir/ppcpu.cpp"
@@ -113,6 +115,18 @@ print(f"   mask histogram {dict(sorted(hist.items()))}  mask16_observed={m16}")
 PY
 
 # ---- gate 0: fail-closed negatives -------------------------------------------
+echo "== [fail-closed] wrong magic stream must exit 1 (pre-header)"
+python3 - "$ops" "$scratch/neg_magic.bin" <<'PY'
+import sys
+b=bytearray(open(sys.argv[1],'rb').read()); b[0]^=0x01
+open(sys.argv[2],'wb').write(b)
+PY
+neg_magic_got="$(sha "$scratch/neg_magic.bin")"
+[[ "$neg_magic_got" == "$NEG_MAGIC_SHA" ]] || fail "wrong-magic SHA $neg_magic_got != $NEG_MAGIC_SHA"
+set +e; PPF_OPS="$scratch/neg_magic.bin" "$pp" breakdown 251000962439 >/dev/null 2>&1; rc=$?; set -e
+[[ "$rc" == 1 ]] || fail "wrong-magic negative returned $rc, expected 1"
+echo "   OK: exit 1 (wrong-magic $neg_magic_got)"
+
 echo "== [fail-closed] wrong op-count stream must exit 2 (pre-hash)"
 python3 - "$ops" "$scratch/neg_count.bin" "$NEG_COUNT" <<'PY'
 import struct,sys
@@ -138,5 +152,5 @@ echo "   OK: exit 2 (wrong-SHA $neg_sha_got)"
 
 echo
 echo "LOCAL CPU CANARY: PASS"
-echo "  artifact reproduced, manifest sealed, 323/323 ledger, both negatives fail-closed."
+echo "  artifact reproduced, manifest sealed, 323/323 ledger, all three negatives fail-closed."
 echo "  Result-channel (mask 16) is NOT exercised by these fixtures — see STAGE.md."

@@ -8,7 +8,7 @@ phase_tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$phase_tmp_dir"' EXIT
 
 phase_pass=0
-while IFS=$'\t' read -r phase_nonce phase_cls phase_count phase_sha; do
+while IFS=$'\t' read -r phase_nonce phase_cls phase_count phase_sha phase_set; do
     [[ -z "$phase_nonce" || "$phase_nonce" == \#* ]] && continue
     phase_out="$phase_tmp_dir/$phase_nonce.tsv"
     phase_log="$phase_tmp_dir/$phase_nonce.log"
@@ -16,8 +16,10 @@ while IFS=$'\t' read -r phase_nonce phase_cls phase_count phase_sha; do
         >"$phase_out" 2>"$phase_log"
     phase_got_count="$(wc -l <"$phase_out" | tr -d ' ')"
     phase_got_sha="$(shasum -a 256 "$phase_out" | awk '{print $1}')"
-    if [[ "$phase_got_count" != "$phase_count" || "$phase_got_sha" != "$phase_sha" ]]; then
-        echo "FAIL nonce=$phase_nonce clean_phase=$phase_got_count/$phase_count sha=$phase_got_sha/$phase_sha" >&2
+    phase_csv="$(awk '{printf "%s%s", sep, $1; sep=","}' "$phase_out")"
+    phase_got_set="{$phase_csv}"
+    if [[ "$phase_got_count" != "$phase_count" || "$phase_got_sha" != "$phase_sha" || "$phase_got_set" != "$phase_set" ]]; then
+        echo "FAIL nonce=$phase_nonce clean_phase=$phase_got_count/$phase_count sha=$phase_got_sha/$phase_sha set=$phase_got_set/$phase_set" >&2
         exit 1
     fi
     if ! grep -q "classical=$phase_cls clean_phase=$phase_count .*contract=phase&~classical" "$phase_log"; then
