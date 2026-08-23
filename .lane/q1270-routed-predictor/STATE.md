@@ -14,10 +14,11 @@
   `fba2270e...bca0b`; schedule `17720a68...43d35`;
 - Fiat-Shamir checkpoint: 5,064 bytes / `75deeae0...b937f`, 4,096-byte
   trusted-XOF selfcheck PASS;
-- oracle design: current-core output-only two-pass complete-mask executable,
-  implemented but not yet run;
+- oracle design: current-core output-only two-pass complete-mask executable;
+- deterministic build: two fresh release/locked/offline targets matched at
+  `de84cf86...9acfd`;
 - model status: no donor source, binary, table, checkpoint, or output imported;
-- decision: `ORACLE IMPLEMENTED / BUILD AND INHERITED CALIBRATION NEXT / NO HUNT`.
+- decision: `ORACLE BUILD PASS / INHERITED CALIBRATION NEXT / NO HUNT`.
 
-Next action: commit/push the oracle design, then build it independently and
-seal inherited plus H64 complete masks before any donor model import.
+Next action: commit/push the build gate, then seal the inherited complete masks
+and deterministic repeat before exposing H64 to the oracle.
