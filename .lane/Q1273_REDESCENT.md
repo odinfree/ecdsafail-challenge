@@ -120,15 +120,52 @@ receipt; the exact live Q1273 ceiling remains T917245.
   simulator methods). The production binary and both env-gated selfchecks
   compile and pass; the candidate changes touch neither failing test surface.
 
-No full-9024 evaluation, nonce scan, model port, provider action, or submission
-was run.
+At structural commit seal, no full-9024 evaluation, nonce scan, model port,
+provider action, or submission had been run.
+
+### Authorized inherited-nonce full gate
+
+After structural source/evidence commit
+`093d85d64de87aa5006a94868172f642daacf136` was pushed, the parent lane
+authorized exactly one unchanged 9,024-shot evaluation on the inherited nonce.
+The candidate `ops.bin` and the unchanged trusted evaluator were staged outside
+Git at `/Users/olifreuler/ecdsa-ops/q1273-redescent-093d85d-full9024`.
+
+- source tree: `f6fd9d8b151a84fd886835ff3a818d3c1c9ef072`;
+- emitted ops: `12,933,805`;
+- ops SHA-256:
+  `ee6448dbb23aa877123733724b109266e584f1ba14abf5c38b43b9ab6aa26cd1`;
+- trusted evaluator source SHA-256:
+  `b35314bc47a5f8eecbf60459e6c76c9b43aa034eeb9b7ec3421655d74f9e890b`;
+- trusted evaluator binary SHA-256:
+  `a082c8449897081a0822fcf8866346a90cd4d37dfcdd3660ab64768ffb542436`;
+- measured Q/T: Q1273 / T917103.815, rounded T917104;
+- hypothetical rounded product: `1,167,473,392`, which clears live score
+  `1,167,654,124` by `180,732` and clears the Q1273 T ceiling by `141`;
+- classical/phase/ancilla: `12/12/0`;
+- first mismatch: shot 93;
+- evaluator log SHA-256:
+  `bf93954845fcb8e13a38f108f4a7d28332ed29ce357d7f633a47794a2bf38400`;
+- evaluator result-row SHA-256:
+  `dc515b01994fc32eeba8485990910972bf0bbf908ff69092515a6973d718bd64`.
+- external receipt SHA-256:
+  `f65aad34d8392d2c273349aa06f50beb8a8cc0a01c04892e801455081840ce17`;
+- verified artifact-manifest SHA-256:
+  `59e1d3b3d7de85765777695ad60ddd090713b34dc710d3365506de4b63b82dff`.
+
+The unchanged evaluator correctly emitted no canonical `score.json` for the
+failed correctness gate. The result row's `5c6404f` short commit is an unrelated
+enclosing-worktree metadata lookup from the external archive; the exact source
+commit/tree and byte hashes above are authoritative.
 
 ### Verdict and next binder
 
-`STRUCTURAL PASS / VALIDATION HOLD`. The pair is a real global Q1274 -> Q1273
-cut and clears the live product ceiling under two frozen paired diagnostics,
-but only an unchanged full evaluator can turn the estimate into a candidate
-receipt; that lies outside this lane's authority.
+`SCORE PASS / CORRECTNESS FAIL / MODEL-QUALIFICATION HANDOFF`. The pair is a
+real global Q1274 -> Q1273 cut and its measured T clears the live product
+ceiling, but the inherited nonce is dirty at `12/12/0`. It is not a submission
+candidate and no hunt is authorized. Its exact source/ops identity is suitable
+for a separately predeclared predictor qualification if the campaign chooses
+to price the dirty stream.
 
 The next plateau is still the same four phase families at Q1273. The marginal
 seed-0 cost is concentrated in replay geometry: division replay +296.30 T,
