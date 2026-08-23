@@ -259,7 +259,7 @@
 
 ## X009 — source-bound relative-phase nonzero ABI
 
-- Status: predeclared before X009 source edit or semantic result.
+- Status: terminal `KILL_NONZERO_NUMERATOR_ABI`; bounded experiment complete.
 - Ancestor/source identity: clean pushed terminal X008 `85f52c9a9f1416542adf2084ef9b0a1b48c06f50`, tree `a4ebb1eb710980aa960a0557141df10490e95134`; production SHA-256 `22c4820a9ba3b2356eb785d0d0d452b0939a643cb6c65241706554d19b7df376`; opt-in module SHA-256 `fe6ca1a784291c50fb2a0d1a3ec67d6bb4fd785862e23214643bacee44767262`; X008 receipt SHA-256 `45ef2800c3fd9f1d5985e9b0a9c1ba34840fa8122d5455e4bab650439ff4fbc4`.
 - Changed premise: X008's inherited raw phase mask is disclosed rather than required to be zero. Candidate and unchanged raw reference must instead have identical complete per-round and post-cleanup phase masks under event-bound replay randomness. This is relative source equivalence only, never raw-phase or full-circuit correctness.
 - Frozen corpus: unchanged X008 Cartesian4,096 fixture SHA-256 `53b06714ffdf079be23b2d3e1d25706c0d2853ab08d13345588f9a505c9409b0`; same64 denominators, same64 seed pairs/classes, same order, same denominator/seed/generator hashes.
@@ -267,8 +267,14 @@
 - Unchanged hard gates: per-round coefficient/numerator equality; raw-image collision-free finite inverse; denominator/retained restoration; sign/scratch/flag cleanup; phase-preserving cleanup; all non-output quantum ancilla zero; Q<=1114; emitted T<=960 split65/141/377/377; one existing flag, concurrent flags0, carrier0, max live sign1.
 - Kill: first value mismatch, relative phase-mask mismatch, raw forward collision/inverse failure, canary drift, extra stochastic event, reference-only auxiliary phase, Q/T/state growth, or cleanup debt. No repair ladder.
 - Pass boundary: complete4,096/4,096 gates plus byte-identical repeat authorize only a subsequent opt-in prototype of the whole-production divide replay rounds1..3 splice. No production splice is implemented by X009 and no provider/range/hunt/submission/full-circuit claim follows.
-- Evidence: `.lane/TEDDY-NONZERO-ABI-RELATIVE-PHASE-PREDECLARATION.md` plus immutable X008 fixture and receipts.
-- Exact next action: push this predeclaration, implement only the event-bound relative-phase miter, run raw authority first, and stop on the first declared KILL. Do not extend round4.
+- Smallest source/config change: refactor the opt-in X008 miter behind `SUB4_TEDDY_NONZERO_ABI_RELATIVE_SELFTEST=1`, preserve the exact X008 raw SHAKE stream, advance the candidate reader past2,053 raw-walk stochastic events, bind1,866 corresponding replay events, and assert the inherited260-reset cleanup sequence. Protected production stays unchanged.
+- Exact result before KILL: candidate Q1114/ABI768/ops13,659/emitted T960 split65/141/377/377; one flag/concurrent0/carrier0. Denominator0 raw reference reproduces canary `000000400000004f`, completes rounds0..3, finite inverse64/64, cleanup phase preservation, and ancilla cleanup. Candidate signs1..2, denominator/retained, local cleanup, and rounds0..1 value/phase parity pass.
+- First failure: after candidate round2, all64 seed lanes mismatch raw continuation (`ffffffffffffffff`). Seed0 production entry `(d,c,n)=(1,0,1)` has exact coefficient `bfff...fd23`, but candidate numerator `2000...fe86` differs from raw `6000...fe92`. The receipt records complete 64-hex-digit values.
+- Gate boundary: round2 relative phase is not compared after the ordered value failure. Round3, candidate terminal cleanup, denominators1..63, complete corpus parity, and executed-T average are NOT RUN.
+- Determinism: two direct normalized receipts are byte-identical at SHA-256 `0563479d2663232a2e8291c0184a8be9d9ac414be69ff246042e321e83675591`.
+- Verdict: KILL the no-carrier nonzero-numerator transducer. X007 remains only an exact all-zero-seed component; X009 authorizes no production splice.
+- Evidence: `.lane/TEDDY-NONZERO-ABI-RELATIVE-PHASE-PREDECLARATION.md`, `.lane/TEDDY-NONZERO-ABI-RELATIVE-PHASE-KILL.md`, immutable X008 fixture, and receipts.
+- Exact next action: stop X009. Any one-carrier changed premise is a new predeclared experiment with explicit Q/T/cleanup debt. No round4, optimization, grind, hunt, provider, or full-circuit claim.
 
 ## Experiment template
 

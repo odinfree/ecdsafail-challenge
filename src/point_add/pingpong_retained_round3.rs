@@ -3430,10 +3430,28 @@ fn retained_denominator_full_replay_selfcheck(raw_phase_probe: bool) {
 /// exercise the production entry ABI (`coefficient=0,numerator!=0`) and the
 /// remaining 32 exercise the stronger general transducer ABI.
 pub(crate) fn retained_nonzero_abi_selfcheck() {
+    retained_nonzero_abi_selfcheck_inner(false);
+}
+
+/// X009 changed-premise form of [`retained_nonzero_abi_selfcheck`]. The raw
+/// reference keeps its exact X008 stochastic stream; candidate replay cells
+/// consume the corresponding post-walk suffix so full phase masks can be
+/// compared without pretending the inherited raw phase debt is zero.
+pub(crate) fn retained_nonzero_abi_relative_phase_selfcheck() {
+    retained_nonzero_abi_selfcheck_inner(true);
+}
+
+fn retained_nonzero_abi_selfcheck_inner(relative_phase: bool) {
     use crate::circuit::QubitOrBit;
     use sha3::{
-        digest::{ExtendableOutput, Update},
+        digest::{ExtendableOutput, Update, XofReader},
         Shake256,
+    };
+
+    let receipt_prefix = if relative_phase {
+        "TEDDY_NONZERO_ABI_RELATIVE"
+    } else {
+        "TEDDY_NONZERO_ABI"
     };
 
     const CORPUS: &str =
@@ -3759,14 +3777,72 @@ pub(crate) fn retained_nonzero_abi_selfcheck() {
         .filter(|op| matches!(op.kind, OperationType::CCX | OperationType::CCZ))
         .count();
 
+    let stochastic_kinds = |ops: &[Op]| {
+        ops.iter()
+            .filter_map(|op| match op.kind {
+                OperationType::Hmr | OperationType::R => Some(op.kind),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    let mut candidate_stochastic_cursor = 0usize;
+    let mut reference_stochastic_cursor = reference_walk_checkpoint;
+    let mut shared_stochastic_events = 0usize;
+    for round in 0..4 {
+        let candidate_checkpoint = candidate_round_checkpoints[round];
+        let reference_checkpoint = reference_round_checkpoints[round];
+        let candidate_kinds = stochastic_kinds(
+            &candidate_ops[candidate_stochastic_cursor..candidate_checkpoint],
+        );
+        let reference_kinds = stochastic_kinds(
+            &reference_ops[reference_stochastic_cursor..reference_checkpoint],
+        );
+        assert_eq!(
+            candidate_kinds, reference_kinds,
+            "KILL_NEW_STOCHASTIC_DEBT replay round {round}",
+        );
+        shared_stochastic_events += reference_kinds.len();
+        candidate_stochastic_cursor = candidate_checkpoint;
+        reference_stochastic_cursor = reference_checkpoint;
+    }
+    let candidate_cleanup_stochastic = candidate_ops[candidate_stochastic_cursor..]
+        .iter()
+        .filter_map(|op| match op.kind {
+            OperationType::Hmr | OperationType::R => Some((op.kind, op.q_target)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let mut expected_candidate_cleanup_resets = Vec::with_capacity(260);
+    expected_candidate_cleanup_resets.push((OperationType::R, normalization_flag));
+    expected_candidate_cleanup_resets.extend(
+        scratch
+            .iter()
+            .copied()
+            .map(|q| (OperationType::R, q)),
+    );
+    expected_candidate_cleanup_resets.push((OperationType::R, sign));
+    expected_candidate_cleanup_resets.extend(
+        retained
+            .iter()
+            .copied()
+            .map(|q| (OperationType::R, q)),
+    );
+    assert_eq!(
+        candidate_cleanup_stochastic, expected_candidate_cleanup_resets,
+        "KILL_NEW_STOCHASTIC_DEBT candidate cleanup differs from inherited X008 260-reset sequence",
+    );
+    let reference_walk_stochastic_events =
+        stochastic_kinds(&reference_ops[..reference_walk_checkpoint]).len();
+
     eprintln!(
-        "TEDDY_NONZERO_ABI_BUILD rows=4096 denominators=64 seeds=64 production_seeds=32 stress_seeds=32 candidate_peak_q={candidate_peak} candidate_peak_phase={candidate_peak_phase} candidate_abi_q={candidate_abi} candidate_ops={} candidate_emitted_t={candidate_emitted_toffoli} candidate_round_emitted_t=0:{},1:{},2:{},3:{} reference_peak_q={reference_peak} reference_peak_phase={reference_peak_phase} reference_abi_q={reference_abi} reference_ops={} reference_emitted_t={reference_emitted_toffoli} normalization_flags=1 concurrent_flags=0 persistent_carrier_bits=0",
+        "{receipt_prefix}_BUILD rows=4096 denominators=64 seeds=64 production_seeds=32 stress_seeds=32 candidate_peak_q={candidate_peak} candidate_peak_phase={candidate_peak_phase} candidate_abi_q={candidate_abi} candidate_ops={} candidate_emitted_t={candidate_emitted_toffoli} candidate_round_emitted_t=0:{},1:{},2:{},3:{} reference_peak_q={reference_peak} reference_peak_phase={reference_peak_phase} reference_abi_q={reference_abi} reference_ops={} reference_emitted_t={reference_emitted_toffoli} shared_stochastic_events={shared_stochastic_events} reference_walk_stochastic_events={reference_walk_stochastic_events} normalization_flags=1 concurrent_flags=0 persistent_carrier_bits=0 relative_phase={}",
         candidate_ops.len(),
         candidate_round_emitted[0],
         candidate_round_emitted[1],
         candidate_round_emitted[2],
         candidate_round_emitted[3],
         reference_ops.len(),
+        relative_phase as u8,
     );
 
     let to_register = |qubits: &[QubitId]| {
@@ -3799,9 +3875,9 @@ pub(crate) fn retained_nonzero_abi_selfcheck() {
     let mut candidate_executed_toffoli = 0u64;
     let mut reference_executed_toffoli = 0u64;
     for (denominator_index, &denominator) in denominators.iter().enumerate() {
-        // First establish the independent raw-forward image, phase closure,
-        // finite inverse, and walk cleanup. Candidate comparison is forbidden
-        // until this authority has passed for the denominator batch.
+        // First establish the independent raw-forward image, finite inverse,
+        // and walk cleanup. X008 requires absolute phase closure. X009 retains
+        // the raw phase masks and requires exact candidate equality instead.
         let mut reference_shake = Shake256::default();
         reference_shake.update(b"Teddy Pender X008 raw forward reference");
         reference_shake.update(&(denominator_index as u64).to_le_bytes());
@@ -3820,28 +3896,43 @@ pub(crate) fn retained_nonzero_abi_selfcheck() {
         if reference_sim.phase != 0 {
             let shot = first_shot(reference_sim.phase);
             eprintln!(
-                "TEDDY_NONZERO_ABI FAIL class=KILL_PHASE_DEBT_REFERENCE stage=walk denominator_index={denominator_index} seed_index={shot} denominator={denominator:x} coefficient={:x} numerator={:x} phase_mask={:016x}",
+                "{receipt_prefix} FAIL class={} stage=walk denominator_index={denominator_index} seed_index={shot} denominator={denominator:x} coefficient={:x} numerator={:x} phase_mask={:016x}",
+                if relative_phase { "KILL_REFERENCE_AUX_PHASE_DEBT" } else { "KILL_PHASE_DEBT_REFERENCE" },
                 seeds[shot].0,
                 seeds[shot].1,
                 reference_sim.phase,
             );
+            if relative_phase {
+                panic!("KILL_REFERENCE_AUX_PHASE_DEBT at raw production walk");
+            }
             panic!("KILL_PHASE_DEBT_REFERENCE at raw production walk");
         }
         let reference_sign_masks = reference_signs.map(|round_sign| reference_sim.qubit(round_sign));
         let mut reference_outputs = vec![vec![(U256::ZERO, U256::ZERO); 64]; 4];
+        let mut reference_phase_masks = [0u64; 4];
         let mut reference_cursor = reference_walk_checkpoint;
         for round in 0..4 {
             let checkpoint = reference_round_checkpoints[round];
             reference_sim.apply_iter(reference_ops[reference_cursor..checkpoint].iter());
-            if reference_sim.phase != 0 {
+            reference_phase_masks[round] = reference_sim.phase;
+            if !relative_phase && reference_sim.phase != 0 {
                 let shot = first_shot(reference_sim.phase);
                 eprintln!(
-                    "TEDDY_NONZERO_ABI FAIL class=KILL_PHASE_DEBT_REFERENCE stage=round{round} denominator_index={denominator_index} seed_index={shot} denominator={denominator:x} coefficient={:x} numerator={:x} phase_mask={:016x}",
+                    "{receipt_prefix} FAIL class=KILL_PHASE_DEBT_REFERENCE stage=round{round} denominator_index={denominator_index} seed_index={shot} denominator={denominator:x} coefficient={:x} numerator={:x} phase_mask={:016x}",
                     seeds[shot].0,
                     seeds[shot].1,
                     reference_sim.phase,
                 );
                 panic!("KILL_PHASE_DEBT_REFERENCE after raw production round {round}");
+            }
+            if relative_phase && denominator_index == 0 && round == 2
+                && reference_sim.phase != 0x0000_0040_0000_004f
+            {
+                eprintln!(
+                    "{receipt_prefix} FAIL class=KILL_REFERENCE_CANARY_DRIFT stage=round2 denominator_index=0 expected_phase_mask=000000400000004f actual_phase_mask={:016x}",
+                    reference_sim.phase,
+                );
+                panic!("KILL_REFERENCE_CANARY_DRIFT");
             }
             for shot in 0..64 {
                 reference_outputs[round][shot] = (
@@ -3859,7 +3950,7 @@ pub(crate) fn retained_nonzero_abi_selfcheck() {
             for right in left + 1..64 {
                 if reference_outputs[3][left] == reference_outputs[3][right] {
                     eprintln!(
-                        "TEDDY_NONZERO_ABI FAIL class=KILL_FORWARD_ABI_NONINJECTIVE denominator_index={denominator_index} denominator={denominator:x} left_seed={left} right_seed={right} image_coefficient={:x} image_numerator={:x}",
+                        "{receipt_prefix} FAIL class=KILL_FORWARD_ABI_NONINJECTIVE denominator_index={denominator_index} denominator={denominator:x} left_seed={left} right_seed={right} image_coefficient={:x} image_numerator={:x}",
                         reference_outputs[3][left].0,
                         reference_outputs[3][left].1,
                     );
@@ -3879,11 +3970,23 @@ pub(crate) fn retained_nonzero_abi_selfcheck() {
             );
         }
 
+        let reference_phase_before_cleanup = reference_sim.phase;
         reference_sim.apply_iter(reference_ops[reference_cursor..].iter());
-        assert_eq!(
-            reference_sim.phase, 0,
-            "KILL_PHASE_DEBT_REFERENCE after cleanup at denominator {denominator_index}",
-        );
+        if relative_phase {
+            if reference_sim.phase != reference_phase_before_cleanup {
+                eprintln!(
+                    "{receipt_prefix} FAIL class=KILL_REFERENCE_AUX_PHASE_DEBT stage=cleanup denominator_index={denominator_index} before_phase_mask={reference_phase_before_cleanup:016x} after_phase_mask={:016x}",
+                    reference_sim.phase,
+                );
+                panic!("KILL_REFERENCE_AUX_PHASE_DEBT during cleanup");
+            }
+        } else {
+            assert_eq!(
+                reference_sim.phase, 0,
+                "KILL_PHASE_DEBT_REFERENCE after cleanup at denominator {denominator_index}",
+            );
+        }
+        let reference_final_phase = reference_sim.phase;
         for shot in 0..64 {
             assert_eq!(
                 reference_sim.get_register(&reference_denominator_reg, shot),
@@ -3920,9 +4023,18 @@ pub(crate) fn retained_nonzero_abi_selfcheck() {
         }
 
         let mut candidate_shake = Shake256::default();
-        candidate_shake.update(b"Teddy Pender X008 retained candidate");
+        if relative_phase {
+            candidate_shake.update(b"Teddy Pender X008 raw forward reference");
+        } else {
+            candidate_shake.update(b"Teddy Pender X008 retained candidate");
+        }
         candidate_shake.update(&(denominator_index as u64).to_le_bytes());
         let mut candidate_reader = candidate_shake.finalize_xof();
+        if relative_phase {
+            let mut reference_walk_random_prefix =
+                vec![0u8; reference_walk_stochastic_events * 8];
+            candidate_reader.read(&mut reference_walk_random_prefix);
+        }
         let mut candidate_sim = Simulator::new(
             candidate_total_qubits,
             candidate_total_bits,
@@ -3944,7 +4056,7 @@ pub(crate) fn retained_nonzero_abi_selfcheck() {
                     let mismatch = sign_mask ^ reference_sign_masks[round - 1];
                     let shot = first_shot(mismatch);
                     eprintln!(
-                        "TEDDY_NONZERO_ABI FAIL class=KILL_UNAVAILABLE_PREDECESSOR stage=sign{round} denominator_index={denominator_index} seed_index={shot} denominator={denominator:x} candidate_sign={} reference_sign={} mismatch_mask={mismatch:016x}",
+                        "{receipt_prefix} FAIL class=KILL_UNAVAILABLE_PREDECESSOR stage=sign{round} denominator_index={denominator_index} seed_index={shot} denominator={denominator:x} candidate_sign={} reference_sign={} mismatch_mask={mismatch:016x}",
                         (sign_mask >> shot) & 1,
                         (reference_sign_masks[round - 1] >> shot) & 1,
                     );
@@ -3967,10 +4079,10 @@ pub(crate) fn retained_nonzero_abi_selfcheck() {
 
             let checkpoint = candidate_round_checkpoints[round];
             candidate_sim.apply_iter(candidate_ops[candidate_cursor..checkpoint].iter());
-            if candidate_sim.phase != 0 {
+            if !relative_phase && candidate_sim.phase != 0 {
                 let shot = first_shot(candidate_sim.phase);
                 eprintln!(
-                    "TEDDY_NONZERO_ABI FAIL class=KILL_PHASE_DEBT_CANDIDATE stage=round{round} denominator_index={denominator_index} seed_index={shot} seed_class={} denominator={denominator:x} coefficient={:x} numerator={:x} phase_mask={:016x}",
+                    "{receipt_prefix} FAIL class=KILL_PHASE_DEBT_CANDIDATE stage=round{round} denominator_index={denominator_index} seed_index={shot} seed_class={} denominator={denominator:x} coefficient={:x} numerator={:x} phase_mask={:016x}",
                     if shot < 32 { "production" } else { "stress" },
                     seeds[shot].0,
                     seeds[shot].1,
@@ -4025,7 +4137,7 @@ pub(crate) fn retained_nonzero_abi_selfcheck() {
                 let reference_output = reference_outputs[round][shot];
                 let class = seed_kill(shot);
                 eprintln!(
-                    "TEDDY_NONZERO_ABI FAIL class={class} stage=round{round} denominator_index={denominator_index} seed_index={shot} seed_class={} denominator={denominator:x} input_coefficient={:x} input_numerator={:x} candidate_coefficient={:x} candidate_numerator={:x} reference_coefficient={:x} reference_numerator={:x} mismatch_mask={mismatch_mask:016x}",
+                    "{receipt_prefix} FAIL class={class} stage=round{round} denominator_index={denominator_index} seed_index={shot} seed_class={} denominator={denominator:x} input_coefficient={:x} input_numerator={:x} candidate_coefficient={:x} candidate_numerator={:x} reference_coefficient={:x} reference_numerator={:x} mismatch_mask={mismatch_mask:016x}",
                     if shot < 32 { "production" } else { "stress" },
                     seeds[shot].0,
                     seeds[shot].1,
@@ -4036,14 +4148,47 @@ pub(crate) fn retained_nonzero_abi_selfcheck() {
                 );
                 panic!("{class} after round {round}");
             }
+            if relative_phase && candidate_sim.phase != reference_phase_masks[round] {
+                let phase_delta = candidate_sim.phase ^ reference_phase_masks[round];
+                let shot = first_shot(phase_delta);
+                eprintln!(
+                    "{receipt_prefix} FAIL class=KILL_RELATIVE_PHASE_MISMATCH stage=round{round} denominator_index={denominator_index} seed_index={shot} seed_class={} denominator={denominator:x} coefficient={:x} numerator={:x} candidate_phase_mask={:016x} reference_phase_mask={:016x} phase_delta_mask={phase_delta:016x}",
+                    if shot < 32 { "production" } else { "stress" },
+                    seeds[shot].0,
+                    seeds[shot].1,
+                    candidate_sim.phase,
+                    reference_phase_masks[round],
+                );
+                panic!("KILL_RELATIVE_PHASE_MISMATCH after round {round}");
+            }
             candidate_cursor = checkpoint;
         }
 
+        let candidate_phase_before_cleanup = candidate_sim.phase;
         candidate_sim.apply_iter(candidate_ops[candidate_cursor..].iter());
-        assert_eq!(
-            candidate_sim.phase, 0,
-            "KILL_PHASE_DEBT_CANDIDATE after cleanup at denominator {denominator_index}",
-        );
+        if relative_phase {
+            if candidate_sim.phase != candidate_phase_before_cleanup {
+                eprintln!(
+                    "{receipt_prefix} FAIL class=KILL_CANDIDATE_CLEANUP_PHASE_DEBT denominator_index={denominator_index} before_phase_mask={candidate_phase_before_cleanup:016x} after_phase_mask={:016x}",
+                    candidate_sim.phase,
+                );
+                panic!("KILL_CANDIDATE_CLEANUP_PHASE_DEBT");
+            }
+            if candidate_sim.phase != reference_final_phase {
+                let phase_delta = candidate_sim.phase ^ reference_final_phase;
+                let shot = first_shot(phase_delta);
+                eprintln!(
+                    "{receipt_prefix} FAIL class=KILL_RELATIVE_PHASE_MISMATCH stage=cleanup denominator_index={denominator_index} seed_index={shot} candidate_phase_mask={:016x} reference_phase_mask={reference_final_phase:016x} phase_delta_mask={phase_delta:016x}",
+                    candidate_sim.phase,
+                );
+                panic!("KILL_RELATIVE_PHASE_MISMATCH after cleanup");
+            }
+        } else {
+            assert_eq!(
+                candidate_sim.phase, 0,
+                "KILL_PHASE_DEBT_CANDIDATE after cleanup at denominator {denominator_index}",
+            );
+        }
         for shot in 0..64 {
             assert_eq!(
                 candidate_sim.get_register(&candidate_denominator_reg, shot),
@@ -4078,10 +4223,19 @@ pub(crate) fn retained_nonzero_abi_selfcheck() {
                 "KILL_ANCILLA_DEBT_CANDIDATE q{q} denominator_index={denominator_index}",
             );
         }
+        if relative_phase {
+            eprintln!(
+                "{receipt_prefix}_MASK denominator_index={denominator_index} denominator={denominator:x} round0={:016x} round1={:016x} round2={:016x} round3={:016x} cleanup={reference_final_phase:016x}",
+                reference_phase_masks[0],
+                reference_phase_masks[1],
+                reference_phase_masks[2],
+                reference_phase_masks[3],
+            );
+        }
     }
 
     eprintln!(
-        "TEDDY_NONZERO_ABI PASS rounds=0..3 rows=4096 denominators=64 production_seeds=32 stress_seeds=32 per_round_continuation=exact raw_forward_injective=64/64 finite_inverse=4096/4096 reconstructed_signs=1..3 candidate_peak_q={candidate_peak} candidate_peak_phase={candidate_peak_phase} candidate_abi_q={candidate_abi} candidate_extra_peak_q={} candidate_ops={} candidate_emitted_t={candidate_emitted_toffoli} candidate_round_emitted_t=0:{},1:{},2:{},3:{} candidate_executed_t={:.3} reference_peak_q={reference_peak} reference_peak_phase={reference_peak_phase} reference_abi_q={reference_abi} reference_ops={} reference_emitted_t={reference_emitted_toffoli} reference_executed_t={:.3} denominator_preserved=1 retained_word_preserved=1 coefficient_continuation=exact numerator_continuation=exact normalization_flags=1 concurrent_flags=0 sign=0 scratch=0 flag=0 phase=0 ancilla=0 persistent_carrier_bits=0 first_whole_production_splice=divide_some_plan_rounds1_through3",
+        "{receipt_prefix} PASS rounds=0..3 rows=4096 denominators=64 production_seeds=32 stress_seeds=32 per_round_continuation=exact raw_forward_injective=64/64 finite_inverse=4096/4096 reconstructed_signs=1..3 candidate_peak_q={candidate_peak} candidate_peak_phase={candidate_peak_phase} candidate_abi_q={candidate_abi} candidate_extra_peak_q={} candidate_ops={} candidate_emitted_t={candidate_emitted_toffoli} candidate_round_emitted_t=0:{},1:{},2:{},3:{} candidate_executed_t={:.3} reference_peak_q={reference_peak} reference_peak_phase={reference_peak_phase} reference_abi_q={reference_abi} reference_ops={} reference_emitted_t={reference_emitted_toffoli} reference_executed_t={:.3} denominator_preserved=1 retained_word_preserved=1 coefficient_continuation=exact numerator_continuation=exact normalization_flags=1 concurrent_flags=0 sign=0 scratch=0 flag=0 relative_phase_exact={} inherited_raw_phase={} cleanup_phase_preserved=1 ancilla=0 persistent_carrier_bits=0 prototype_splice_authorized=1",
         candidate_peak - candidate_abi,
         candidate_ops.len(),
         candidate_round_emitted[0],
@@ -4091,6 +4245,8 @@ pub(crate) fn retained_nonzero_abi_selfcheck() {
         candidate_executed_toffoli as f64 / 4096.0,
         reference_ops.len(),
         reference_executed_toffoli as f64 / 4096.0,
+        relative_phase as u8,
+        relative_phase as u8,
     );
 }
 

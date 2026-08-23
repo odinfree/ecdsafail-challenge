@@ -53,19 +53,19 @@ The current universal gate is `Q * T < 1175485230`. Exact strict T ceilings are 
 
 ## Current phase
 
-`RELATIVE_PHASE_ABI_PREDECLARED`
+`RELATIVE_PHASE_ABI_VALUE_KILL`
 
 ## Current hypothesis
 
-`H11`: although X008 proves the isolated raw nonzero-seed reference is not absolute-phase clean, X007's retained rounds0..3 prefix may still be an exact relative replacement: same per-round coefficient/numerator continuation and same complete phase mask as unchanged raw production under source-event-bound replay randomness. X009 reuses the immutable4,096-row corpus and every inverse/restoration/cleanup/Q/state gate; equal nonzero masks remain disclosed inherited debt, not an absolute-phase pass.
+`H11 KILL`: event-bound relative phase does not rescue the nonzero replay ABI. Candidate and raw reference match value and complete phase masks through rounds0..1 for denominator0, but after round2 all64 seed lanes have a continuation mismatch. The first failure is production entry seed `(d,c,n)=(1,0,1)`: coefficient remains exact while numerator differs. The single sentinel-normalization flag therefore encoded a zero-seed-only assumption.
 
 ## Current falsifier
 
-H11 fails on the first per-round value difference, candidate/reference phase-mask difference, raw forward collision, inverse/restoration/cleanup failure, X008 canary drift, extra candidate stochastic event, reference-only walk/walkback phase change, Q>1114, emitted T>960, second/concurrent flag, persistent carrier, unavailable predecessor, or dirty sign/scratch/flag/ancilla. Candidate replay consumes the exact `Hmr`/`R` words extracted from the unchanged raw replay cells; independent SHAKE alignment is not an oracle. Pre-semantic amendment0 binds the inherited X008 cleanup's exact260 `R` resets from `B::free`; they are permitted only on already-zero targets with no phase change, and any additional/reset reorder is new debt.
+The first declared failing class is `KILL_NONZERO_NUMERATOR_ABI` at round2, denominator index0, seed index0, with complete mismatch mask `ffffffffffffffff`. Raw reference canary, denominator0 finite inverse/cleanup, candidate signs1..2, rounds0..1 value/relative-phase equality, Q1114/T960, one flag, and no carrier pass. Round2 phase, round3, candidate terminal cleanup, denominators1..63, and executed-T average are not results.
 
 ## Next action
 
-Commit and push X009 pre-semantic amendment0 before constructing either simulator. Then continue only the event-bound stochastic-tape miter and run raw authority from the start. Stop on the first frozen KILL class. A complete pass authorizes only a later opt-in whole-production divide-splice prototype; do not implement the splice, extend round4, optimize, grind, hunt, or touch a provider in X009.
+Seal and push the terminal X009 KILL. No rounds1..3 production splice is authorized. Any changed-premise carrier experiment must be separately predeclared, price its explicit state debt, and preserve the frozen value/inverse/relative-phase/cleanup gates; do not repair X009, extend round4, optimize, grind, hunt, or touch a provider.
 
 ## Last verified result
 
@@ -92,6 +92,7 @@ Commit and push X009 pre-semantic amendment0 before constructing either simulato
 - Full-field normalization commit `384823f`: production rounds0..2 pass4,096 denominators at candidate Q1114 on ABI768, extra peak346, 8,622 ops, emitted T583, executed T550.247; reference Q1546/T3089.817. One local flag reconstructs sign1, maps the round1 `p` sentinel to canonical zero for round2, restores the continuation, and clears through the same retained sign oracle. Denominator/retained preserved, replay state match, sign/scratch/flag0, phase0, ancilla0, carrier0, max_live_sign_bits1. Raw unnormalized mode fails deterministically, binding the fix.
 - X007 round3 receipt `.lane/TEDDY-RETAINED-ROUND3.md`: exact production rounds0..3 on the same frozen4,096 denominators at Q1114/ABI768/extra346, 13,659 ops, emitted T960 split65/141/377/377, executed T894.054; reference Q1546/T3945.219. The single flag is used only around round2, round3 is flag-free, and denominator/retained/replay/sign/scratch/flag/phase/ancilla/carrier gates all pass. Default production remains15,730,117 ops at SHA-256 `843558da6f504e3f8f2f41cae1edeccdf0cfed9e0dc216f8e880ebc1752e7b75`. Verdict exact component HOLD; nonzero-numerator ABI closure is not proved.
 - X008 nonzero-ABI receipt `.lane/TEDDY-NONZERO-ABI-KILL.md`: terminal `KILL_PHASE_DEBT_REFERENCE`. The exact release miter prices the retained candidate at Q1114/ABI768/13,659 ops/emitted T960, with the round2 fused replay cell as binder, one flag, and no carrier. Before candidate execution, unchanged raw forward has phase mask `000000400000004f` after round2 for the first frozen denominator batch; first dirty input is production seed0 `(d,c,n)=(1,0,1)`. Finite inverse and candidate parity were not run. Two direct receipts are identical at SHA-256 `46762dce4f3c7a907e6e2277dc4254e108bb6cc79e5802b1d944fa2d01ed9878`.
+- X009 relative-phase receipt `.lane/TEDDY-NONZERO-ABI-RELATIVE-PHASE-KILL.md`: terminal `KILL_NONZERO_NUMERATOR_ABI`. Event-bound replay randomness reproduces the X008 raw canary; denominator0 raw forward/inverse/cleanup and candidate rounds0..1 value/phase parity pass. Round2 then mismatches all64 seeds (`ffffffffffffffff`), first at production `(d,c,n)=(1,0,1)`; coefficient is exact and numerator differs. Round2 relative phase and all later gates are not claimed. Two normalized receipts are identical at SHA-256 `0563479d2663232a2e8291c0184a8be9d9ac414be69ff246042e321e83675591`.
 - Protected-leader cache HOLD commit `a05cca3`: exact `a9af194` cycle has21 clean rows and no average below919784.5; promoted nonce57002259501 at919785.268 remains best. Do not rebuild until a newer read-only cache cycle contains a necessarily new strict beat.
 
 ## Credit and shipping note
