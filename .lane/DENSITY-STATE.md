@@ -2,11 +2,11 @@
 
 ## Current verdict
 
-`DENSITY_PASS`; `STRICT_T_PASS`; `MODEL_PREDECLARED`; `HOLD_H64_MODEL`;
-`HOLD_HOLDOUT`; `HOLD_PARITY`;
+`DENSITY_PASS`; `STRICT_T_PASS`; `H64_EXACT_64_OF_64`;
+`GO_D32_PREDICTION`; `HOLD_D32_EVALUATOR_REVEAL`; `HOLD_PARITY`;
 `HOLD_SCAN`; `HOLD_HUNT`; `HOLD_PROVIDER`; `HOLD_SUBMIT`.
 
 ## Next bounded action
 
-Commit and push the exact-model predeclaration.  Then execute the frozen local
-H64 complete-mask comparison.  Reveal the private D32 only after H64 is exact.
+Commit and push the exact H64 result.  Then execute the predictor on the
+already-sealed private D32 and freeze its output hash before evaluator reveal.
