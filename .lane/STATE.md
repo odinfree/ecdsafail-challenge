@@ -224,3 +224,11 @@ reopened frontier; this corpus only gates qualification.
 Row ledgers, the harness, and receipt hashes are frozen OUTSIDE Git; only the
 compact aggregate/selection table and one small per-nonce three-stream audit TSV
 are committed.
+
+## H64 terminal decision
+
+The completed result is sealed in `.lane/H64-RESULTS.md`, with the compact
+per-nonce audit in `.lane/H64-AUDIT.tsv`. Q1274 control passed every frozen
+non-inferiority ceiling; B1=24 failed them and the control-comparison rule.
+Carry Q1274 control forward for exact predictor qualification. No hunt is
+authorized by this decision.
