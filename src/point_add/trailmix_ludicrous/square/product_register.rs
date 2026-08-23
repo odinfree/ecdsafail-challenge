@@ -11,7 +11,7 @@ use crate::circuit::{OperationType, QubitId, QubitOrBit};
 const N: usize = 256;
 const LSBS: usize = 56;
 const MSBS: usize = 24;
-const GUARD: usize = 44;
+const GUARD: usize = 24;
 const F_NAF: [(usize, bool); 5] = [
     (0, false),
     (4, false),
@@ -20,16 +20,35 @@ const F_NAF: [(usize, bool); 5] = [
     (32, false),
 ];
 
-const CLANKER_FARM_SQUARE_MIN: usize = 200;
-
+/// Wide adds (>= `SQUARE_CHUNK_MIN` bits) use the replay's chunked adder with
+/// measured boundary erasure instead of one full-width carry ladder: the
+/// 257-carry ladder of `tri_corr` was the square's peak owner (1287 qubits).
+const SQUARE_CHUNK_MIN: usize = 200;
+/// Live carry-ladder budget for those wide adds.
+const SQUARE_LADDER: usize = 248;
 fn add_full(circ: &mut B, addend: &[QubitId], acc: &[QubitId]) {
     assert_eq!(addend.len(), acc.len());
-    let chunk_min = std::env::var("SUB4_CLANKER_FARM_SQUARE_MIN")
+    let chunk_min = std::env::var("SUB4_SQUARE_CHUNK_MIN")
         .ok()
-        .and_then(|value| value.parse::<usize>().ok())
-        .unwrap_or(CLANKER_FARM_SQUARE_MIN);
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(SQUARE_CHUNK_MIN);
     if acc.len() >= chunk_min {
-        crate::point_add::pingpong_div::add_chunked_measured(circ, addend, acc, None);
+        // The square's own footprint sits ~160 qubits below the replay peak, so
+        // it can afford a much wider carry ladder than the replay can - and a
+        // wider ladder means fewer chunks, i.e. fewer measured boundary
+        // repairs.  Budget it explicitly instead of inheriting the replay's
+        // chunk width.
+        let budget = std::env::var("SUB4_SQUARE_LADDER")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(SQUARE_LADDER);
+        if budget == 0 {
+            crate::point_add::pingpong_div::add_chunked_measured(circ, addend, acc, None);
+        } else {
+            crate::point_add::pingpong_div::add_chunked_measured_budgeted(
+                circ, addend, acc, None, budget,
+            );
+        }
         return;
     }
     arith::hybrid_add_adaptive(circ, acc, addend, usize::MAX);

@@ -22,6 +22,7 @@ pub(crate) use rounds::*;
 
 pub mod trailmix_ludicrous;
 mod pingpong_div;
+mod pp_profile;
 mod single_ccx_fanout;
 mod m60_dead_t10;
 mod d2_deep_strip;
@@ -480,25 +481,6 @@ impl B {
     }
     #[track_caller]
     fn alloc_qubits(&mut self, n: usize) -> Vec<QubitId> {
-        if let Some(threshold) = std::env::var("TRACE_ALLOC_BATCH_NEAR_PEAK")
-            .ok()
-            .and_then(|value| value.parse::<u32>().ok())
-        {
-            if self.active_qubits + n as u32 >= threshold {
-                let caller = std::panic::Location::caller();
-                eprintln!(
-                    "ALLOC_BATCH_NEAR active_before={} width={} projected={} phase='{}' ops_idx={} free_pool={} caller={}:{}",
-                    self.active_qubits,
-                    n,
-                    self.active_qubits + n as u32,
-                    self.phase,
-                    self.current_ops_len(),
-                    self.free_qubits.len(),
-                    caller.file(),
-                    caller.line(),
-                );
-            }
-        }
         if self.b0.enabled {
             let c = std::panic::Location::caller();
             self.b0.batch_ctx = Some((c.file(), c.line()));
@@ -537,7 +519,14 @@ impl B {
             .free_qubits
             .iter()
             .position(|&free_q| u64::from(free_q) == q.0)
-            .expect("reacquire qubit that is not currently free");
+            .unwrap_or_else(|| {
+                panic!(
+                    "reacquire qubit {:?} that is not currently free (phase '{}', ops {})",
+                    q,
+                    self.phase,
+                    self.current_ops_len()
+                )
+            });
         self.free_qubits.swap_remove(pos);
         self.active_qubits += 1;
         self.record_phase_active();
@@ -2542,6 +2531,14 @@ pub fn build() -> Vec<Op> {
         return Vec::new();
     }
     if std::env::var_os("SUB4_LEGACY_POINT_ADD").is_none() {
+        if std::env::var_os("SUB4_PP_RETAINED_MULTISIGN_SELFTEST").is_some() {
+            pingpong_div::retained_denominator_multisign_selfcheck();
+            return Vec::new();
+        }
+        if std::env::var_os("SUB4_PP_RETAINED_DENOM_SIGN1_SELFTEST").is_some() {
+            pingpong_div::retained_denominator_round1_selfcheck();
+            return Vec::new();
+        }
         if std::env::var_os("SUB4_PINGPONG_POINT_ADD_SELFTEST").is_some() {
             pingpong_div::pingpong_point_add_simulator_selfcheck();
             return Vec::new();
@@ -2550,7 +2547,7 @@ pub fn build() -> Vec<Op> {
         let nonce = std::env::var("SUB4_PINGPONG_TAIL_NONCE")
             .unwrap_or_default()
             .parse::<u64>()
-            .unwrap_or(82);
+            .unwrap_or(57002259501);
         let mut x = Op::empty();
         x.kind = OperationType::X;
         x.q_target = QubitId(0);
