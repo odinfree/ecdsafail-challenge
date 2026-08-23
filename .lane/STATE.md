@@ -325,3 +325,23 @@ Terminal verdict: `VALUE_EXACT; COST_PASS; PHASE_KILL; SOURCE_REMOVED`.
 No hunt, scan, provider, remote, spend, submission, or downstream candidate
 measurement ran. A successor requires a separately predeclared phase-clean
 erasure, not another boundary shift or an adaptive patch inside E-011.
+
+## E-012 phase-clean erasure terminal update
+
+The E-011 durable packet omitted its simulator seed, and no harness survived.
+E-012 froze `b"e011-call9-boundary-miter"` before output as an explicit
+provenance repair. The fixed eight values remained exact and dirty-free at
+Q515 / 817 emitted Toffolis; the repaired-seed phase mask was `0x30` rather
+than the old unrepeatable `0x10`.
+
+Stepped cleanup tracing killed the sole admitted complemented-AND hypothesis.
+Every tagged high200 increment vent and clean low56 ladder HMR/CZ group had an
+exact target/control-product identity and zero phase delta. Phase stayed zero
+through the final low-ladder cleanup and appeared only in the downstream
+`clear_overflow_phase` shell. No conditioned-`NEG` repair was implemented.
+
+Per the frozen gate, square64, composition, and Q/T measurement did not run.
+All instrumentation, candidate source, and harness code were removed;
+protected hashes reproduce. Terminal verdict:
+`HYPOTHESIS_FALSE; DOWNSTREAM_OVERFLOW_PHASE_LOCALIZED; SOURCE_REMOVED`.
+No hunt, provider, spend, remote, or submission action ran.
