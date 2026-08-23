@@ -2237,6 +2237,14 @@ fn ccz_self_inverse_cancel_conservative(ops: Vec<Op>) -> Vec<Op> {
 }
 
 pub fn build() -> Vec<Op> {
+    if std::env::var("CMP_LT_PHASE_IMPLICIT_ZERO_HYBRID")
+        .ok()
+        .as_deref()
+        == Some("selftest")
+    {
+        arith::cmp_lt_phase_implicit_zero_hybrid_selftest();
+        return Vec::new();
+    }
     // Diagnostic: dump the width schedule (base + rescaled) and exit without
     // emitting.  Byte-neutral to the shipped stream (gated, default-off).
     if std::env::var_os("SUB4_DUMP_WSCHED").is_some() {

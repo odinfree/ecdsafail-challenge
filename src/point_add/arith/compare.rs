@@ -418,7 +418,7 @@ pub(crate) fn cmp_lt_phase_conditioned_with_cin_borrowed_carries(
     b.pop_condition();
 }
 
-pub(crate) fn cmp_lt_phase_conditioned(
+fn cmp_lt_phase_conditioned_clean_cin(
     b: &mut B,
     u: &[QubitId],
     v: &[QubitId],
@@ -460,6 +460,192 @@ pub(crate) fn cmp_lt_phase_conditioned(
     }
     b.pop_condition();
     b.free(c_in);
+}
+
+fn cmp_lt_phase_conditioned_implicit_zero_hybrid(
+    b: &mut B,
+    u: &[QubitId],
+    v: &[QubitId],
+    phase: BitId,
+) {
+    let n = u.len();
+    assert_eq!(v.len(), n);
+    assert!(n >= 2);
+
+    b.push_condition(phase);
+    for &q in u {
+        b.x(q);
+    }
+
+    let last = n - 1;
+    let carries = b.alloc_qubits(last);
+
+    // The lower prefix starts with a known-zero carry. After CX(u[0], v[0]),
+    // u[0] is exactly the value the clean-c_in circuit copied into c_in, so
+    // use it directly as the first nonlinear control (the 51c6 construction).
+    b.cx(u[0], v[0]);
+    b.ccx(u[0], v[0], carries[0]);
+    b.cx(carries[0], u[0]);
+    for i in 1..last {
+        b.cx(u[i], v[i]);
+        b.cx(u[i], u[i - 1]);
+        b.ccx(u[i - 1], v[i], carries[i]);
+        b.cx(carries[i], u[i]);
+    }
+
+    // Preserve d919's top-phase factorization exactly: the top AND is never
+    // materialized, and its phase is emitted as Z(top) * CZ(carry, v_top).
+    b.cx(u[last], v[last]);
+    b.cx(u[last], u[last - 1]);
+    b.cz(u[last], u[last]);
+    b.cz(u[last - 1], v[last]);
+    b.cx(u[last], u[last - 1]);
+    b.cx(u[last], v[last]);
+
+    for i in (1..last).rev() {
+        b.cx(carries[i], u[i]);
+        let m = b.alloc_bit();
+        b.hmr(carries[i], m);
+        b.cz_if(u[i - 1], v[i], m);
+        b.cx(u[i], u[i - 1]);
+        b.cx(u[i], v[i]);
+    }
+    b.cx(carries[0], u[0]);
+    let m0 = b.alloc_bit();
+    b.hmr(carries[0], m0);
+    b.cz_if(u[0], v[0], m0);
+    b.cx(u[0], v[0]);
+    b.free_vec(&carries);
+
+    for &q in u {
+        b.x(q);
+    }
+    b.pop_condition();
+}
+
+pub(crate) fn cmp_lt_phase_conditioned(
+    b: &mut B,
+    u: &[QubitId],
+    v: &[QubitId],
+    phase: BitId,
+) {
+    if std::env::var("CMP_LT_PHASE_IMPLICIT_ZERO_HYBRID")
+        .ok()
+        .as_deref()
+        == Some("1")
+        && u.len() >= 2
+    {
+        cmp_lt_phase_conditioned_implicit_zero_hybrid(b, u, v, phase);
+    } else {
+        cmp_lt_phase_conditioned_clean_cin(b, u, v, phase);
+    }
+}
+
+mod implicit_zero_hybrid_tests {
+    use super::*;
+    use crate::circuit::OperationType;
+    use crate::sim::Simulator;
+    use sha3::digest::{ExtendableOutput, Update};
+
+    fn build_primitive(
+        n: usize,
+        hybrid: bool,
+    ) -> (B, Vec<QubitId>, Vec<QubitId>, BitId) {
+        let mut b = B::new_for_test();
+        let u = b.alloc_qubits(n);
+        let v = b.alloc_qubits(n);
+        let phase = b.alloc_bit();
+        if hybrid {
+            cmp_lt_phase_conditioned_implicit_zero_hybrid(&mut b, &u, &v, phase);
+        } else {
+            cmp_lt_phase_conditioned_clean_cin(&mut b, &u, &v, phase);
+        }
+        (b, u, v, phase)
+    }
+
+    pub(super) fn run() {
+        for n in 2usize..=8 {
+            let (baseline, baseline_u, baseline_v, baseline_phase) = build_primitive(n, false);
+            let (hybrid, hybrid_u, hybrid_v, hybrid_phase) = build_primitive(n, true);
+
+            assert_eq!(hybrid.peak_qubits + 1, baseline.peak_qubits, "width {n}");
+            assert!(hybrid.ops.len() < baseline.ops.len(), "width {n}");
+            let count_toffoli = |b: &B| {
+                b.ops
+                    .iter()
+                    .filter(|op| matches!(op.kind, OperationType::CCX | OperationType::CCZ))
+                    .count()
+            };
+            assert_eq!(count_toffoli(&hybrid), count_toffoli(&baseline), "width {n}");
+
+            let states = 1usize << (2 * n);
+            for batch_start in (0..states).step_by(64) {
+                let mut baseline_seed = sha3::Shake256::default();
+                baseline_seed.update(b"cmp-lt-phase-implicit-zero-hybrid");
+                baseline_seed.update(&(n as u64).to_le_bytes());
+                baseline_seed.update(&(batch_start as u64).to_le_bytes());
+                let hybrid_seed = baseline_seed.clone();
+                let mut baseline_xof = baseline_seed.finalize_xof();
+                let mut hybrid_xof = hybrid_seed.finalize_xof();
+                let mut baseline_sim = Simulator::new(
+                    baseline.next_qubit as usize,
+                    baseline.next_bit as usize,
+                    &mut baseline_xof,
+                );
+                let mut hybrid_sim = Simulator::new(
+                    hybrid.next_qubit as usize,
+                    hybrid.next_bit as usize,
+                    &mut hybrid_xof,
+                );
+                *baseline_sim.bit_mut(baseline_phase) = u64::MAX;
+                *hybrid_sim.bit_mut(hybrid_phase) = u64::MAX;
+
+                let batch_end = (batch_start + 64).min(states);
+                for state in batch_start..batch_end {
+                    let shot = state - batch_start;
+                    let u_value = state & ((1usize << n) - 1);
+                    let v_value = state >> n;
+                    for bit in 0..n {
+                        if ((u_value >> bit) & 1) != 0 {
+                            *baseline_sim.qubit_mut(baseline_u[bit]) |= 1u64 << shot;
+                            *hybrid_sim.qubit_mut(hybrid_u[bit]) |= 1u64 << shot;
+                        }
+                        if ((v_value >> bit) & 1) != 0 {
+                            *baseline_sim.qubit_mut(baseline_v[bit]) |= 1u64 << shot;
+                            *hybrid_sim.qubit_mut(hybrid_v[bit]) |= 1u64 << shot;
+                        }
+                    }
+                }
+
+                baseline_sim.apply_iter(baseline.ops.iter());
+                hybrid_sim.apply_iter(hybrid.ops.iter());
+                assert_eq!(hybrid_sim.phase, baseline_sim.phase, "width {n}, batch {batch_start}");
+                assert_eq!(hybrid_sim.bits, baseline_sim.bits, "width {n}, batch {batch_start}");
+                for bit in 0..n {
+                    assert_eq!(hybrid_sim.qubit(hybrid_u[bit]), baseline_sim.qubit(baseline_u[bit]));
+                    assert_eq!(hybrid_sim.qubit(hybrid_v[bit]), baseline_sim.qubit(baseline_v[bit]));
+                }
+                for (sim, u, v) in [
+                    (&baseline_sim, &baseline_u, &baseline_v),
+                    (&hybrid_sim, &hybrid_u, &hybrid_v),
+                ] {
+                    for q in 0..sim.num_qubits {
+                        let id = QubitId(q as u64);
+                        if !u.contains(&id) && !v.contains(&id) {
+                            assert_eq!(sim.qubit(id), 0, "width {n}, batch {batch_start}, dirty q{q}");
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub(crate) fn cmp_lt_phase_implicit_zero_hybrid_selftest() {
+    implicit_zero_hybrid_tests::run();
+    eprintln!(
+        "CMP_LT_PHASE_IMPLICIT_ZERO_HYBRID: PASS widths=2..8 exhaustive deterministic-HMR value/phase/ancilla equivalence"
+    );
 }
 
 pub(crate) fn ccx_cmp_lt_into_fast_prefix_targets_split(
