@@ -16,8 +16,7 @@ assert_hash() { [[ -f $1 && $(hash "$1") == "$2" ]] || die "hash drift: $1"; }
 check_identity() {
   local expected_corpus_sha
   git -C "$repo" merge-base --is-ancestor \
-    01e06d605c1de3cea4571b033e1d16dc820bfbdf HEAD || \
-    die 'inherited classical checkpoint is not an ancestor of HEAD'
+    3abf2af HEAD || die 'corrected classical checkpoint is not an ancestor of HEAD'
   case "$gate:$expected_rows" in
     H64:64)
       expected_corpus_sha=17443162349d50e521b0c9a20904de5a0212a668e6f3ae7ea0e2702b2f79c4b9
@@ -25,13 +24,16 @@ check_identity() {
     D32:32)
       expected_corpus_sha=45838602350ecabd4c95d900602d440692e57bffd2581160e1f151ccdb4cc79c
       ;;
+    V64:64)
+      expected_corpus_sha=9db8b3a0fc0f277f8cea77cac181cc6133a667c96d5e73a97397a7116a6ec1bd
+      ;;
     *)
       die "unsupported qualification gate: $gate rows=$expected_rows"
       ;;
   esac
   assert_hash "$corpus" "$expected_corpus_sha"
   assert_hash "$repo/src/bin/pingpong_filter.rs" \
-    2d016070a93a5966c5a163a6242b27ef8264176c76c72448ba50027b70465890
+    39371fca9e77d7aab3cfda7111bdbc03c11d8cfc03966cd15b2ea77d79836e38
   assert_hash "$repo/src/bin/eval_circuit.rs" \
     b35314bc47a5f8eecbf60459e6c76c9b43aa034eeb9b7ec3421655d74f9e890b
   assert_hash "$repo/src/point_add/pingpong_div.rs" \
@@ -41,7 +43,7 @@ check_identity() {
   assert_hash "$repo/src/point_add/trailmix_ludicrous/square/product_register.rs" \
     864d31454c5279632652cf48aeda038d481a504b09e4f7a8c0f266e10a24b81c
   assert_hash "$predictor" \
-    1ce7b22c1ed1a4d55620ccf5daeed110cdb7b0f6de3ce85b5de93fcc86cb7ba8
+    ea7f1410a17ee84c8b05ae44ff1763b53dd2564bbd9bb607cfae8a6648d7b454
   assert_hash "$builder" \
     02c94aed131c5558aa40f91cc9bdccda8248c8dccbe4390138afd4a3901311a5
   assert_hash "$evaluator" \
@@ -71,8 +73,8 @@ predict() {
   mv "$tmp" "$out/prediction.tsv"
   {
     printf 'status=PREDICTION_SEALED_EVALUATOR_UNOPENED\n'
-    printf 'source_commit=01e06d605c1de3cea4571b033e1d16dc820bfbdf\n'
-    printf 'source_sha256=2d016070a93a5966c5a163a6242b27ef8264176c76c72448ba50027b70465890\n'
+    printf 'source_commit=3abf2af\n'
+    printf 'source_sha256=39371fca9e77d7aab3cfda7111bdbc03c11d8cfc03966cd15b2ea77d79836e38\n'
     printf 'corpus_sha256=%s\n' "$(hash "$corpus")"
     printf 'prediction_sha256=%s\n' "$(hash "$out/prediction.tsv")"
     printf 'gate=%s\nrows=%s\n' "$gate" "$expected_rows"
@@ -218,6 +220,6 @@ case "$mode" in
     worker "$2" "$3"
     ;;
   *)
-    die 'usage: [PPF_GATE=D32 PPF_ROWS=32 PPF_CORPUS=...] qualify_h64_local.sh predict OUT | evaluate OUT [JOBS]'
+    die 'usage: [PPF_GATE=V64 PPF_ROWS=64 PPF_CORPUS=...] qualify_h64_local.sh predict OUT | evaluate OUT [JOBS]'
     ;;
 esac
