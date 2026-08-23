@@ -345,3 +345,17 @@ All instrumentation, candidate source, and harness code were removed;
 protected hashes reproduce. Terminal verdict:
 `HYPOTHESIS_FALSE; DOWNSTREAM_OVERFLOW_PHASE_LOCALIZED; SOURCE_REMOVED`.
 No hunt, provider, spend, remote, or submission action ran.
+
+## E-013 reordered overflow erasure terminal update
+
+E-013 ran the inherited overflow HMR/comparator at the clean-ladder apex before
+high200 propagation, temporarily restored the measured overflow value for the
+remaining reverse pass, and then reset it. The repaired-seed miter retained
+8/8 exact values, dirty `0`, Q515, and 817 emitted Toffolis, but phase remained
+`0x24`.
+
+The first frozen gate therefore failed. Square64, composition, and Q/T were
+not run. All source and harness changes were removed and protected hashes
+reproduce. Terminal verdict:
+`VALUE_EXACT; DIRTY_ZERO; PHASE_KILL; SOURCE_REMOVED`. No hunt, provider,
+remote, spend, submission, or adaptive repair ran.
