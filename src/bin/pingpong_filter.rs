@@ -1040,6 +1040,45 @@ fn conditional_mod_negate(ctrl: u64, value: &U4, m: &Model) -> U4 {
     const_trunc(&t, FC - 1, m.endpoint_m, true)
 }
 
+const COORD_FOLD_BITS: usize = 53;
+const COORD_FOLD_MASK: u64 = (1u64 << COORD_FOLD_BITS) - 1;
+
+/// Circuit-exact low-53 complemented `+F` fold.  The carry past bit 52 is
+/// deliberately dropped by `add_f_window`; this is not field arithmetic.
+#[inline(always)]
+fn coord_fold_f_complemented(value: &mut U4) {
+    let low = value[0] & COORD_FOLD_MASK;
+    let folded = ((low ^ COORD_FOLD_MASK).wrapping_add(FC)) ^ COORD_FOLD_MASK;
+    value[0] = (value[0] & !COORD_FOLD_MASK) | (folded & COORD_FOLD_MASK);
+}
+
+/// `trailmix_ludicrous::arith::mod_sub_vented`, value channel only.
+///
+/// The circuit forms `~reg + coord`, uncomplements its low 256 bits, and, on
+/// the carry/borrow branch, applies the truncated complemented F fold above.
+#[inline(always)]
+fn coord_sub_circuit(reg: &U4, coord: &U4) -> U4 {
+    let (sum, carry) = u4_addc(&u4_not(reg), coord);
+    let mut out = u4_not(&sum);
+    if carry == 1 {
+        coord_fold_f_complemented(&mut out);
+    }
+    out
+}
+
+/// Default fused `coord_rsub`: `mod_rsub_vented_loaded(coord + 1, reg)`.
+/// Unlike `coord_sub_circuit`, its loaded reverse-subtraction keeps the raw
+/// complemented sum and applies the truncated F fold when the carry is zero.
+#[inline(always)]
+fn coord_rsub_circuit(reg: &U4, coord: &U4) -> U4 {
+    let coord_plus_one = u4_addc(coord, &ONE4).0;
+    let (mut out, carry) = u4_addc(&u4_not(reg), &coord_plus_one);
+    if carry == 0 {
+        coord_fold_f_complemented(&mut out);
+    }
+    out
+}
+
 /// Scratch reused across shots so the hot loop never allocates.
 struct Scratch {
     tape: Vec<u8>,
@@ -1175,9 +1214,9 @@ fn point_add_classical_traced(
 ) -> Vec<(&'static str, U4, U4)> {
     let mut out: Vec<(&'static str, U4, U4)> = Vec::new();
     let mut nph = 0u64;
-    let dx = fe_sub(tx, ox);
+    let dx = coord_sub_circuit(tx, ox);
     out.push(("tlm_coord_x_sub", dx, *ty));
-    let dy = fe_sub(ty, oy);
+    let dy = coord_sub_circuit(ty, oy);
     out.push(("tlm_coord_y_sub", dx, dy));
     let (dxr, lam) = pingpong_divide(&dx, &dy, m, s, &mut nph);
     out.push(("pp_div_restore", dxr, lam));
@@ -1189,30 +1228,29 @@ fn point_add_classical_traced(
     out.push(("square_product_register", x, lam));
     let (x2, y2) = pingpong_multiply(&x, &lam, m, s, &mut nph);
     out.push(("pp_mul_restore", x2, y2));
-    let y = fe_sub(&fe_norm(&y2), oy);
+    let y = coord_sub_circuit(&y2, oy);
     out.push(("tlm_coord_y_sub_final", x2, y));
-    let x3 = fe_sub(ox, &fe_norm(&x2));
+    let x3 = coord_rsub_circuit(&x2, ox);
     out.push(("tlm_coord_rsub_final", x3, y));
     out
 }
 
 /// The whole ping-pong affine point-add, classically.
-/// The coordinate shell (coord_addsub / coord_add3x / the Solinas square /
-/// coord_rsub) is modelled as EXACT modular arithmetic: measured on 36,096
-/// shots with zero deviation, and any shell fold that did escape its window
-/// would only ever make this UNDER-count (a wasted CPU confirm, never a
-/// discarded island).
+/// The observed coordinate subtraction and fused reverse-subtraction paths use
+/// their circuit-exact low-53 folds.  Coord-add3x and the Solinas square retain
+/// the upstream exact-field model; the blinded corpus below determines whether
+/// that bounded model remains sufficient for this source.
 fn point_add_classical(tx: &U4, ty: &U4, ox: &U4, oy: &U4, m: &Model, s: &mut Scratch, nphase: &mut u64) -> (U4, U4) {
-    let dx = fe_sub(tx, ox);
-    let dy = fe_sub(ty, oy);
+    let dx = coord_sub_circuit(tx, ox);
+    let dy = coord_sub_circuit(ty, oy);
     let (dxr, lam) = pingpong_divide(&dx, &dy, m, s, nphase);
     let ox3 = fe_add(&fe_add(ox, ox), ox);
     let mut x = fe_add(&fe_norm(&dxr), &ox3);
     let lamn = fe_norm(&lam);
     x = fe_sub(&x, &fe_sqr(&lamn));
     let (x2, y2) = pingpong_multiply(&x, &lam, m, s, nphase);
-    let y = fe_sub(&fe_norm(&y2), oy);
-    let x3 = fe_sub(ox, &fe_norm(&x2));
+    let y = coord_sub_circuit(&y2, oy);
+    let x3 = coord_rsub_circuit(&x2, ox);
     (x3, y)
 }
 

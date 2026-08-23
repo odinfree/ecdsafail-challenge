@@ -2,13 +2,14 @@
 
 ## Current verdict
 
-`FAIL_MODEL`; `DIAGNOSIS_CLOSED`; `HOLD_PARITY`; `HOLD_SCAN`; `HOLD_HUNT`;
-`HOLD_SUBMIT`.
+`CORRECTION_FROZEN`; `H64_COUNTS_PASS`; `HOLD_EXACT_MODEL`; `HOLD_PARITY`;
+`HOLD_SCAN`; `HOLD_HUNT`; `HOLD_SUBMIT`.
 
-The two-line hard-coded bake is byte-identical to the measured Q1276 candidate,
-but the exact upstream classical-model port underpredicts three of 64 frozen
-full-evaluator rows by one.  See `.lane/MODEL-QUALIFICATION.md` and
-`.lane/model-calibration-h64.tsv`.
+The two-line hard-coded bake is byte-identical to the measured Q1276 candidate.
+The exact upstream port initially underpredicted three fixed H64 rows, and the
+source-bound audit localized all three to the coordinate shell's dropped
+bit-53 carry.  The frozen general correction now matches all 64 known evaluator
+counts, but full 64-row exact shot-set parity and blinded disjoint32 remain.
 
 ## Durable source
 
@@ -21,8 +22,7 @@ full-evaluator rows by one.  See `.lane/MODEL-QUALIFICATION.md` and
 
 ## Next bounded action
 
-The separately predeclared mechanism audit is closed in
-`.lane/MISSING-CHANNEL-DIAGNOSIS.md`: all three missing shots are bit-53
-coordinate-shell boundary events.  Commit and push that diagnosis before the
-one frozen source-semantic predictor correction.  Approximate predictor output
-remains canary-only; it is not scan-safe.
+Commit and push the frozen correction in `.lane/COORD-SHELL-CORRECTION.md`.
+Then regenerate complete trusted-evaluator shot sets for original H64 and
+require 64/64 equality.  If that passes, reveal the precommitted disjoint32 and
+require 32/32 exact set equality.  The model is not scan-safe before both gates.
