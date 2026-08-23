@@ -19,6 +19,11 @@ assert_gpu_idle() {
 }
 
 assert_gpu_idle
+GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | tr -d '\r')
+GPU_CC=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | tr -d '\r')
+test "$GPU_NAME" = 'NVIDIA GeForce RTX 5090'
+test "$GPU_CC" = '12.0'
+nvcc --list-gpu-code | grep -Fqx 'sm_120'
 test "$(sha256sum "$W/ops.bin" | awk '{print $1}')" = \
   d1461959eac52b19b644f1f97a3b44a3ea249a109f14a406d19e872cd17c5422
 test "$(sha256sum "$W/src/pp_host.h" | awk '{print $1}')" = \
@@ -30,7 +35,8 @@ test "$(sha256sum "$W/src/ppcpu.cpp" | awk '{print $1}')" = \
 test "$(sha256sum "$W/src/ppgpu.cu" | awk '{print $1}')" = \
   8fe6247eeb680ffad96423947909afc88321913bc039233dd85e18733b6a8fb3
 
-"$W/build.sh"
+PPGPU_CUDA_ARCH=120 "$W/build.sh"
+cuobjdump --list-elf "$W/ppgpu" | grep -Fq 'sm_120'
 mkdir "$W/fixtures"
 for nonce in 135608492183 0 7 2500069332; do
   PPF_OPS="$W/ops.bin" "$W/ppcpu" breakdown "$nonce" \
@@ -76,6 +82,8 @@ UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 {
   printf 'utc=%s\n' "$UTC"
   printf 'gpu_apps_before=0 gpu_apps_after=0\n'
+  printf 'gpu_name=%s cuda_compute_capability=%s cuda_arch=120\n' \
+    "$GPU_NAME" "$GPU_CC"
   printf 'ops_sha256=d1461959eac52b19b644f1f97a3b44a3ea249a109f14a406d19e872cd17c5422\n'
   printf 'state_digest=%s\n' "$DIGEST"
   printf 'ppgpu_sha256=%s\n' "$PPGPU_SHA"

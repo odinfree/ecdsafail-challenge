@@ -30,3 +30,6 @@ zero across 9,024 shots.
 requires an idle GPU before and after CPU/CUDA parity and writes
 `DEDICATED.complete`. `calibrate.sh` accepts exactly one host proof:
 `BORROW.complete` xor `DEDICATED.complete`.
+
+`build.sh` defaults to CUDA architecture 89. A Blackwell host must set
+`PPGPU_CUDA_ARCH=120`; any other explicit architecture is rejected.
