@@ -690,7 +690,8 @@ fn square_row_windowed_apply(
         if trunc_w < seg_w {
             let suffix_lo = hi - trunc_w;
             let seg = build_seg(b, suffix_lo, hi);
-            let carries = tmp_ext[row_top..row_top + trunc_w].to_vec();
+            let carry_w = if measured_clear { trunc_w.saturating_sub(1) } else { trunc_w };
+            let carries = tmp_ext[row_top..row_top + carry_w].to_vec();
             let cmp_cin = b.alloc_qubit();
             if forward {
                 if measured_clear {
@@ -747,7 +748,8 @@ fn square_row_windowed_apply(
             clear_seg(b, suffix_lo, &seg);
         } else {
             let seg = build_seg(b, lo, hi);
-            let carries = tmp_ext[row_top..row_top + seg_w].to_vec();
+            let carry_w = if measured_clear { seg_w.saturating_sub(1) } else { seg_w };
+            let carries = tmp_ext[row_top..row_top + carry_w].to_vec();
             if forward {
 
                 if measured_clear {

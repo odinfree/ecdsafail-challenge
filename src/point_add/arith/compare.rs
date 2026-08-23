@@ -403,15 +403,28 @@ pub(crate) fn cmp_lt_phase_conditioned_with_cin_borrowed_carries(
     let n = u.len();
     assert_eq!(v.len(), n);
     assert!(n > 0);
-    assert!(carries.len() >= n);
+    assert!(carries.len() >= n.saturating_sub(1));
 
     b.push_condition(phase);
     for &q in u {
         b.x(q);
     }
-    cmp_lt_fast_prefix_window_forward(b, u, v, c_in, carries, c_in, &[]);
-    b.cz(u[n - 1], u[n - 1]);
-    cmp_lt_fast_prefix_window_inverse(b, u, v, c_in, carries);
+    if n >= 2 {
+        // The final carry is consumed only by the phase polynomial. Factor
+        // it into Clifford Z/CZ terms and never allocate the top carry wire.
+        cmp_lt_fast_prefix_window_forward(b, &u[..n - 1], &v[..n - 1], c_in, carries, c_in, &[]);
+        b.cx(u[n - 1], v[n - 1]);
+        b.cx(u[n - 1], u[n - 2]);
+        b.cz(u[n - 1], u[n - 1]);
+        b.cz(u[n - 2], v[n - 1]);
+        b.cx(u[n - 1], u[n - 2]);
+        b.cx(u[n - 1], v[n - 1]);
+        cmp_lt_fast_prefix_window_inverse(b, &u[..n - 1], &v[..n - 1], c_in, carries);
+    } else {
+        cmp_lt_fast_prefix_window_forward(b, u, v, c_in, carries, c_in, &[]);
+        b.cz(u[n - 1], u[n - 1]);
+        cmp_lt_fast_prefix_window_inverse(b, u, v, c_in, carries);
+    }
     for &q in u {
         b.x(q);
     }
