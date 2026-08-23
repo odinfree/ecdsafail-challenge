@@ -489,3 +489,67 @@ carried into the finalist economics; it is a fresh draw post-bake.
 constants are byte-identical to the binary that validated against the trusted
 18/10/0 and 22/11/0 receipts. Provenance re-confirmed by `breakdown 251000962439`
 = pred_cls 17 on the new binary (sha `dfa6f76c...`).
+
+## D11 — ceil BAKED into source; structural gates PASS; baked-stream density
+
+**Baked operation identity.** ceil is baked into source as `WIDTH_SCHEDULE_Q1272`
+(base `WIDTH_SCHEDULE` + 555 peak-safe +1s + running-max envelope), read only on
+the shipped width-rescale-on path via a new `default_width_table()` gate; the
+`SUB4_PP_WIDTH_RESCALE=0` opt-out reads the unrepaired base. Clean rebuild:
+- default artifact: **12,944,164 ops**, ops.bin sha256
+  **`95e844f318d90687d0d7088b6d70809b8a444e8227e1f95fd31b9153c137f194`**,
+  peak **1272** (op 2,530,455, pp_div_replay), diag TOTAL **917491.50**,
+  64-lane classical 0 / phase 0x0 / dirty 0.
+
+**Bake == priced candidate (equivalence proof).** On the baked source,
+`SUB4_PP_WSCHED_FILE=/tmp/tbl_ceil.csv` reproduces the default hash `95e844f3...`
+byte-for-byte (a no-op) -> the baked table is exactly the priced `ceil` object.
+`SUB4_DUMP_WSCHED` baked effective schedule == priced `cand_ceil` (0 mismatches).
+
+**Opt-out chain preserved.** The live route
+(`SUB4_PP_ROUNDS=698 SUB4_PP_ROUNDS_MUL=696 SUB4_PP_WIDTH_RESCALE=0 SUB4_PP_R1=342
+SUB4_PP_R2=625 SUB4_PP_PEAK=1275 SUB4_SQUARE_LADDER=245`) still reproduces
+`d9737f51...` byte-for-byte after the bake (the rescale=0 gate reads the base
+table). This was the single most likely silent breakage; it is verified intact.
+
+**Structural gates (baked source):**
+- `SUB4_PRODUCT_SQUARE_SELFTEST=1`: PASS (58,980 emitted / 58,721.141 exec Toffoli,
+  peak 1272; unchanged from baseline — square is width-repair-invariant).
+- `SUB4_PINGPONG_POINT_ADD_SELFTEST=1`: PASS (959,400 emitted / 917,507.953 exec
+  Toffoli, 1272 qubits; monotonicity assertion held on the baked table).
+- PP_PROFILE 64-lane: peak 1272, classical 0, phase 0x0, dirty 0.
+- `git diff --check`: clean.
+
+**Re-derived diag->full offset (NOT reused).** Unchanged release `eval_circuit` on
+the baked artifact: exact average T **917607.682** (results.tsv row read then
+reverted). Offset = 917607.682 - 917491.50 = **+116.18** (baseline was +44.55; the
+offset shifted with the schedule, as expected). Rounded full-T **917608 <= 921139**
+(3531 T margin) -> score gate PASS. Strict-beat score if a clean nonce exists:
+1272 x 917608 = **1,167,197,376** (-4,491,924 vs live 1,171,689,300).
+
+**One inherited 9,024-shot diagnostic (allowed; after gates).** Baked eval at the
+inherited nonce 251000962439: **14 classical / 12 phase batches / 0 ancilla**
+(DIRTY draw). Per protocol a dirty inherited draw does NOT kill an ensemble
+density improvement; the density evidence is the held-out corpora and the fresh
+predeclared bake corpus below.
+
+**Oracle re-validation on the BAKED hash (FN gates).**
+- ppfilter `breakdown 251000962439` on baked ops -> **pred_cls=14** == baked eval's
+  14 classical. Classical oracle certified on the new hash.
+- screen_nonces `--full` @ 251000962439 on baked ops -> **cls=14 phase=12 anc=0**,
+  avg_round 917608 == baked eval receipt exactly. Phase apparatus certified on the
+  new hash (reproduces the paid full-eval receipt).
+
+**Baked-stream classical density on the 64 PREDECLARED bake nonces
+(444000000000..444000000063), fresh corpus after the hash change:**
+- baked Q1272 finalist: lambda_cls = **13.828** (hard 705 -> hard-lambda 11.02 ~
+  the infinite-width floor 11.48; soft 180 -> 2.81, the +2-needing tail).
+- live on the SAME 64 nonces: lambda_cls = **14.406**.
+So the baked finalist's classical density is **0.58 below the proven-huntable live
+config on the same fresh nonces**, at peak 1272 vs live's 1275 — the classical win
+survives the hash change (consistent with the held-out corpus-B 14.219 vs 14.637).
+
+**Phase density on the 64 bake nonces: full-sim in progress (background).** Pre-bake
+lambda_phase=13.31 (n=16) is NOT carried; the baked value is a fresh draw and is
+reported next. Classical vs phase co-binding and the final economics bracket follow
+once the baked-stream phase lands.
