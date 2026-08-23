@@ -9,6 +9,7 @@ Frozen before new measurement on 2026-08-23.
 | O-003 | One more fold bit must raise global peak Q. | E-001 measured Q1273 at `pp_mul_replay`; E-001c removes an exact redundant selector and returns to Q1272. | Compose fold55 with the multiply selector XOR alias. | overturned by composition |
 | O-004 | Hard classical and phase density are separate taxes. | H64 changes classical 1135→1054 and phase 839→765 on the same fixed nonce block, though shots are SHA-bound ensembles. | Full unchanged simulation on the predeclared block; report joint counts without assuming independence. | co-movement observed; independence unclaimed |
 | O-005 | A local replay improvement is enough to claim a candidate. | Terminal, walkback, square, and result channels can remain, and all Q1272 co-binders must stay at or below 1272. | Require complete cause census, focused selftests, base/live opt-outs, and full channel reporting. | protected |
+| O-006 | Numeric mismatch indices can be paired after a source change. | E-007 and held mismatch sets were disjoint because their operation SHAs derive independent Fiat-Shamir inputs; E-008 instead passed fixed H64 non-inferiority and exact cause coverage. | Compare complete SHA-bound ensembles and first-failure distributions under a predeclared statistical gate. | overturned |
 
 Kill conditions for the first experiment: Q above 1272; rounded full T above
 921139; either protected SHA fails; a focused miter/selfcheck fails; or the
@@ -40,3 +41,8 @@ The first fold55 predictor also missed three irreversible reverse-walk POP
 faults. A scratch fail-closed correction obtained 64/64 exact count parity and
 classifies them as one divide-walk and two multiply-walk faults. That repair is
 not productionized here and cannot authorize a hunt.
+
+E-008 completed both independent H64 ensembles and an all-64 exact-set cause
+audit. E-007 measured `1053/776/0` versus held `1054/765/0`, passing the frozen
+three-sigma non-inferiority ceilings without earning strict superiority. This
+retires rebound numeric-index subset tests as a structural acceptance rule.

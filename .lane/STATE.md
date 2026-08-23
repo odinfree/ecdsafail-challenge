@@ -232,3 +232,31 @@ Post-clean reproduction again matched default `ecc3d9f0...4cfd`, promoted
 `d9737f51...b124`, candidate `4618d4af...9f37`, and held
 `d4ecab6d...f920`. Temporary evaluator instrumentation and generated rows were
 removed.
+
+## E-008 causal H64 terminal update
+
+Correction commit `8ddebcf` froze an independent-ensemble three-sigma
+non-inferiority rule before any candidate or unchanged full-evaluator H64
+measurement. Inherited E-007 reproduced Q1272/T918104.700, `11/12/0`, first
+2582 and passed its frozen gate.
+
+Both 64-nonce blocks then completed unchanged 9024-shot evaluation. Held was
+`1054/765/0`; E-007 was `1053/776/0`. Candidate lambda is 16.453125 classical
+and 12.125 phase, every nonce has ancilla zero, and both streams have zero clean
+nonces. Candidate first-failure q10/q50 is 27/353 versus held 50/329. E-007
+passes the 1192/883 non-inferiority ceilings but is not strictly superior
+because phase is 11 higher and q10 is earlier.
+
+Exact candidate H64 T is `530243544084/577536`, or 918113.406062999, at
+Q1272. A temporary trusted-evaluator print hook compared every complete
+classical set with the source-bound classifier from `c3dea71c`: 64/64 sets and
+1053/1053 faults matched. Causes are `531/30/467/24/1` for
+walk-div/replay-div/walk-mul/replay-mul/result, with no unclassified masks or
+new vocabulary. The one result event is nonce `444000000042`, shot 3036.
+
+Terminal verdict is `PASS_NONINFERIOR; NOT_STRICT_SUPERIOR; HELD_DIRTY`.
+No scan, hunt, provider, remote, spend, or submission action ran. Trusted
+evaluator source and tracked results were restored to SHA-256 `b35314bc...90b`
+and `eea84022...810`; generated artifacts remain outside Git. The next single
+structural action is fixed-shot E-009 localization of candidate shot 3036
+across the final coordinate shell.

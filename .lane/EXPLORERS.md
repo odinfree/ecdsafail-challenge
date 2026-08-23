@@ -12,7 +12,7 @@ Frozen before new measurement on 2026-08-23.
 | 4 | E-004 final-y boundary carry | Localized nonce `444000000032`, shot 7997 exactly to final y-sub, then tried only the predeclared LSBS 53→54 repair. | R1 measured +5 emitted ops and Q1272; T intentionally not measured after the first gate failed. | R1 moved the error from `+2^53` to `+2^54`; no adaptive width or H64 run. | localized; R1 killed |
 | 4 | E-006 final-y boundary borrow | Preserve one borrow qubit across the low53/high203 split, decrement the high suffix, then erase the borrow from corrected low bits. | Measured Q1272 and diagnostic T916996.73 (`+879.61`); final-y peak stayed Q1026. | Fixed inputs passed exactly, but focused 64-lane miter produced phase mask `0x2c`. | value-supported; implementation killed |
 | 4 | E-007 post-low boundary predicate | Recompute `b = anc && (z_low >= 0x1ffffefffffc2f)`, decrement all high203 bits, then recompute/uncompute the same predicate. | Q1272, diagnostic T918043.41, exact full T918104.700; final-y Q1026. | Fixed pair and 13-case reversible miter passed; inherited `11/12/0`, but its numeric mismatch set was not a subset of held `14/14/0`. | exact component held; H64 blocked |
-| 4 | E-008 causal H64 characterization | Retest E-007 with unchanged full-evaluator ensemble counts, first-failure distribution, and source-bound cause coverage; do not pair rebound indices. | No source/T/Q change from E-007. | Complete held/candidate H64; require aggregate non-regression and zero new/unclassified result cause. | predeclared |
+| 4 | E-008 causal H64 characterization | Retest E-007 with unchanged full-evaluator ensemble counts, first-failure distribution, and source-bound cause coverage; do not pair rebound indices. | Q1272, exact H64 T918113.406063; no source change from E-007. | `1053/776/0` passes 3-sigma non-inferiority; 64/64 exact sets classified with one result event. | non-inferior; held dirty |
 | 5 | E-005 state-selective terminal tail | Detect nonterminal residuals and conditionally execute one exact extra walk/replay cell. | Prior fused selector shapes cost several thousand T; universal one-round repair is false for some states. | First enumerate residual-state coverage on a frozen corpus; no source port before that. | held |
 
 E-001 and E-001b exposed the hidden multiply fold co-binder. E-001c changes the
@@ -22,3 +22,9 @@ E-001c proved that composition and replay-density reduction, but its one exact
 result fault fails the frozen acceptance rule. E-004 localized that event to
 the final y-subtract and proved that a blanket window increase only moves the
 lost carry. Do not search this stream or widen the boundary again.
+
+E-008 replaced the non-causal index-subset comparison with a frozen
+independent-ensemble gate. E-007 is statistically non-inferior to held fold55,
+but not strictly superior, and remains dirty. The next falsifiable explorer is
+E-009: localize the sole candidate result event at nonce `444000000042`, shot
+3036 before proposing another representation.
