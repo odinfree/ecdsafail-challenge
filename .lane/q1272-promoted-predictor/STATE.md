@@ -1,6 +1,6 @@
 # Promoted-source Q1272 predictor state
 
-- decision: `W64_RUST_CPP_EQUAL / TRUSTED_REVEAL_NEXT / HOLD_CUDA / HOLD_RANGE`
+- decision: `LOCAL_CPP_CLASSICAL_GO / HOLD_CUDA / HOLD_RANGE`
 - target: `73422709` / tree `fe77bddf...` / ops `ea19759d...`
 - evidence: `41dd0b45` / exact diagnostic `23/8/0`
 - predictor source SHA-256: `39371fca9e77d7aab3cfda7111bdbc03c11d8cfc03966cd15b2ea77d79836e38`
@@ -32,8 +32,17 @@
 - W64 pre-evaluator seal: Rust/C++ 64/64 complete masks byte-identical,
   1,138 predicted faults, output SHA-256 `0e395369f6b6e8d5...`; trusted
   evaluator unopened at seal boundary
+- W64 trusted reveal: Rust/C++/evaluator 64/64 complete masks exact,
+  1,138/1,138 faults; every row Q1272/9,024 shots/ancilla 0; trusted summary
+  SHA-256 `80eb7ad77b4bd922...`, manifest `213221a677f0c92e...`
+- final retrospective replay: inherited 23/23, H64 1,144/1,144, D32
+  559/559, V64 1,131/1,131, W64 1,138/1,138; 225 nonces and 2,030,400
+  complete modeled shots with zero Rust/C++ mask differences
+- final negatives: 12/12 fail closed with empty rejection stdout; positive
+  state digest `e9b2d20ecd1169a8`; normalized receipt SHA-256
+  `1eb7ea3b06970d900539c80b1a490e157cd15a791692a286aa95909685a8976d`
 - scan mode: disabled and negative-tested
 - phase: independently owned by the combined-phase lane; no phase claim here
 - provider/range/hunt/submission: none
-- next action: reveal W64 through the unchanged trusted full 9,024-shot
-  evaluator and require exact complete masks, Q1272, and zero ancilla garbage
+- next action: none inside this bounded local C++ repair; any phase/CUDA/range
+  work requires a separate source-bound predeclaration and gate
