@@ -34,10 +34,17 @@ fn rounds() -> usize {
     tuned_window("SUB4_PP_ROUNDS", &SLOT, 698)
 }
 
-/// When set, the width schedule is compressed so it still reaches its floor on
-/// the final round at a reduced depth, instead of stopping short.
+/// The width schedule is compressed so it still reaches its floor on the
+/// final round at the reduced 698-round depth, instead of stopping short:
+/// every walk and replay add above the floor gets its scheduled width from a
+/// slightly earlier point of the sampled curve, which removes the dead
+/// bit-rounds the four-round depth cut had left at the tail.  On this draw
+/// the compressed schedule also lowers the interleaved replay footprint, so
+/// the chunk layouts pay fewer approximate boundary repairs than the
+/// uncompressed schedule (2,290 vs 2,313 per traversal set).
+/// `SUB4_PP_WIDTH_RESCALE=0` restores the uncompressed schedule.
 fn width_round_index(round: usize) -> usize {
-    if std::env::var_os("SUB4_PP_WIDTH_RESCALE").is_none() {
+    if std::env::var("SUB4_PP_WIDTH_RESCALE").is_ok_and(|v| v == "0") {
         return round;
     }
     let r = rounds();
@@ -1187,9 +1194,12 @@ fn plan(rounds: usize) -> Option<Plan> {
     // byte: at r1=509 no walk round is ever over budget, so nothing splits.
     // The replay and square are co-binders: this cut only lowers global width
     // when the square carry ladder is reduced in the same circuit.
-    let r1 = env("SUB4_PP_R1", 342).min(rounds);
-    let r2 = env("SUB4_PP_R2", 625).min(rounds.saturating_sub(1));
-    let peak = env("SUB4_PP_PEAK", 1275);
+    // 340/628, not 342/625: re-tuned against the compressed width schedule,
+    // whose narrower interleaved walk registers move the cheapest chunk
+    // layouts by a few rounds in both directions.
+    let r1 = env("SUB4_PP_R1", 340).min(rounds);
+    let r2 = env("SUB4_PP_R2", 628).min(rounds.saturating_sub(1));
+    let peak = env("SUB4_PP_PEAK", 1274);
     Some(Plan { r1, r2, peak })
 }
 
