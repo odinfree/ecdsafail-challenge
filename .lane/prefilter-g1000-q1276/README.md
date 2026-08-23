@@ -25,3 +25,8 @@ to `--max-faults 0`; `--max-faults N` retains exact counts from zero through
 No output from this model is a valid circuit result. Every retained nonce must
 still pass the unchanged full evaluator with classical, phase, and ancilla all
 zero across 9,024 shots.
+
+`stage_dedicated.sh` is the fail-closed path for a fresh dedicated GPU host. It
+requires an idle GPU before and after CPU/CUDA parity and writes
+`DEDICATED.complete`. `calibrate.sh` accepts exactly one host proof:
+`BORROW.complete` xor `DEDICATED.complete`.

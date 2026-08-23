@@ -2,6 +2,12 @@
 /ppgpu
 /ops.bin
 /runs/
+/fixtures/
+/FINGERPRINTS
+/BORROW.complete
+/PARITY.complete
+/DRAINED_AT
+/DEDICATED.complete
 /*.log
 /*.stdout
 /*.stderr

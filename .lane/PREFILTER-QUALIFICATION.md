@@ -4,12 +4,13 @@ Updated: 2026-08-23T03:40:02Z
 
 ## Verdict
 
-`HOLD_GPU_PENDING`
+`HOLD_ZERO_PENDING`
 
-The CPU model is bound to the byte-exact candidate and agrees with the
-unchanged full evaluator on the inherited nonce plus three ordinary nonces.
-CUDA equality and frozen low-count fixtures 0 through 3 remain open. No hunt,
-submission, provider action, spend, or remote mutation has occurred.
+The CPU and CUDA models are bound to the byte-exact candidate. CPU equals the
+unchanged full evaluator on the inherited nonce plus three ordinary nonces;
+CPU also equals CUDA comb8 and comb16 on every frozen fixture. Low-count
+fixtures 0 through 3 remain open. No hunt, submission, new spend, or range
+scan has occurred in this lane.
 
 ## Live anchor
 
@@ -79,18 +80,37 @@ were exact on every row. Ancilla was zero throughout.
 The full evaluator was unchanged and its tracked `results.tsv` stayed clean.
 Generated patched artifacts and logs remain outside Git.
 
+## CUDA parity
+
+One bounded, isolated parity stage completed without a range scan. The
+incumbent process and its immutable inputs were identical before and after;
+the candidate CUDA process exited normally.
+
+- state digest: `5a0a4564563a201a`;
+- CUDA binary SHA-256:
+  `672a47004f1f0a4a3ebc0d0a3e4a41e2dd903b1e1493bf493757fefed355cf2d`;
+- Linux CPU binary SHA-256:
+  `73f09fb8f5d84bdd595c730e0be34a8a8abb5d78184c8f431987708b4d2cc61b`;
+- wrong-stream operation-count guard: exit 2 as required;
+- all four rows: CPU = CUDA comb8 = CUDA comb16, including total count,
+  first failure, and the five fault-cause counts.
+
+Cause splits were respectively `3/0/11/1/0`, `9/1/8/0/0`,
+`10/0/10/0/0`, and `9/0/7/1/0` in fixture-table order.
+
+The dedicated-host stage path independently requires zero GPU applications
+before and after rebuilding and repeating these equalities. Calibration accepts
+exactly one host proof: a validated borrow receipt xor a dedicated-host receipt.
+
 ## Remaining gates
 
-1. Wait for one already-paid host to finish its incumbent assignment naturally;
-   require `SCREEN_DONE`, no incumbent process, and no GPU compute process.
-2. Build CUDA in an isolated directory and freeze source, binary, ops, and
-   state-digest receipts.
-3. Require CPU equals CUDA comb8 equals CUDA comb16 on the four fixtures above.
-4. Evaluate the predeclared zero calibration interval only. Confirm every
+1. Stage the same exact source and artifact on a dedicated idle GPU and freeze
+   binary, digest, and parity receipts.
+2. Evaluate the predeclared zero calibration interval only. Confirm every
    retained row with the CPU model and unchanged full evaluator.
-5. Only after an exact zero edge, evaluate the separate low-3 interval and
+3. Only after an exact zero edge, evaluate the separate low-3 interval and
    freeze at least one exact full-evaluator fixture for counts 1, 2, and 3.
 
-Until all five close with no false negatives, the stream is not eligible for
+Until all three close with no false negatives, the stream is not eligible for
 fanout or hunting. Final campaign acceptance still requires a full 9,024-shot
 `0/0/0` result.

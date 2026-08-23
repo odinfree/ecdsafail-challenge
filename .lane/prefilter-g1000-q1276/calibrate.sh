@@ -23,9 +23,13 @@ OPS_SHA=d1461959eac52b19b644f1f97a3b44a3ea249a109f14a406d19e872cd17c5422
 
 test "$(sha256sum "$W/ops.bin" | awk '{print $1}')" = "$OPS_SHA"
 test -f "$W/FINGERPRINTS"
-test -f "$W/BORROW.complete"
 test -f "$W/PARITY.complete"
 test ! -e "$RUN"
+
+HOST_PROOFS=0
+test -f "$W/BORROW.complete" && HOST_PROOFS=$((HOST_PROOFS+1))
+test -f "$W/DEDICATED.complete" && HOST_PROOFS=$((HOST_PROOFS+1))
+test "$HOST_PROOFS" -eq 1
 
 DIGEST=$(sed -n 's/^state_digest=\([0-9a-f]\{16\}\)$/\1/p' "$W/FINGERPRINTS")
 test "${#DIGEST}" -eq 16
@@ -41,7 +45,8 @@ for proc in /proc/[0-9]*; do
       ;;
   esac
 done
-test -z "$(nvidia-smi --query-compute-apps=pid --format=csv,noheader 2>/dev/null | sed '/^$/d')"
+GPU_APPS=$(nvidia-smi --query-compute-apps=pid --format=csv,noheader | sed '/^$/d')
+test -z "$GPU_APPS"
 
 mkdir -p "$W/runs"
 mkdir "$RUN"
@@ -74,6 +79,9 @@ awk -v s="$S" -v e="$E" -v m="$M" '
 actual=$(wc -l < "$RUN/counts.tsv.tmp" | tr -d ' ')
 reported=$(sed -n 's/.*"survivors":\([0-9][0-9]*\).*/\1/p' "$RUN/scan.stderr.tmp")
 test "$actual" = "$reported"
+
+GPU_APPS_AFTER=$(nvidia-smi --query-compute-apps=pid --format=csv,noheader | sed '/^$/d')
+test -z "$GPU_APPS_AFTER"
 
 mv "$RUN/counts.tsv.tmp" "$RUN/counts.tsv"
 mv "$RUN/scan.stderr.tmp" "$RUN/scan.stderr"
