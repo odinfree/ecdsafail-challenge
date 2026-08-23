@@ -18,3 +18,5 @@
   `c1088ca0e3bf0d9215f63b6823bf490d408ba46e2cf3271d35c40b449d5fe847`
 - next gate: source-bound scan-disabled CUDA transport and CPU/CUDA/trusted
   fixture parity; scanning remains forbidden
+- parallel bounded gate: fixed H64 combined-density characterization is
+  predeclared; nonce extension and hunting remain forbidden
