@@ -319,6 +319,28 @@ capacity are not `HARD_NACK` evidence.
 - No production edit, provider, nonce, fleet, queue, push, public note,
   protected-instance, or submission action was taken.
 
+### Phase eight settlement — reachable carry invariants `HARD_NACK`
+
+- Evidence:
+  `src/point_add/memory/24-reachable-carry-invariant-verdict.md`; exact receipt
+  `src/point_add/memory/23-reachable-carry-invariant-receipt.json`.
+- Exhaustive fixed-`N+3` enumeration covered 32,692 legal denominators at
+  modulus widths 5 through 14 and 1,276,398 exact pre-round observations.
+  The affine solve included every source/target bit and every earlier live
+  carry, with no term-count cutoff.
+- After excluding the known low-two cells, seed rounds, exact width-shrink
+  suffix, terminal cell, and terminal states, eligible affine-cell counts were
+  `1,3,0,1,1,1,0,1,3,1`. The recurring round-2/bit-2 parity is one cell at
+  every width where it appears; its density tends to zero and it cannot move Q.
+- Width-6 zero-products vanish at width 7. Width-13's three relations are
+  specific to modulus 8191 and do not recur at width 14. No cross-width
+  material invariant survived.
+- Reopen only for an `Omega(N)` interior family or a resident carry-segment cut
+  with an arbitrary-width proof, live-wire schedule, and production score
+  equation.
+- No Rust prototype, trusted replay, provider, nonce, fleet, queue, push,
+  public note, protected-instance, or submission action was admitted.
+
 ## Anti-rot ban list
 
 The following do not advance structural cadence:
