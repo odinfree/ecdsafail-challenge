@@ -82,8 +82,28 @@ matches the remote hash.
 | w2/3 | `[82504888352768,82504896741376)` | 0 | `48cd1ee7c006ff0a27cb5d9b37b86e31c8d4a52b7991da2517c2c4486eea7df4` | 810 |
 | w2/4 | `[82504896741376,82504905129984)` | 0 | `af330eb3f998b3fd53b510d2a977f83660c31af34e45aaa76d36477cdb389287` | 811 |
 | w2/5 | `[82504905129984,82504913518592)` | 0 | `3b9673d7d1f51c0760600af57d72bb187b162f4b42961c3af1abf5ea69fe970d` | 809 |
+| w0/7 | `[82503849213952,82503857602560)` | 0 | `2490d8561f3c29a8b9298acc6d5ac38a0bfc9f9f90675f77a60f9f25a7abf2e4` | 808 |
+| w2/6 | `[82504913518592,82504921907200)` | 0 | `6b4846a027161d1d5b7fd0e038906fd9a052d988ef25253a0c7df51c9fe5b70a` | 810 |
 
-Cumulative completed production coverage is now `110096384` nonces: the
-1,044,480-nonce production canary plus thirteen full `2^23` slices. Exactly one
-GPU survivor has appeared; exact CPU postfilter rejected it as phase-dirty.
+Cumulative completed production coverage is now `126873600` nonces: the
+1,044,480-nonce production canary plus fifteen full `2^23` slices. Exactly one
+GPU survivor has appeared in these rows; exact CPU postfilter rejected it as
+phase-dirty.
+No trusted evaluator replay has run. `submit=CLOSED`, `no_submit_ack=yes`.
+
+## Worker 1 slice 3 survivor rejection
+
+- range / count: `[82504351481856,82504359870464)` / `8388608`
+- wall time / GPU survivors: `398 s` / `1`
+- survivor: `82504354325995 pred_cls=0`
+- evidence archive SHA-256 / bytes:
+  `51813a261a8673aab137600c9155a74e71e71b892553477c115a0ce4d819178d` /
+  `824`
+- exact CPU postfilter: classical indices empty; raw phase index `3481`;
+  dirty batches `0`; `clean=false`, expected exit `3`
+
+The survivor was rejected before trusted evaluation. Across all completed
+production coverage, two GPU survivors have appeared and both were exact
+phase-dirty rejections. Cumulative coverage including this slice is
+`135262208` nonces: the production canary plus sixteen full `2^23` slices.
 No trusted evaluator replay has run. `submit=CLOSED`, `no_submit_ack=yes`.
