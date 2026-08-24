@@ -164,6 +164,14 @@ before the 96-op tail nonce. The allocation trace recorded 1,665 distinct
 Q1267 allocation op indices: 993 in `pp_div_replay` and 672 in
 `pp_mul_walkback`.
 
+Repository-wide `cargo test --release --offline` does not compile on this exact
+source: it exits 101 after 165 pre-existing test-only errors, including missing
+dormant direct-centered constants/functions and stale `Simulator::apply` /
+`global_phase` calls. C3 has no `src/point_add/**` diff from the bound base, so
+the failure is recorded as a base-suite caveat rather than repaired in this
+lane. The release binaries, collision checker, actual profile, both B0
+censuses, and 64-lane correctness gate all pass.
+
 ### Divide global peak: op 913421
 
 Narrow census window `[913165,913677]`, phase `pp_div_replay`:
@@ -266,6 +274,15 @@ python3 artifacts/replay-sign-donor-20260824/check_sign_collision.py \
 
 cargo build --release --offline --bin build_circuit --bin eval_circuit
 
+set -o pipefail
+cargo test --release --offline \
+  2>&1 | tee artifacts/replay-sign-donor-20260824/cargo-test.log
+test_status=$?
+echo "cargo_test_exit=$test_status" \
+  | tee -a artifacts/replay-sign-donor-20260824/cargo-test.log
+test "$test_status" -eq 101
+# exact 675 result: exit 101, 165 pre-existing test compile errors
+
 env PP_PROFILE=1 PROFILE_ACTIVE_TIMELINE=1 TRACE_PHASE_ACTIVE=1 \
   TRACE_PHASE_ACTIVE_TOP=12 TRACE_EACH_PEAK=1 \
   ./target/release/build_circuit \
@@ -308,3 +325,4 @@ Evidence artifact SHA-256 before the final report commit:
 | `b0-mul-peak.log` | `0ef0c1e8912e0b0181676a3a4d70a9b6154c1c8f5d74db31e99022839ff4ba4a` |
 | `source-sites.log` | `d71ae9d55b81acb156cc4aaa757f563738482a1ed0fb91d2ba435b730b6f6cbf` |
 | `default-build.log` | `72ea7c2252d89f6073393fea0cff5c2b3b5ac418ea4921ad912c6383c831f666` |
+| `cargo-test.log` | `3613d61c75b13e25e38c756dbeeed09b8b245ca6bf9a5dd50f6b568ee9ba33c1` |

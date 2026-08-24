@@ -1,0 +1,1335 @@
+   Compiling quantum_ecc v0.1.0 (/Users/odin/Documents/coding with codin/ecdsafail-replay-sign-donor-codex)
+error[E0425]: cannot find value `DIRECT_CENTERED_LOW_BRANCH_META_BITS` in this scope
+    --> src/bin/../point_add/mod.rs:4419:31
+     |
+4419 |         const Q_BITS: usize = DIRECT_CENTERED_LOW_BRANCH_META_BITS;
+     |                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `DIRECT_CENTERED_BRANCH_SIDECAR_COMPONENT_SCRATCH_BITS` in this scope
+    --> src/bin/../point_add/mod.rs:4434:33
+     |
+4434 |         let sidecar_q = 2 * N + DIRECT_CENTERED_BRANCH_SIDECAR_COMPONENT_SCRATCH_BITS;
+     |                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `DIRECT_CENTERED_BRANCH_SIDECAR_COMPONENT_SCRATCH_BITS` in this scope
+    --> src/bin/../point_add/mod.rs:4598:13
+     |
+4598 |             DIRECT_CENTERED_BRANCH_SIDECAR_COMPONENT_SCRATCH_BITS
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `DIRECT_CENTERED_RELAXED_SCRATCH_BUDGET` in this scope
+    --> src/bin/../point_add/mod.rs:4600:28
+     |
+4600 |         assert!(scratch <= DIRECT_CENTERED_RELAXED_SCRATCH_BUDGET);
+     |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `DIRECT_CENTERED_RELAXED_Q_TARGET` in this scope
+    --> src/bin/../point_add/mod.rs:4601:40
+     |
+4601 |         assert!(num_qubits as usize <= DIRECT_CENTERED_RELAXED_Q_TARGET);
+     |                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `DIRECT_CENTERED_RELAXED_T_TARGET` in this scope
+    --> src/bin/../point_add/mod.rs:4602:31
+     |
+4602 |         assert!(toffoli_ops < DIRECT_CENTERED_RELAXED_T_TARGET);
+     |                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `DIRECT_CENTERED_BRANCH_SIDECAR_COMPONENT_SCRATCH_BITS` in this scope
+    --> src/bin/../point_add/mod.rs:4938:13
+     |
+4938 |             DIRECT_CENTERED_BRANCH_SIDECAR_COMPONENT_SCRATCH_BITS
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `DIRECT_CENTERED_RELAXED_SCRATCH_BUDGET` in this scope
+    --> src/bin/../point_add/mod.rs:4940:28
+     |
+4940 |         assert!(scratch <= DIRECT_CENTERED_RELAXED_SCRATCH_BUDGET);
+     |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `DIRECT_CENTERED_RELAXED_Q_TARGET` in this scope
+    --> src/bin/../point_add/mod.rs:4941:40
+     |
+4941 |         assert!(num_qubits as usize <= DIRECT_CENTERED_RELAXED_Q_TARGET);
+     |                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `DIRECT_CENTERED_BRANCH_SIDECAR_COMPONENT_SCRATCH_BITS` in this scope
+    --> src/bin/../point_add/mod.rs:5193:13
+     |
+5193 |             DIRECT_CENTERED_BRANCH_SIDECAR_COMPONENT_SCRATCH_BITS
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `DIRECT_CENTERED_EXPLICIT_BRANCH_HISTORY_BITS` in this scope
+    --> src/bin/../point_add/mod.rs:5194:19
+     |
+5194 |                 + DIRECT_CENTERED_EXPLICIT_BRANCH_HISTORY_BITS
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `DIRECT_CENTERED_BRANCH_SIDECAR_COMPONENT_SCRATCH_BITS` in this scope
+    --> src/bin/../point_add/mod.rs:5355:21
+     |
+5355 |             2 * N + DIRECT_CENTERED_BRANCH_SIDECAR_COMPONENT_SCRATCH_BITS
+     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `DIRECT_CENTERED_BRANCH_SIDECAR_COMPONENT_SCRATCH_BITS` in this scope
+    --> src/bin/../point_add/mod.rs:5453:21
+     |
+5453 |             2 * N + DIRECT_CENTERED_BRANCH_SIDECAR_COMPONENT_SCRATCH_BITS
+     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `DIRECT_CENTERED_EXPLICIT_BRANCH_HISTORY_BITS` in this scope
+    --> src/bin/../point_add/mod.rs:5481:21
+     |
+5481 |             2 * N + DIRECT_CENTERED_EXPLICIT_BRANCH_HISTORY_BITS * N + (N - 1)
+     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `DIRECT_CENTERED_BRANCH_SIDECAR_COMPONENT_SCRATCH_BITS` in this scope
+    --> src/bin/../point_add/mod.rs:5485:21
+     |
+5485 |             2 * N + DIRECT_CENTERED_BRANCH_SIDECAR_COMPONENT_SCRATCH_BITS
+     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `DIRECT_CENTERED_EXPLICIT_BRANCH_HISTORY_BITS` in this scope
+    --> src/bin/../point_add/mod.rs:5490:13
+     |
+5490 |             DIRECT_CENTERED_EXPLICIT_BRANCH_HISTORY_BITS * (3 * N - 2)
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `DIRECT_CENTERED_EXPLICIT_BRANCH_HISTORY_BITS` in this scope
+    --> src/bin/../point_add/mod.rs:5491:24
+     |
+5491 |                 + (2 * DIRECT_CENTERED_EXPLICIT_BRANCH_HISTORY_BITS)
+     |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `DIRECT_CENTERED_EXPLICIT_BRANCH_HISTORY_BITS` in this scope
+    --> src/bin/../point_add/mod.rs:5519:31
+     |
+5519 |         let expected_tail_t = DIRECT_CENTERED_EXPLICIT_BRANCH_HISTORY_BITS
+     |                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `DIRECT_CENTERED_EXPLICIT_BRANCH_HISTORY_BITS` in this scope
+    --> src/bin/../point_add/mod.rs:5527:21
+     |
+5527 |             2 * N + DIRECT_CENTERED_EXPLICIT_BRANCH_HISTORY_BITS * N + (N - 1)
+     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `DIRECT_CENTERED_BRANCH_SIDECAR_COMPONENT_SCRATCH_BITS` in this scope
+    --> src/bin/../point_add/mod.rs:5531:21
+     |
+5531 |             2 * N + DIRECT_CENTERED_BRANCH_SIDECAR_COMPONENT_SCRATCH_BITS
+     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `DIRECT_CENTERED_BRANCH_SIDECAR_COMPONENT_SCRATCH_BITS` in this scope
+    --> src/bin/../point_add/mod.rs:5563:21
+     |
+5563 |             2 * N + DIRECT_CENTERED_BRANCH_SIDECAR_COMPONENT_SCRATCH_BITS
+     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `DIRECT_CENTERED_BRANCH_SIDECAR_COMPONENT_SCRATCH_BITS` in this scope
+    --> src/bin/../point_add/mod.rs:5591:21
+     |
+5591 |             2 * N + DIRECT_CENTERED_BRANCH_SIDECAR_COMPONENT_SCRATCH_BITS
+     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+warning: unused import: `ExtendableOutput`
+    --> src/bin/../point_add/venting.rs:1001:18
+     |
+1001 |         digest::{ExtendableOutput, Update},
+     |                  ^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/venting.rs:1226:17
+     |
+1226 |             sim.apply(&ops);
+     |                 ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+1226 |             sim.apply_iter(&ops);
+     |                      +++++
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/venting.rs:1295:17
+     |
+1295 |             sim.apply(&ops);
+     |                 ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+1295 |             sim.apply_iter(&ops);
+     |                      +++++
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/venting.rs:1366:17
+     |
+1366 |             sim.apply(&ops);
+     |                 ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+1366 |             sim.apply_iter(&ops);
+     |                      +++++
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/venting.rs:1445:17
+     |
+1445 |             sim.apply(&ops);
+     |                 ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+1445 |             sim.apply_iter(&ops);
+     |                      +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/venting.rs:1467:29
+     |
+1467 |             let phase = sim.global_phase() & 1;
+     |                             ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake256ReaderCore>>`
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/venting.rs:1547:17
+     |
+1547 |             sim.apply(&ops);
+     |                 ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+1547 |             sim.apply_iter(&ops);
+     |                      +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/venting.rs:1567:29
+     |
+1567 |             let phase = sim.global_phase() & 1;
+     |                             ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake256ReaderCore>>`
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/venting.rs:1643:17
+     |
+1643 |             sim.apply(&ops);
+     |                 ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+1643 |             sim.apply_iter(&ops);
+     |                      +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/venting.rs:1663:29
+     |
+1663 |             let phase = sim.global_phase() & 1;
+     |                             ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake256ReaderCore>>`
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/venting.rs:1736:17
+     |
+1736 |             sim.apply(&ops);
+     |                 ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+1736 |             sim.apply_iter(&ops);
+     |                      +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/venting.rs:1756:29
+     |
+1756 |             let phase = sim.global_phase() & 1;
+     |                             ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake256ReaderCore>>`
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/venting.rs:1821:17
+     |
+1821 |             sim.apply(&ops);
+     |                 ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+1821 |             sim.apply_iter(&ops);
+     |                      +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/venting.rs:1836:29
+     |
+1836 |             let phase = sim.global_phase() & 1;
+     |                             ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake256ReaderCore>>`
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/venting.rs:1903:17
+     |
+1903 |             sim.apply(&ops);
+     |                 ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+1903 |             sim.apply_iter(&ops);
+     |                      +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/venting.rs:1927:29
+     |
+1927 |             let phase = sim.global_phase() & 1;
+     |                             ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake256ReaderCore>>`
+
+error[E0425]: cannot find function `iadd_dirty_2clean_qoffset_narrow` in this scope
+    --> src/bin/../point_add/venting.rs:1975:13
+     |
+ 812 | / pub(crate) fn iadd_dirty_2clean_qoffset(
+ 813 | |     b: &mut B,
+ 814 | |     q_target: &[QubitId],
+ 815 | |     q_dirty: &[QubitId],
+...    |
+ 873 | | }
+     | |_- similarly named function `iadd_dirty_2clean_qoffset` defined here
+...
+1975 |               iadd_dirty_2clean_qoffset_narrow(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: a function with a similar name exists: `iadd_dirty_2clean_qoffset`
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/venting.rs:2003:17
+     |
+2003 |             sim.apply(&ops);
+     |                 ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+2003 |             sim.apply_iter(&ops);
+     |                      +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/venting.rs:2033:29
+     |
+2033 |             let phase = sim.global_phase() & 1;
+     |                             ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake256ReaderCore>>`
+
+error[E0425]: cannot find function `d1_inplace_product_lowerer_with_kaliski_clean` in this scope
+    --> src/bin/../point_add/mod.rs:1038:9
+     |
+1038 |         d1_inplace_product_lowerer_with_kaliski_clean(&mut b, &h, &n, SECP256K1_P, 400);
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `d1_inplace_quotient_lowerer_with_kaliski_clean` in this scope
+    --> src/bin/../point_add/mod.rs:1048:9
+     |
+1048 |         d1_inplace_quotient_lowerer_with_kaliski_clean(&mut b, &h, &n, SECP256K1_P, 400);
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0271]: expected `Iter<'_, Op>` to be an iterator that yields `&&Op`, but it yields `&Op`
+    --> src/bin/../point_add/mod.rs:1059:59
+     |
+1059 |         let (qubits, bits, registers, regs) = analyze_ops(ops.iter().copied());
+     |                                               ----------- ^^^^^^^^^^^^^^^^^^^ expected `&&Op`, found `&Op`
+     |                                               |
+     |                                               required by a bound introduced by this call
+     |
+     = note: expected reference `&&quantum_ecc::circuit::Op`
+                found reference `&quantum_ecc::circuit::Op`
+     = note: required for `Copied<std::slice::Iter<'_, quantum_ecc::circuit::Op>>` to implement `Iterator`
+note: required by a bound in `quantum_ecc::circuit::analyze_ops`
+    --> /Users/odin/Documents/coding with codin/ecdsafail-replay-sign-donor-codex/src/circuit.rs:348:43
+     |
+ 348 | pub fn analyze_ops<'b>(ops: impl Iterator<Item = &'b Op>) -> (u64, u64, u64, Vec<Vec<QubitOrBit>>) {
+     |                                           ^^^^^^^^^^^^^ required by this bound in `analyze_ops`
+
+error[E0308]: mismatched types
+    --> src/bin/../point_add/mod.rs:1066:10
+     |
+1066 |         (qubits, bits, registers)
+     |          ^^^^^^ expected `u32`, found `u64`
+     |
+help: you can convert a `u64` to a `u32` and panic if the converted value doesn't fit
+     |
+1066 |         (qubits.try_into().unwrap(), bits, registers)
+     |                ++++++++++++++++++++
+
+error[E0308]: mismatched types
+    --> src/bin/../point_add/mod.rs:1066:18
+     |
+1066 |         (qubits, bits, registers)
+     |                  ^^^^ expected `u32`, found `u64`
+     |
+help: you can convert a `u64` to a `u32` and panic if the converted value doesn't fit
+     |
+1066 |         (qubits, bits.try_into().unwrap(), registers)
+     |                      ++++++++++++++++++++
+
+error[E0308]: mismatched types
+    --> src/bin/../point_add/mod.rs:1066:24
+     |
+1066 |         (qubits, bits, registers)
+     |                        ^^^^^^^^^ expected `u32`, found `u64`
+     |
+help: you can convert a `u64` to a `u32` and panic if the converted value doesn't fit
+     |
+1066 |         (qubits, bits, registers.try_into().unwrap())
+     |                                 ++++++++++++++++++++
+
+error[E0425]: cannot find function `round8_qtail_output_side_cleanup_enabled` in this scope
+    --> src/bin/../point_add/mod.rs:1102:18
+     |
+1102 |         assert!(!round8_qtail_output_side_cleanup_enabled());
+     |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `round8_qtail_output_side_cleanup_enabled` in this scope
+    --> src/bin/../point_add/mod.rs:1104:17
+     |
+1104 |         assert!(round8_qtail_output_side_cleanup_enabled());
+     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `round8_emit_output_side_cleanup_or_fail` in this scope
+    --> src/bin/../point_add/mod.rs:1119:13
+     |
+1119 |             round8_emit_output_side_cleanup_or_fail(&mut b, &tx, &ty, &ox, &oy, SECP256K1_P);
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `round8_qtail_output_side_regular_phase_repair_enabled` in this scope
+    --> src/bin/../point_add/mod.rs:1137:18
+     |
+1137 |         assert!(!round8_qtail_output_side_regular_phase_repair_enabled());
+     |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `round8_qtail_output_side_regular_phase_repair_enabled` in this scope
+    --> src/bin/../point_add/mod.rs:1139:17
+     |
+1139 |         assert!(round8_qtail_output_side_regular_phase_repair_enabled());
+     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `round8_qtail_round217_product_reuse_enabled` in this scope
+    --> src/bin/../point_add/mod.rs:1152:18
+     |
+1152 |         assert!(!round8_qtail_round217_product_reuse_enabled());
+     |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `round8_qtail_round217_product_reuse_enabled` in this scope
+    --> src/bin/../point_add/mod.rs:1154:17
+     |
+1154 |         assert!(round8_qtail_round217_product_reuse_enabled());
+     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `round218_b5_transport`
+    --> src/bin/../point_add/mod.rs:1163:20
+     |
+1163 |         let plan = round218_b5_transport::round218_b5_source_live_product_lowerer_body_plan();
+     |                    ^^^^^^^^^^^^^^^^^^^^^ use of unresolved module or unlinked crate `round218_b5_transport`
+     |
+     = help: if you wanted to use a crate named `round218_b5_transport`, use `cargo add round218_b5_transport` to add it to your `Cargo.toml`
+
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `round218_b5_transport`
+    --> src/bin/../point_add/mod.rs:1178:20
+     |
+1178 |         let plan = round218_b5_transport::round218_b5_source_live_product_lowerer_body_plan();
+     |                    ^^^^^^^^^^^^^^^^^^^^^ use of unresolved module or unlinked crate `round218_b5_transport`
+     |
+     = help: if you wanted to use a crate named `round218_b5_transport`, use `cargo add round218_b5_transport` to add it to your `Cargo.toml`
+
+error[E0425]: cannot find function `dialog_gcd_selected_body_nocin_selftest` in this scope
+    --> src/bin/../point_add/mod.rs:3198:25
+     |
+3198 |         if let Err(e) = dialog_gcd_selected_body_nocin_selftest() {
+     |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: a function with a similar name exists: `dialog_gcd_selected_body_nocin_enabled`
+     |
+    ::: src/bin/../point_add/rounds/dialog/mod.rs:460:1
+     |
+ 460 | pub(crate) fn dialog_gcd_selected_body_nocin_enabled() -> bool {
+     | -------------------------------------------------------------- similarly named function `dialog_gcd_selected_body_nocin_enabled` defined here
+
+error[E0599]: no method named `ccz` found for struct `point_add::B` in the current scope
+    --> src/bin/../point_add/mod.rs:3209:11
+     |
+ 110 | pub struct B {
+     | ------------ method `ccz` not found for this struct
+...
+3209 |         b.ccz(q0, q0, q1);
+     |           ^^^
+     |
+    ::: src/bin/../point_add/trailmix_ludicrous/mod.rs:33:8
+     |
+  33 |     fn ccz(&mut self, a: QubitId, b: QubitId, c: QubitId);
+     |        --- the method is available for `point_add::B` here
+     |
+     = help: items from traits can only be used if the trait is in scope
+help: trait `BExt` which provides `ccz` is implemented but not in scope; perhaps you want to import it
+     |
+3165 +     use crate::point_add::trailmix_ludicrous::BExt;
+     |
+help: there is a method `ccx` with a similar name
+     |
+3209 -         b.ccz(q0, q0, q1);
+3209 +         b.ccx(q0, q0, q1);
+     |
+
+error[E0599]: no method named `ccz` found for struct `point_add::B` in the current scope
+    --> src/bin/../point_add/mod.rs:3210:11
+     |
+ 110 | pub struct B {
+     | ------------ method `ccz` not found for this struct
+...
+3210 |         b.ccz(q0, q1, q0);
+     |           ^^^
+     |
+    ::: src/bin/../point_add/trailmix_ludicrous/mod.rs:33:8
+     |
+  33 |     fn ccz(&mut self, a: QubitId, b: QubitId, c: QubitId);
+     |        --- the method is available for `point_add::B` here
+     |
+     = help: items from traits can only be used if the trait is in scope
+help: trait `BExt` which provides `ccz` is implemented but not in scope; perhaps you want to import it
+     |
+3165 +     use crate::point_add::trailmix_ludicrous::BExt;
+     |
+help: there is a method `ccx` with a similar name
+     |
+3210 -         b.ccz(q0, q1, q0);
+3210 +         b.ccx(q0, q1, q0);
+     |
+
+error[E0599]: no method named `ccz` found for struct `point_add::B` in the current scope
+    --> src/bin/../point_add/mod.rs:3211:11
+     |
+ 110 | pub struct B {
+     | ------------ method `ccz` not found for this struct
+...
+3211 |         b.ccz(q0, q0, q0);
+     |           ^^^
+     |
+    ::: src/bin/../point_add/trailmix_ludicrous/mod.rs:33:8
+     |
+  33 |     fn ccz(&mut self, a: QubitId, b: QubitId, c: QubitId);
+     |        --- the method is available for `point_add::B` here
+     |
+     = help: items from traits can only be used if the trait is in scope
+help: trait `BExt` which provides `ccz` is implemented but not in scope; perhaps you want to import it
+     |
+3165 +     use crate::point_add::trailmix_ludicrous::BExt;
+     |
+help: there is a method `ccx` with a similar name
+     |
+3211 -         b.ccz(q0, q0, q0);
+3211 +         b.ccx(q0, q0, q0);
+     |
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:3288:17
+     |
+3288 |             sim.apply(&b.ops);
+     |                 ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+3288 |             sim.apply_iter(&b.ops);
+     |                      +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:3290:21
+     |
+3290 |                 sim.global_phase(),
+     |                     ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake128ReaderCore>>`
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:3355:13
+     |
+3355 |         sim.apply(&b.ops);
+     |             ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+3355 |         sim.apply_iter(&b.ops);
+     |                  +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:3356:24
+     |
+3356 |         assert_eq!(sim.global_phase(), 0, "direct csub left phase garbage");
+     |                        ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake128ReaderCore>>`
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:3389:13
+     |
+3389 |         sim.apply(&b.ops);
+     |             ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+3389 |         sim.apply_iter(&b.ops);
+     |                  +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:3390:24
+     |
+3390 |         assert_eq!(sim.global_phase(), 0, "direct cadd left phase garbage");
+     |                        ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake128ReaderCore>>`
+
+error[E0425]: cannot find function `build_round84_fused_square_xtail_component` in this scope
+    --> src/bin/../point_add/mod.rs:3402:19
+     |
+3402 |         let ops = build_round84_fused_square_xtail_component();
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:3441:13
+     |
+3441 |         sim.apply(&ops);
+     |             ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+3441 |         sim.apply_iter(&ops);
+     |                  +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:3461:24
+     |
+3461 |         assert_eq!(sim.global_phase() & live_mask, 0, "x-tail phase garbage");
+     |                        ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake128ReaderCore>>`
+
+error[E0425]: cannot find function `build_round190_selector_fused_source_live_residual_width` in this scope
+    --> src/bin/../point_add/mod.rs:3481:23
+     |
+3481 |             let ops = build_round190_selector_fused_source_live_residual_width(width);
+     |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:3537:21
+     |
+3537 |                 sim.apply(&ops);
+     |                     ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+3537 |                 sim.apply_iter(&ops);
+     |                          +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:3544:25
+     |
+3544 |                     sim.global_phase() & live_mask,
+     |                         ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake128ReaderCore>>`
+
+error[E0425]: cannot find function `build_round190_external_active_signed_digit_width` in this scope
+    --> src/bin/../point_add/mod.rs:3596:23
+     |
+3596 |             let ops = build_round190_external_active_signed_digit_width(width);
+     |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:3662:21
+     |
+3662 |                 sim.apply(&ops);
+     |                     ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+3662 |                 sim.apply_iter(&ops);
+     |                          +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:3669:25
+     |
+3669 |                     sim.global_phase() & live_mask,
+     |                         ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake128ReaderCore>>`
+
+error[E0425]: cannot find function `build_round190_shared_active_external_signed_digits_width` in this scope
+    --> src/bin/../point_add/mod.rs:3728:23
+     |
+3728 |             let ops = build_round190_shared_active_external_signed_digits_width(width, digits);
+     |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:3807:21
+     |
+3807 |                 sim.apply(&ops);
+     |                     ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+3807 |                 sim.apply_iter(&ops);
+     |                          +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:3814:25
+     |
+3814 |                     sim.global_phase() & live_mask,
+     |                         ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake128ReaderCore>>`
+
+error[E0425]: cannot find function `build_round190_two_slot_exactly_one_active_router_width` in this scope
+    --> src/bin/../point_add/mod.rs:3873:23
+     |
+3873 |             let ops = build_round190_two_slot_exactly_one_active_router_width(width);
+     |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:3973:21
+     |
+3973 |                 sim.apply(&ops);
+     |                     ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+3973 |                 sim.apply_iter(&ops);
+     |                          +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:3980:25
+     |
+3980 |                     sim.global_phase() & live_mask,
+     |                         ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake128ReaderCore>>`
+
+error[E0425]: cannot find function `build_round190_active_source_live_signed_digit_hmr_width` in this scope
+    --> src/bin/../point_add/mod.rs:4043:23
+     |
+4043 |             let ops = build_round190_active_source_live_signed_digit_hmr_width(width);
+     |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:4103:21
+     |
+4103 |                 sim.apply(&ops);
+     |                     ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+4103 |                 sim.apply_iter(&ops);
+     |                          +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:4110:25
+     |
+4110 |                     sim.global_phase() & live_mask,
+     |                         ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake128ReaderCore>>`
+
+error[E0425]: cannot find function `build_round190_active_source_live_signed_digit_hmr_width` in this scope
+    --> src/bin/../point_add/mod.rs:4161:19
+     |
+4161 |         let ops = build_round190_active_source_live_signed_digit_hmr_width(WIDTH);
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:4198:13
+     |
+4198 |         sim.apply(&ops);
+     |             ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+4198 |         sim.apply_iter(&ops);
+     |                  +++++
+
+error[E0425]: cannot find function `build_round556_shifted_source_row_component_phase_resources` in this scope
+    --> src/bin/../point_add/mod.rs:4262:13
+     |
+4262 |             build_round556_shifted_source_row_component_phase_resources(WIDTH, QBITS);
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:4263:72
+     |
+4263 |         let (num_qubits, _num_bits, num_registers, regs) = analyze_ops(ops.iter().copied());
+     |                                                                        ^^^ cannot infer type
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:4280:17
+     |
+4280 |         assert!(phases
+     |                 ^^^^^^ cannot infer type
+
+error[E0425]: cannot find function `build_round556_shifted_source_row_component` in this scope
+    --> src/bin/../point_add/mod.rs:4290:19
+     |
+4290 |         let ops = build_round556_shifted_source_row_component(WIDTH, QBITS);
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:4362:17
+     |
+4362 |             sim.apply(&ops);
+     |                 ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+4362 |             sim.apply_iter(&ops);
+     |                      +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:4368:28
+     |
+4368 |             assert_eq!(sim.global_phase() & live, 0, "phase dirty in batch {batch}");
+     |                            ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake128ReaderCore>>`
+
+error[E0308]: mismatched types
+    --> src/bin/../point_add/mod.rs:4372:43
+     |
+4372 |                         sim.qubit(QubitId(q as u32)) & live,
+     |                                   ------- ^^^^^^^^ expected `u64`, found `u32`
+     |                                   |
+     |                                   arguments to this struct are incorrect
+     |
+note: tuple struct defined here
+    --> /Users/odin/Documents/coding with codin/ecdsafail-replay-sign-donor-codex/src/circuit.rs:88:12
+     |
+  88 | pub struct QubitId(pub u64);
+     |            ^^^^^^^
+help: you can convert a `u32` to a `u64`
+     |
+4372 |                         sim.qubit(QubitId((q as u32).into())) & live,
+     |                                           +        ++++++++
+
+error[E0425]: cannot find function `build_direct_centered_shifted_source_qbit_row_fit_bench_phase_resources` in this scope
+    --> src/bin/../point_add/mod.rs:4421:13
+     |
+4421 |             build_direct_centered_shifted_source_qbit_row_fit_bench_phase_resources(Q_BITS);
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:4422:71
+     |
+4422 |         let (num_qubits, num_bits, num_registers, regs) = analyze_ops(ops.iter().copied());
+     |                                                                       ^^^ cannot infer type
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:4445:17
+     |
+4445 |         assert!(phases
+     |                 ^^^^^^ cannot infer type
+
+error[E0425]: cannot find function `emit_direct_centered_shifted_source_qbit_row` in this scope
+    --> src/bin/../point_add/mod.rs:4468:9
+     |
+4468 |         emit_direct_centered_shifted_source_qbit_row(
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:4534:17
+     |
+4534 |             sim.apply(&b.ops);
+     |                 ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+4534 |             sim.apply_iter(&b.ops);
+     |                      +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:4540:28
+     |
+4540 |             assert_eq!(sim.global_phase() & live, 0, "phase dirty in batch {batch}");
+     |                            ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake128ReaderCore>>`
+
+error[E0308]: mismatched types
+    --> src/bin/../point_add/mod.rs:4544:43
+     |
+4544 |                         sim.qubit(QubitId(q as u32)) & live,
+     |                                   ------- ^^^^^^^^ expected `u64`, found `u32`
+     |                                   |
+     |                                   arguments to this struct are incorrect
+     |
+note: tuple struct defined here
+    --> /Users/odin/Documents/coding with codin/ecdsafail-replay-sign-donor-codex/src/circuit.rs:88:12
+     |
+  88 | pub struct QubitId(pub u64);
+     |            ^^^^^^^
+help: you can convert a `u32` to a `u64`
+     |
+4544 |                         sim.qubit(QubitId((q as u32).into())) & live,
+     |                                           +        ++++++++
+
+error[E0425]: cannot find function `build_direct_centered_branch_sidecar_bench_phase_resources` in this scope
+    --> src/bin/../point_add/mod.rs:4569:13
+     |
+4569 |             build_direct_centered_branch_sidecar_bench_phase_resources();
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:4570:71
+     |
+4570 |         let (num_qubits, num_bits, num_registers, regs) = analyze_ops(ops.iter().copied());
+     |                                                                       ^^^ cannot infer type
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:4606:17
+     |
+4606 |         assert!(phases
+     |                 ^^^^^^ cannot infer type
+
+error[E0425]: cannot find function `emit_direct_centered_branch_digit_update_clean` in this scope
+    --> src/bin/../point_add/mod.rs:4624:9
+     |
+4624 |         emit_direct_centered_branch_digit_update_clean(
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:4667:17
+     |
+4667 |             sim.apply(&b.ops);
+     |                 ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+4667 |             sim.apply_iter(&b.ops);
+     |                      +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:4673:28
+     |
+4673 |             assert_eq!(sim.global_phase() & live, 0, "phase dirty in batch {batch}");
+     |                            ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake128ReaderCore>>`
+
+error[E0425]: cannot find function `emit_direct_centered_branch_digit_update_clean` in this scope
+    --> src/bin/../point_add/mod.rs:4728:13
+     |
+4728 |             emit_direct_centered_branch_digit_update_clean(
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `emit_direct_centered_branch_retained_finalizer_fast` in this scope
+    --> src/bin/../point_add/mod.rs:4742:9
+     |
+4742 |         emit_direct_centered_branch_retained_finalizer_fast(
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: a constant with a similar name exists: `direct_centered_branch_retained_finalizer_toy_is_exact`
+...
+5215 |     fn direct_centered_branch_retained_finalizer_toy_is_exact() {
+     |     ----------------------------------------------------------- similarly named constant `direct_centered_branch_retained_finalizer_toy_is_exact` defined here
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:4809:17
+     |
+4809 |             sim.apply(&b.ops);
+     |                 ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+4809 |             sim.apply_iter(&b.ops);
+     |                      +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:4815:28
+     |
+4815 |             assert_eq!(sim.global_phase() & live, 0, "phase dirty in batch {batch}");
+     |                            ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake128ReaderCore>>`
+
+error[E0425]: cannot find function `emit_direct_centered_low_path_branch_toggle` in this scope
+    --> src/bin/../point_add/mod.rs:4850:9
+     |
+4850 |         emit_direct_centered_low_path_branch_toggle(
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:4892:17
+     |
+4892 |             sim.apply(&b.ops);
+     |                 ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+4892 |             sim.apply_iter(&b.ops);
+     |                      +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:4898:28
+     |
+4898 |             assert_eq!(sim.global_phase() & live, 0, "phase dirty in batch {batch}");
+     |                            ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake128ReaderCore>>`
+
+error[E0425]: cannot find function `build_direct_centered_branch_predicate_step_fit_bench_phase_resources` in this scope
+    --> src/bin/../point_add/mod.rs:4925:13
+     |
+4925 |             build_direct_centered_branch_predicate_step_fit_bench_phase_resources();
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:4926:71
+     |
+4926 |         let (num_qubits, num_bits, num_registers, regs) = analyze_ops(ops.iter().copied());
+     |                                                                       ^^^ cannot infer type
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:4948:17
+     |
+4948 |         assert!(phases
+     |                 ^^^^^^ cannot infer type
+
+error[E0425]: cannot find function `emit_direct_centered_binary_trie_qrom_xor_table` in this scope
+    --> src/bin/../point_add/mod.rs:4969:9
+     |
+4969 |         emit_direct_centered_binary_trie_qrom_xor_table(
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:5006:17
+     |
+5006 |             sim.apply(&b.ops);
+     |                 ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+5006 |             sim.apply_iter(&b.ops);
+     |                      +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:5012:28
+     |
+5012 |             assert_eq!(sim.global_phase() & live, 0, "phase dirty in batch {batch}");
+     |                            ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake128ReaderCore>>`
+
+error[E0308]: mismatched types
+    --> src/bin/../point_add/mod.rs:5016:43
+     |
+5016 |                         sim.qubit(QubitId(q as u32)) & live,
+     |                                   ------- ^^^^^^^^ expected `u64`, found `u32`
+     |                                   |
+     |                                   arguments to this struct are incorrect
+     |
+note: tuple struct defined here
+    --> /Users/odin/Documents/coding with codin/ecdsafail-replay-sign-donor-codex/src/circuit.rs:88:12
+     |
+  88 | pub struct QubitId(pub u64);
+     |            ^^^^^^^
+help: you can convert a `u32` to a `u64`
+     |
+5016 |                         sim.qubit(QubitId((q as u32).into())) & live,
+     |                                           +        ++++++++
+
+error[E0425]: cannot find function `direct_centered_binary_trie_qrom_table_words` in this scope
+    --> src/bin/../point_add/mod.rs:5035:27
+     |
+5035 |         let table_words = direct_centered_binary_trie_qrom_table_words(ROWS, TARGET_BITS);
+     |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `emit_direct_centered_binary_trie_qrom_xor_table` in this scope
+    --> src/bin/../point_add/mod.rs:5040:9
+     |
+5040 |         emit_direct_centered_binary_trie_qrom_xor_table(
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `emit_direct_centered_binary_trie_qrom_xor_table` in this scope
+    --> src/bin/../point_add/mod.rs:5047:9
+     |
+5047 |         emit_direct_centered_binary_trie_qrom_xor_table(
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:5079:17
+     |
+5079 |             sim.apply(&b.ops);
+     |                 ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+5079 |             sim.apply_iter(&b.ops);
+     |                      +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:5085:28
+     |
+5085 |             assert_eq!(sim.global_phase() & live, 0, "phase dirty in batch {batch}");
+     |                            ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake128ReaderCore>>`
+
+error[E0308]: mismatched types
+    --> src/bin/../point_add/mod.rs:5089:43
+     |
+5089 |                         sim.qubit(QubitId(q as u32)) & live,
+     |                                   ------- ^^^^^^^^ expected `u64`, found `u32`
+     |                                   |
+     |                                   arguments to this struct are incorrect
+     |
+note: tuple struct defined here
+    --> /Users/odin/Documents/coding with codin/ecdsafail-replay-sign-donor-codex/src/circuit.rs:88:12
+     |
+  88 | pub struct QubitId(pub u64);
+     |            ^^^^^^^
+help: you can convert a `u32` to a `u64`
+     |
+5089 |                         sim.qubit(QubitId((q as u32).into())) & live,
+     |                                           +        ++++++++
+
+error[E0425]: cannot find function `build_direct_centered_binary_trie_qrom_bench_phase_resources` in this scope
+    --> src/bin/../point_add/mod.rs:5109:13
+     |
+5109 |             build_direct_centered_binary_trie_qrom_bench_phase_resources(
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:5114:71
+     |
+5114 |         let (num_qubits, num_bits, num_registers, regs) = analyze_ops(ops.iter().copied());
+     |                                                                       ^^^ cannot infer type
+
+error[E0425]: cannot find function `direct_centered_binary_trie_qrom_node_count` in this scope
+    --> src/bin/../point_add/mod.rs:5119:30
+     |
+5119 |         let expected_nodes = direct_centered_binary_trie_qrom_node_count(ROWS, ADDRESS_BITS);
+     |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:5130:17
+     |
+5130 |         assert!(phases
+     |                 ^^^^^^ cannot infer type
+
+error[E0425]: cannot find function `build_direct_centered_binary_trie_qrom_roundtrip_bench_phase_resources` in this scope
+    --> src/bin/../point_add/mod.rs:5145:13
+     |
+5145 |             build_direct_centered_binary_trie_qrom_roundtrip_bench_phase_resources(
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:5150:71
+     |
+5150 |         let (num_qubits, num_bits, num_registers, regs) = analyze_ops(ops.iter().copied());
+     |                                                                       ^^^ cannot infer type
+
+error[E0425]: cannot find function `direct_centered_binary_trie_qrom_node_count` in this scope
+    --> src/bin/../point_add/mod.rs:5155:30
+     |
+5155 |         let expected_nodes = direct_centered_binary_trie_qrom_node_count(ROWS, ADDRESS_BITS);
+     |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:5169:17
+     |
+5169 |         assert!(phases
+     |                 ^^^^^^ cannot infer type
+
+error[E0425]: cannot find function `build_direct_centered_inline_predicate_finalizer_delta_fit_bench_phase_resources` in this scope
+    --> src/bin/../point_add/mod.rs:5180:13
+     |
+5180 |             build_direct_centered_inline_predicate_finalizer_delta_fit_bench_phase_resources();
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:5181:71
+     |
+5181 |         let (num_qubits, num_bits, num_registers, regs) = analyze_ops(ops.iter().copied());
+     |                                                                       ^^^ cannot infer type
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:5203:17
+     |
+5203 |         assert!(phases
+     |                 ^^^^^^ cannot infer type
+
+error[E0425]: cannot find function `emit_direct_centered_branch_retained_finalizer` in this scope
+    --> src/bin/../point_add/mod.rs:5223:9
+     |
+5223 |         emit_direct_centered_branch_retained_finalizer(
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:5248:25
+     |
+5248 |                     sim.apply(&b.ops);
+     |                         ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+5248 |                     sim.apply_iter(&b.ops);
+     |                              +++++
+
+error[E0425]: cannot find function `emit_direct_centered_branch_retained_finalizer_fast` in this scope
+    --> src/bin/../point_add/mod.rs:5270:9
+     |
+5215 |     fn direct_centered_branch_retained_finalizer_toy_is_exact() {
+     |     ----------------------------------------------------------- similarly named constant `direct_centered_branch_retained_finalizer_toy_is_exact` defined here
+...
+5270 |         emit_direct_centered_branch_retained_finalizer_fast(
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: a constant with a similar name exists: `direct_centered_branch_retained_finalizer_toy_is_exact`
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:5301:25
+     |
+5301 |                     sim.apply(&b.ops);
+     |                         ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+5301 |                     sim.apply_iter(&b.ops);
+     |                              +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:5308:36
+     |
+5308 |                     assert_eq!(sim.global_phase() & 1, 0);
+     |                                    ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake128ReaderCore>>`
+
+error[E0425]: cannot find function `build_direct_centered_branch_retained_finalizer_bench_phase_resources` in this scope
+    --> src/bin/../point_add/mod.rs:5318:13
+     |
+5215 |     fn direct_centered_branch_retained_finalizer_toy_is_exact() {
+     |     ----------------------------------------------------------- similarly named constant `direct_centered_branch_retained_finalizer_toy_is_exact` defined here
+...
+5318 |             build_direct_centered_branch_retained_finalizer_bench_phase_resources();
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: a constant with a similar name exists: `direct_centered_branch_retained_finalizer_toy_is_exact`
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:5319:71
+     |
+5319 |         let (num_qubits, num_bits, num_registers, regs) = analyze_ops(ops.iter().copied());
+     |                                                                       ^^^ cannot infer type
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:5335:17
+     |
+5335 |         assert!(phases
+     |                 ^^^^^^ cannot infer type
+
+error[E0425]: cannot find function `build_direct_centered_branch_digit_clean_fit_bench_phase_resources` in this scope
+    --> src/bin/../point_add/mod.rs:5343:13
+     |
+5343 |             build_direct_centered_branch_digit_clean_fit_bench_phase_resources();
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:5344:71
+     |
+5344 |         let (num_qubits, num_bits, num_registers, regs) = analyze_ops(ops.iter().copied());
+     |                                                                       ^^^ cannot infer type
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:5363:17
+     |
+5363 |         assert!(phases
+     |                 ^^^^^^ cannot infer type
+
+error[E0425]: cannot find function `emit_direct_centered_remainder_abs_swap_transition` in this scope
+    --> src/bin/../point_add/mod.rs:5377:9
+     |
+5377 |         emit_direct_centered_remainder_abs_swap_transition(
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0599]: no method named `apply` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:5411:17
+     |
+5411 |             sim.apply(&b.ops);
+     |                 ^^^^^
+     |
+help: there is a method `apply_iter` with a similar name
+     |
+5411 |             sim.apply_iter(&b.ops);
+     |                      +++++
+
+error[E0599]: no method named `global_phase` found for struct `quantum_ecc::sim::Simulator<'a, R>` in the current scope
+    --> src/bin/../point_add/mod.rs:5417:28
+     |
+5417 |             assert_eq!(sim.global_phase() & live, 0, "phase dirty in batch {batch}");
+     |                            ^^^^^^^^^^^^ method not found in `quantum_ecc::sim::Simulator<'_, XofReaderCoreWrapper<Shake128ReaderCore>>`
+
+error[E0425]: cannot find function `build_direct_centered_row_transition_fit_bench_phase_resources` in this scope
+    --> src/bin/../point_add/mod.rs:5437:13
+     |
+5437 |             build_direct_centered_row_transition_fit_bench_phase_resources();
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:5438:71
+     |
+5438 |         let (num_qubits, num_bits, num_registers, regs) = analyze_ops(ops.iter().copied());
+     |                                                                       ^^^ cannot infer type
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:5459:17
+     |
+5459 |         assert!(phases
+     |                 ^^^^^^ cannot infer type
+
+error[E0425]: cannot find function `build_direct_centered_branch_replay_finalizer_fit_bench_phase_resources` in this scope
+    --> src/bin/../point_add/mod.rs:5470:13
+     |
+5470 |             build_direct_centered_branch_replay_finalizer_fit_bench_phase_resources();
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:5471:71
+     |
+5471 |         let (num_qubits, num_bits, num_registers, regs) = analyze_ops(ops.iter().copied());
+     |                                                                       ^^^ cannot infer type
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:5498:17
+     |
+5498 |         assert!(phases
+     |                 ^^^^^^ cannot infer type
+
+error[E0425]: cannot find function `build_direct_centered_predicate_replay_finalizer_fit_bench_phase_resources` in this scope
+    --> src/bin/../point_add/mod.rs:5509:13
+     |
+5509 |             build_direct_centered_predicate_replay_finalizer_fit_bench_phase_resources();
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:5510:71
+     |
+5510 |         let (num_qubits, num_bits, num_registers, regs) = analyze_ops(ops.iter().copied());
+     |                                                                       ^^^ cannot infer type
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:5540:17
+     |
+5540 |         assert!(phases
+     |                 ^^^^^^ cannot infer type
+
+error[E0425]: cannot find function `build_direct_centered_sidecar_finalizer_fit_bench_phase_resources` in this scope
+    --> src/bin/../point_add/mod.rs:5551:13
+     |
+5551 |             build_direct_centered_sidecar_finalizer_fit_bench_phase_resources();
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:5552:71
+     |
+5552 |         let (num_qubits, num_bits, num_registers, regs) = analyze_ops(ops.iter().copied());
+     |                                                                       ^^^ cannot infer type
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:5571:17
+     |
+5571 |         assert!(phases
+     |                 ^^^^^^ cannot infer type
+
+error[E0425]: cannot find function `build_direct_centered_sidecar_fast_finalizer_fit_bench_phase_resources` in this scope
+    --> src/bin/../point_add/mod.rs:5579:13
+     |
+5579 |             build_direct_centered_sidecar_fast_finalizer_fit_bench_phase_resources();
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:5580:71
+     |
+5580 |         let (num_qubits, num_bits, num_registers, regs) = analyze_ops(ops.iter().copied());
+     |                                                                       ^^^ cannot infer type
+
+error[E0282]: type annotations needed
+    --> src/bin/../point_add/mod.rs:5599:17
+     |
+5599 |         assert!(phases
+     |                 ^^^^^^ cannot infer type
+
+warning: unused variable: `b`
+   --> src/bin/../point_add/arith/multiply.rs:638:24
+    |
+638 |     let borrow_lane = |b: &mut B, _need: usize| -> Vec<QubitId> {
+    |                        ^ help: if this is intentional, prefix it with an underscore: `_b`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `seg_w`
+   --> src/bin/../point_add/arith/multiply.rs:649:13
+    |
+649 |         let seg_w = hi - lo;
+    |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_seg_w`
+
+warning: variable does not need to be mutable
+  --> src/bin/../point_add/dirtyscan.rs:57:9
+   |
+57 |     let mut note = |writers: &mut Vec<[usize; TRAIL]>, wpos: &mut Vec<u8>, q: u64, index: usize| {
+   |         ----^^^^
+   |         |
+   |         help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+Some errors have detailed explanations: E0271, E0282, E0308, E0425, E0433, E0599.
+For more information about an error, try `rustc --explain E0271`.
+warning: `quantum_ecc` (bin "build_circuit" test) generated 4 warnings
+error: could not compile `quantum_ecc` (bin "build_circuit" test) due to 165 previous errors; 4 warnings emitted
+cargo_test_exit=101
