@@ -2242,6 +2242,64 @@ fn ccz_self_inverse_cancel_conservative(ops: Vec<Op>) -> Vec<Op> {
     kept
 }
 
+/// Remove one source-bound Toffoli whose second control is proven zero.
+///
+/// This is pinned to the exact promoted ping-pong stream. The assertions fail
+/// closed if an upstream edit moves the witness or changes its condition
+/// context. `R q775` demolishes q775 into |0>; no intervening gate writes q775;
+/// therefore the guarded CCX is exactly the identity.
+fn remove_proven_q775_zero_control_ccx(mut ops: Vec<Op>) -> Vec<Op> {
+    const RESET_INDEX: usize = 14_686;
+    const CUT_INDEX: usize = 15_461;
+    const ZERO_CONTROL: QubitId = QubitId(775);
+
+    assert!(ops.len() > CUT_INDEX, "q775 gate-cut stream is too short");
+
+    let mut condition_depth = 0usize;
+    for (index, op) in ops.iter().enumerate().take(CUT_INDEX + 1) {
+        if index == RESET_INDEX || index == CUT_INDEX {
+            assert_eq!(condition_depth, 0, "q775 witness moved under a condition");
+            assert_eq!(op.c_condition, crate::circuit::NO_BIT);
+        }
+        match op.kind {
+            OperationType::PushCondition => condition_depth += 1,
+            OperationType::PopCondition => {
+                assert!(condition_depth > 0, "unbalanced condition stack");
+                condition_depth -= 1;
+            }
+            _ => {}
+        }
+    }
+
+    let reset = ops[RESET_INDEX];
+    assert_eq!(reset.kind, OperationType::R);
+    assert_eq!(reset.q_target, ZERO_CONTROL);
+
+    for op in &ops[RESET_INDEX + 1..CUT_INDEX] {
+        let writes_zero_control = match op.kind {
+            OperationType::X
+            | OperationType::CX
+            | OperationType::CCX
+            | OperationType::R
+            | OperationType::Hmr => op.q_target == ZERO_CONTROL,
+            OperationType::Swap => {
+                op.q_target == ZERO_CONTROL || op.q_control1 == ZERO_CONTROL
+            }
+            _ => false,
+        };
+        assert!(!writes_zero_control, "q775 witness has an intervening write");
+    }
+
+    let cut = ops[CUT_INDEX];
+    assert_eq!(cut.kind, OperationType::CCX);
+    assert_eq!(cut.q_control1, ZERO_CONTROL);
+    assert_eq!(cut.q_control2, QubitId(513));
+    assert_eq!(cut.q_target, QubitId(776));
+
+    ops.remove(CUT_INDEX);
+    ops
+}
+
 pub fn build() -> Vec<Op> {
     // Diagnostic: dump the width schedule (base + rescaled) and exit without
     // emitting.  Byte-neutral to the shipped stream (gated, default-off).
@@ -2576,6 +2634,7 @@ pub fn build() -> Vec<Op> {
             return Vec::new();
         }
         let mut ops = pingpong_div::build_pingpong_point_add();
+        ops = remove_proven_q775_zero_control_ccx(ops);
         // Exact-clean nonce for the Q1267/M697 stream, verified by the optimized
         // and reference evaluators over all 9,024 shots.
         let nonce = std::env::var("SUB4_PINGPONG_TAIL_NONCE")
