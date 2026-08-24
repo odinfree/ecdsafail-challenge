@@ -1,0 +1,37 @@
+{
+  "schema": "coupled-transposed-seed-summary-v1",
+  "identity_verdict": "ADMIT_IDEAL_COUPLED_SEED_IDENTITY_ONLY",
+  "verdict": "HARD_NACK_BOUNDED_DEGREE_COUPLED_SEED",
+  "implementation_commit": "1077e9188519fa7f41255c840bee64d3150025d7",
+  "implementation_tree": "d46a8292353f6a719dab2a85a9403f0be3015b93",
+  "full_gate_receipt_sha256": "6a6a185aa08252e36e1c008d0e16142c60828957cd79ae09586fd6be4482ba83",
+  "exact_pairs": 83342,
+  "orientation_failures": 0,
+  "ideal_output_failures": 0,
+  "interpolation_failures": 0,
+  "ideal_seed": {
+    "common_direction": 0,
+    "lambda_coefficient": "T*r_T mod p",
+    "intercept_seed": "T^2 mod p",
+    "output": "(T,T*lambda mod p)"
+  },
+  "polynomial_cases": [
+    {"modulus": 31, "degree": 30, "nonzero_terms": 15, "best_terms_after_c_t2": 14, "transcript_sha256": "d423609ba63394f0a3c22277c9c001cded697e0350fcf482ea694afd492a626c"},
+    {"modulus": 61, "degree": 60, "nonzero_terms": 32, "best_terms_after_c_t2": 31, "transcript_sha256": "06bb4290463fa128075ed543cf5ab6dcce167517266e96073ec83da35283c735"},
+    {"modulus": 127, "degree": 126, "nonzero_terms": 65, "best_terms_after_c_t2": 64, "transcript_sha256": "16b9acbb03ec3da6e0a4f4027c2a071b5c97ede96805a0c2643c80335c4b5f6d"},
+    {"modulus": 251, "degree": 250, "nonzero_terms": 127, "best_terms_after_c_t2": 126, "transcript_sha256": "0ba930e481edef4afe018c8fd0e6c0471627cdc4ee6e6b395003c40f92b796af"}
+  ],
+  "full_field_candidate": false,
+  "remaining_blocker": "CIRCULAR_T_TIMES_R_TIMES_LAMBDA_SEED_PRODUCT",
+  "next_grammar": "ONLINE_COFACTOR_PRODUCT_RECURRENCE",
+  "authority": {
+    "provider": false,
+    "nonce_grind": false,
+    "fleet": false,
+    "queue": false,
+    "push": false,
+    "public_note": false,
+    "promotion": false,
+    "submission": false
+  }
+}
