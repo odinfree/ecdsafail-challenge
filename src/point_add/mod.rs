@@ -2583,6 +2583,14 @@ pub fn build() -> Vec<Op> {
         if std::env::var("STRUCTURAL_CUT_APPLY").ok().as_deref() == Some("1") {
             ops = structural_cut_scan::apply(ops);
         }
+        if std::env::var("STRUCTURAL_EXACT_PAIR_CLOSURE")
+            .ok()
+            .as_deref()
+            == Some("1")
+        {
+            ops = trailmix_ludicrous::constprop::exact_ccx_pair_closure(ops);
+            ops = trailmix_ludicrous::constprop::ccz_straddle_cancel(ops);
+        }
         // Exact-clean nonce for the Q1267/M697 stream, verified by the optimized
         // and reference evaluators over all 9,024 shots.
         let nonce = std::env::var("SUB4_PINGPONG_TAIL_NONCE")

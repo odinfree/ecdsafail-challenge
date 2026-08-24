@@ -638,6 +638,7 @@ fn find_inverse_pairs(
     num_q: usize,
     num_b: usize,
     straddle: bool,
+    allow_cascade: bool,
 ) -> (Vec<PairKill>, usize) {
 
     // ── cascade lever (Echo-Merlini note cd0a483): accept a blocked pair whose only
@@ -646,12 +647,12 @@ fn find_inverse_pairs(
     // value-exact: net effect is t ^= s·c·d, measured ~1e-5 fire rate per triple.
     let cascade_trace = std::env::var("TLM_CASCADE_TRACE").ok().as_deref() == Some("1");
     let cascade_disable = std::env::var("TLM_CASCADE_DISABLE").ok().as_deref() == Some("1");
-    let mut cascade_allow: Vec<(u64, u64, u64)> = if cascade_disable {
+    let mut cascade_allow: Vec<(u64, u64, u64)> = if cascade_disable || !allow_cascade {
         Vec::new()
     } else {
         DEFAULT_CASCADE_TRIPLES.to_vec()
     };
-    if !cascade_disable {
+    if allow_cascade && !cascade_disable {
         if let Ok(s) = std::env::var("TLM_CASCADE_TRIPLES") {
             for part in s.split(',').filter(|x| !x.is_empty()) {
                 let v: Vec<u64> = part.split(':').filter_map(|x| x.parse().ok()).collect();
@@ -1126,7 +1127,7 @@ pub(crate) fn ccx_final_cancel(ops: Vec<Op>) -> Vec<Op> {
     }
     let (nq, nb) = dims(&ops);
     let straddle = std::env::var("TLM_CCX_FINAL_STRADDLE").ok().as_deref() == Some("1");
-    let (pairs, straddle_extra) = find_inverse_pairs(&ops, nq, nb, straddle);
+    let (pairs, straddle_extra) = find_inverse_pairs(&ops, nq, nb, straddle, true);
     let mut killed = vec![false; ops.len()];
     for p in &pairs {
         killed[p.first] = true;
@@ -1146,6 +1147,42 @@ pub(crate) fn ccx_final_cancel(ops: Vec<Op>) -> Vec<Op> {
         kept.len()
     );
     kept
+}
+
+/// Exact-only CCX self-inverse closure for the structural-cut lane.
+///
+/// This deliberately disables both the measured cascade allow-list and the
+/// wider straddle analysis. Every removed pair therefore has the same gate,
+/// condition epoch, and untouched controls/target between its endpoints.
+pub(crate) fn exact_ccx_pair_closure(mut ops: Vec<Op>) -> Vec<Op> {
+    let mut passes = 0usize;
+    let mut total_pairs = 0usize;
+    loop {
+        let (nq, nb) = dims(&ops);
+        let (pairs, straddle_extra) = find_inverse_pairs(&ops, nq, nb, false, false);
+        assert_eq!(straddle_extra, 0, "exact CCX closure admitted a straddle pair");
+        if pairs.is_empty() {
+            break;
+        }
+        passes += 1;
+        total_pairs += pairs.len();
+        let mut killed = vec![false; ops.len()];
+        for pair in &pairs {
+            killed[pair.first] = true;
+            killed[pair.second] = true;
+        }
+        ops = ops
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, op)| (!killed[index]).then_some(op))
+            .collect();
+    }
+    eprintln!(
+        "STRUCTURAL_EXACT_CCX_CLOSURE passes={passes} pairs={total_pairs} removed_ccx={} output_ops={}",
+        2 * total_pairs,
+        ops.len(),
+    );
+    ops
 }
 
 pub fn run(ops: Vec<Op>, input_qubits: &[QubitId]) -> Vec<Op> {
@@ -1217,7 +1254,7 @@ pub fn run(ops: Vec<Op>, input_qubits: &[QubitId]) -> Vec<Op> {
         cur = apply_decisions(&cur, &decisions);
 
         let (nq2, nb2) = dims(&cur);
-        let (pairs, straddle_extra) = find_inverse_pairs(&cur, nq2, nb2, straddle);
+        let (pairs, straddle_extra) = find_inverse_pairs(&cur, nq2, nb2, straddle, true);
         tot_straddle_extra += straddle_extra;
         if straddle && straddle_extra > 0 {
             eprintln!(
