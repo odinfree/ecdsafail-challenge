@@ -364,6 +364,27 @@ capacity are not `HARD_NACK` evidence.
 - No production source, trusted replay, provider, nonce, fleet, queue, push,
   public note, protected-instance, or submission action was admitted.
 
+### Phase ten settlement — binding source host at Q1266 `HARD_NACK`
+
+- Evidence: `src/point_add/memory/28-q1266-source-host-verdict.md`.
+- Prototype `468fe54ca93fd2d9f712f8a0671f32daba6d992a` applies the exact
+  Cuccaro MAJ/UMA host only when a carry allocation would cross Q1266 in
+  `pp_div_replay` or `pp_mul_walkback`; switch-off reproduced the official op
+  stream byte-for-byte.
+- The candidate reaches Q1266 and fixed-64 0/0/0, but 1,665 activations raise
+  executed T from 911220.66 to 913255.12. Rounded 913255 exceeds the strict
+  Q1266 ceiling 912109 by 1,146 and projects 1,449,700 worse than live.
+- The price gate failed before trusted replay. This is independent of the
+  earlier Q1266 interleave saddle, which failed correctness at 27/10/0.
+- Exact revert `b5c0c4b71330088633f3de7ddea7cfd6d0963c5b` restores
+  `pingpong_div.rs` SHA-256
+  `953dd851629e4d15a4f56d5061e3c0d61ea83bebab8f7aca5243636d4f240c38`.
+- Reopen only for a sub-one-T host, 946 or more Clifford-clean donor
+  activations, or an orthogonal exact T cut exceeding 1,146 on the same Q1266
+  stream.
+- No trusted replay, provider, nonce, fleet, queue, push, public note,
+  protected-instance, or submission action was admitted.
+
 ## Anti-rot ban list
 
 The following do not advance structural cadence:
