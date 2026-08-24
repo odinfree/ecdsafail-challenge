@@ -2247,6 +2247,180 @@ pub(crate) fn square_addsub_vented_inverse(b: &mut B, x: &[QubitId], prod: &[Qub
     }
 }
 
+/// Apply `(odd, target) -> (odd, odd * target mod 2^n)` without a product
+/// register.  The multiplier's low bit is a caller-owned invariant: this
+/// recurrence is exact when it is one.
+pub(crate) fn odd_mul_pow2_triangular_in_place(
+    b: &mut B,
+    odd: &[QubitId],
+    target: &[QubitId],
+) {
+    let n = odd.len();
+    assert_eq!(target.len(), n);
+    for i in (0..n.saturating_sub(1)).rev() {
+        let suffix_len = n - i - 1;
+        let gated = b.alloc_qubits(suffix_len);
+        for j in 0..suffix_len {
+            b.ccx(target[i], odd[j + 1], gated[j]);
+        }
+        add_nbit_qq_fast(b, &gated, &target[i + 1..]);
+        for j in (0..suffix_len).rev() {
+            let measured = b.alloc_bit();
+            b.hmr(gated[j], measured);
+            b.cz_if(target[i], odd[j + 1], measured);
+        }
+        b.free_vec(&gated);
+    }
+}
+
+/// Exact inverse of [`odd_mul_pow2_triangular_in_place`].
+pub(crate) fn odd_mul_pow2_triangular_in_place_inverse(
+    b: &mut B,
+    odd: &[QubitId],
+    target: &[QubitId],
+) {
+    let n = odd.len();
+    assert_eq!(target.len(), n);
+    for i in 0..n.saturating_sub(1) {
+        let suffix_len = n - i - 1;
+        let gated = b.alloc_qubits(suffix_len);
+        for j in 0..suffix_len {
+            b.ccx(target[i], odd[j + 1], gated[j]);
+        }
+        sub_nbit_qq_fast(b, &gated, &target[i + 1..]);
+        for j in (0..suffix_len).rev() {
+            let measured = b.alloc_bit();
+            b.hmr(gated[j], measured);
+            b.cz_if(target[i], odd[j + 1], measured);
+        }
+        b.free_vec(&gated);
+    }
+}
+
+pub(crate) mod odd_pow2_triangular_selftest {
+    use super::*;
+    use crate::circuit::OperationType;
+    use crate::sim::Simulator;
+    use sha3::digest::{ExtendableOutput, Update};
+
+    fn set_word<R: sha3::digest::XofReader>(
+        sim: &mut Simulator<'_, R>,
+        register: &[QubitId],
+        shot: usize,
+        value: u64,
+    ) {
+        for (bit, &qubit) in register.iter().enumerate() {
+            if value >> bit & 1 == 1 {
+                *sim.qubit_mut(qubit) |= 1u64 << shot;
+            }
+        }
+    }
+
+    fn get_word<R: sha3::digest::XofReader>(
+        sim: &Simulator<'_, R>,
+        register: &[QubitId],
+        shot: usize,
+    ) -> u64 {
+        register.iter().enumerate().fold(0u64, |word, (bit, &qubit)| {
+            word | (((sim.qubit(qubit) >> shot) & 1) << bit)
+        })
+    }
+
+    fn assert_noninputs_zero<R: sha3::digest::XofReader>(
+        sim: &Simulator<'_, R>,
+        odd: &[QubitId],
+        target: &[QubitId],
+    ) {
+        let mut input = vec![false; sim.num_qubits];
+        for &qubit in odd.iter().chain(target.iter()) {
+            input[qubit.0 as usize] = true;
+        }
+        for (index, &lane) in sim.qubits.iter().enumerate() {
+            if !input[index] {
+                assert_eq!(lane, 0, "non-input q{index} was not clean");
+            }
+        }
+    }
+
+    fn exhaustive_circuit(width: usize, include_inverse: bool) {
+        assert!(width <= 7);
+        let mut b = B::new();
+        let odd = b.alloc_qubits(width);
+        let target = b.alloc_qubits(width);
+        odd_mul_pow2_triangular_in_place(&mut b, &odd, &target);
+        if include_inverse {
+            odd_mul_pow2_triangular_in_place_inverse(&mut b, &odd, &target);
+        }
+        assert_eq!(b.active_qubits as usize, 2 * width);
+
+        let modulus = 1u64 << width;
+        let states: Vec<(u64, u64)> = (1..modulus)
+            .step_by(2)
+            .flat_map(|multiplier| (0..modulus).map(move |value| (multiplier, value)))
+            .collect();
+        for (batch_index, batch) in states.chunks(64).enumerate() {
+            let mut seed = sha3::Shake256::default();
+            seed.update(b"odd-pow2-triangular-selftest");
+            seed.update(&[width as u8, include_inverse as u8]);
+            seed.update(&(batch_index as u64).to_le_bytes());
+            let mut xof = seed.finalize_xof();
+            let mut sim = Simulator::new(b.next_qubit as usize, b.next_bit as usize, &mut xof);
+            sim.clear_for_shot();
+            for (shot, &(multiplier, value)) in batch.iter().enumerate() {
+                set_word(&mut sim, &odd, shot, multiplier);
+                set_word(&mut sim, &target, shot, value);
+            }
+            sim.apply_iter(b.ops.iter());
+            assert_eq!(sim.phase, 0, "width {width} batch {batch_index}: phase garbage");
+            assert_noninputs_zero(&sim, &odd, &target);
+            for (shot, &(multiplier, value)) in batch.iter().enumerate() {
+                assert_eq!(get_word(&sim, &odd, shot), multiplier);
+                let expected = if include_inverse {
+                    value
+                } else {
+                    multiplier * value % modulus
+                };
+                assert_eq!(
+                    get_word(&sim, &target, shot),
+                    expected,
+                    "width {width} multiplier {multiplier} value {value}"
+                );
+            }
+        }
+    }
+
+    fn resource_formula() {
+        for &width in &[1usize, 2, 3, 8, 16, 32, 64, 128, 256] {
+            let mut b = B::new_count_only();
+            let odd = b.alloc_qubits(width);
+            let target = b.alloc_qubits(width);
+            odd_mul_pow2_triangular_in_place(&mut b, &odd, &target);
+            let toffolis = b.counted_kind_ops[OperationType::CCX as usize]
+                + b.counted_kind_ops[OperationType::CCZ as usize];
+            let expected_toffolis = (width - 1) * (width - 1);
+            let expected_peak = if width == 1 { 2 } else { 4 * width - 2 };
+            assert_eq!(toffolis, expected_toffolis, "width {width}: Toffoli formula");
+            assert_eq!(b.peak_qubits as usize, expected_peak, "width {width}: peak formula");
+            assert_eq!(b.active_qubits as usize, 2 * width, "width {width}: live ancilla");
+            println!(
+                "  ODD_POW2_RESOURCE n={width} toffoli={toffolis} peakQ={}",
+                b.peak_qubits
+            );
+        }
+    }
+
+    pub(crate) fn run() {
+        for width in 1..=7 {
+            exhaustive_circuit(width, false);
+            exhaustive_circuit(width, true);
+        }
+        resource_formula();
+        println!(
+            "ODD_POW2_TRIANGULAR_SELFTEST: PASS (value, inverse, multiplier, phase, ancilla, resources)"
+        );
+    }
+}
+
 pub(crate) mod square_addsub_selftest {
     use super::*;
     use crate::sim::Simulator;

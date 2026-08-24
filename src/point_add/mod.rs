@@ -2281,6 +2281,17 @@ pub fn build() -> Vec<Op> {
     std::env::set_var("M60_DISABLE", "1");
     configure_q1153_second512_submission_defaults();
 
+    if std::env::var("ODD_POW2_TRIANGULAR_SELFTEST").is_ok() {
+        arith::odd_pow2_triangular_selftest::run();
+        if std::env::var("ODD_POW2_TRIANGULAR_SELFTEST_ONLY")
+            .ok()
+            .as_deref()
+            == Some("1")
+        {
+            return Vec::new();
+        }
+    }
+
     if std::env::var("TLM_SQ_SELFTEST").ok().as_deref() == Some("1") {
         arith::square_addsub_selftest::run();
         if std::env::var("TLM_SQ_SELFTEST_ONLY").ok().as_deref() == Some("1") {
