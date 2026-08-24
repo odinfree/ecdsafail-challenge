@@ -31,7 +31,7 @@
 - Consumes: four-bit indices ordered as `(a0, a1, x0, x1)` for the pre-add carry and `(a0, a1, s0, s1)` for the post-sum phase predicate.
 - Produces: one JSON line with source binding, support mask, truth/ANF masks, degrees, exhaustive-search counts, RED witnesses, GREEN mismatch counts, ABI verdict, and total failures; exits nonzero on any mismatch.
 
-- [ ] **Step 1: Create a deliberate RED scaffold**
+- [x] **Step 1: Create a deliberate RED scaffold**
 
 Create `src/bin/d3_width2_miter.rs` with a dedicated fail-closed entry point:
 
@@ -42,7 +42,7 @@ fn main() {
 }
 ```
 
-- [ ] **Step 2: Build and run the RED scaffold**
+- [x] **Step 2: Build and run the RED scaffold**
 
 Run:
 
@@ -53,7 +53,7 @@ cargo build --release --offline --bin d3_width2_miter
 
 Expected: build succeeds; the binary prints `D3_RED_MITER_NOT_IMPLEMENTED` and exits 1.
 
-- [ ] **Step 3: Implement truth tables, Möbius ANF, and exhaustive one-product search**
+- [x] **Step 3: Implement truth tables, Möbius ANF, and exhaustive one-product search**
 
 Replace the scaffold with a standalone implementation containing these exact core interfaces:
 
@@ -108,7 +108,7 @@ assert_eq!(current_identity_mismatches, 0);
 
 The closest one-product representative must be `a1 AND x1`, agreeing on 14/16 rows and failing first at index 7, `(addend=3, accumulator=1)`.
 
-- [ ] **Step 4: Implement the post-sum HMR phase miter**
+- [x] **Step 4: Implement the post-sum HMR phase miter**
 
 Index the phase truth table as `(a0, a1, s0, s1)` and use `sum < addend` as the reference. Implement the direct identity:
 
@@ -131,11 +131,11 @@ assert_eq!(measurement_phase_mismatches, 0); // all 16 inputs, m in {0,1}
 
 Report the phase implementation as Clifford `Z/CZ` terms plus one CCZ-class term `a0*s0*(a1 XOR s1)`, zero comparator scratch qubits, and one nonlinear phase gate. Explicitly report that the retained boundary count remains one and that the current comparator already uses one nonlinear gate.
 
-- [ ] **Step 5: Add fail-closed ABI and receipt output**
+- [x] **Step 5: Add fail-closed ABI and receipt output**
 
 Set `abi_requires_qubit_id=true`, `cross_chunk_fusion=false`, `prefix_recomputation=false`, and verdict `HARD_NACK_EXISTING_ABI_WIDTH2`. Increment `failures` unless all exact masks, degrees, search counts, GREEN miters, support mask, and ABI exclusions match the specification. Print the first fixed-zero RED witness `(addend=3, accumulator=1, expected_carry=1)` and the closest-one-product RED witness at the same input.
 
-- [ ] **Step 6: Build and run the GREEN miter**
+- [x] **Step 6: Build and run the GREEN miter**
 
 Run:
 
@@ -146,7 +146,7 @@ cargo build --release --offline --bin d3_width2_miter
 
 Expected: one JSON record containing `carry_truth_mask="0xec80"`, `carry_anf_mask="0x2480"`, `carry_degree=3`, `one_product_searches=32768`, `one_product_match=false`, `current_identity_mismatches=0`, `phase_truth_mask="0x08ce"`, `phase_anf_mask="0x26ae"`, `phase_degree=3`, `measurement_phase_mismatches=0`, `verdict="HARD_NACK_EXISTING_ABI_WIDTH2"`, and `failures=0`; exit 0.
 
-- [ ] **Step 7: Verify source binding and edit scope**
+- [x] **Step 7: Verify source binding and edit scope**
 
 Run:
 
@@ -161,7 +161,7 @@ git status --short
 
 Expected promoted source stream hash: `953dd851629e4d15a4f56d5061e3c0d61ea83bebab8f7aca5243636d4f240c38`; expected census artifact hash: `becd6300974d990acb8c6f0cf617d7929c556f191db789dc5ff4c57adbac8adc`; only the plan and standalone binary may differ from the pre-D3 tree.
 
-- [ ] **Step 8: Commit the proof artifact and rerun from the committed tree**
+- [x] **Step 8: Commit the proof artifact and rerun from the committed tree**
 
 ```sh
 git add src/bin/d3_width2_miter.rs research/small-width/2026-08-24-divide-width2-j2-d3-plan.md
