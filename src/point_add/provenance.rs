@@ -269,6 +269,7 @@ impl TracedOps {
         flags: u16,
         source_literal: SourceLiteralMetadata,
     ) {
+        self.pending_synthetic_tail = None;
         if self.enabled {
             let emission_ordinal = self.next_emission_ordinal;
             let next_emission_ordinal = emission_ordinal
@@ -311,6 +312,7 @@ impl TracedOps {
     }
 
     pub(crate) fn push_inherited(&mut self, op: Op, mut origin: OriginRef) {
+        self.pending_synthetic_tail = None;
         origin.inverse_depth = origin
             .inverse_depth
             .checked_add(1)
@@ -478,6 +480,7 @@ impl TracedOps {
     }
 
     pub(crate) fn truncate(&mut self, len: usize) {
+        self.pending_synthetic_tail = None;
         self.ops.truncate(len);
         if self.enabled {
             self.origins.truncate(len);
@@ -1021,6 +1024,127 @@ mod tests {
             .rewrite_synthetic_tail_targets(tail, &[QubitId(1), QubitId(1)])
             .is_err());
         assert_eq!(snapshot(&traced), before);
+    }
+
+    #[test]
+    fn synthetic_tail_rewrite_rejects_same_range_general_replacement_in_both_audit_modes() {
+        let mut errors = Vec::new();
+        for enabled in [false, true] {
+            let mut traced = TracedOps::new(enabled);
+            traced.push_at(op(OperationType::Z), "src/point_add/base.rs", 1, 0, 0, 0);
+            let stale = traced
+                .append_synthetic_tail_at(
+                    &canonical_tail(QubitId(2)),
+                    "src/point_add/tail.rs",
+                    2,
+                    3,
+                )
+                .expect("append tail");
+
+            traced.truncate(1);
+            for replacement in canonical_tail(QubitId(4)) {
+                traced.push_at(replacement, "src/point_add/replacement.rs", 4, 5, 0, 0);
+            }
+            let replacement = snapshot(&traced);
+            let error = traced
+                .rewrite_synthetic_tail_targets(stale, &[QubitId(8), QubitId(8)])
+                .expect_err("general replacement must invalidate the stale tail capability");
+
+            assert_eq!(snapshot(&traced), replacement, "audit={enabled}");
+            errors.push(error);
+        }
+        assert_eq!(
+            errors,
+            vec![
+                "synthetic tail capability is not pending".to_owned(),
+                "synthetic tail capability is not pending".to_owned(),
+            ]
+        );
+    }
+
+    #[test]
+    fn every_general_mutation_invalidates_a_pending_synthetic_tail() {
+        for enabled in [false, true] {
+            let mut after_truncate = TracedOps::new(enabled);
+            let truncate_tail = after_truncate
+                .append_synthetic_tail_at(
+                    &canonical_tail(QubitId(1)),
+                    "src/point_add/truncate_tail.rs",
+                    2,
+                    3,
+                )
+                .expect("append truncate tail");
+            after_truncate.truncate(1);
+            let truncate_snapshot = snapshot(&after_truncate);
+            assert_eq!(
+                after_truncate
+                    .rewrite_synthetic_tail_targets(truncate_tail, &[QubitId(8), QubitId(8)],)
+                    .expect_err("truncate must invalidate the pending tail"),
+                "synthetic tail capability is not pending",
+                "audit={enabled}"
+            );
+            assert_eq!(
+                snapshot(&after_truncate),
+                truncate_snapshot,
+                "audit={enabled}"
+            );
+
+            let mut after_push = TracedOps::new(enabled);
+            let push_tail = after_push
+                .append_synthetic_tail_at(
+                    &canonical_tail(QubitId(1)),
+                    "src/point_add/push_tail.rs",
+                    4,
+                    5,
+                )
+                .expect("append push tail");
+            let mut pushed = op(OperationType::X);
+            pushed.q_target = QubitId(3);
+            after_push.push_at(pushed, "src/point_add/later.rs", 6, 7, 0, 0);
+            let push_snapshot = snapshot(&after_push);
+            assert_eq!(
+                after_push
+                    .rewrite_synthetic_tail_targets(push_tail, &[QubitId(8), QubitId(8)])
+                    .expect_err("push must invalidate the pending tail"),
+                "synthetic tail capability is not pending",
+                "audit={enabled}"
+            );
+            assert_eq!(snapshot(&after_push), push_snapshot, "audit={enabled}");
+
+            let mut after_inherited = TracedOps::new(enabled);
+            let inherited_tail = after_inherited
+                .append_synthetic_tail_at(
+                    &canonical_tail(QubitId(1)),
+                    "src/point_add/inherited_tail.rs",
+                    8,
+                    9,
+                )
+                .expect("append inherited tail");
+            let mut inherited = op(OperationType::X);
+            inherited.q_target = QubitId(3);
+            after_inherited.push_inherited(
+                inherited,
+                OriginRef {
+                    site_id: 0,
+                    emission_ordinal: 0,
+                    inverse_depth: 0,
+                    flags: 0,
+                },
+            );
+            let inherited_snapshot = snapshot(&after_inherited);
+            assert_eq!(
+                after_inherited
+                    .rewrite_synthetic_tail_targets(inherited_tail, &[QubitId(8), QubitId(8)],)
+                    .expect_err("push_inherited must invalidate the pending tail"),
+                "synthetic tail capability is not pending",
+                "audit={enabled}"
+            );
+            assert_eq!(
+                snapshot(&after_inherited),
+                inherited_snapshot,
+                "audit={enabled}"
+            );
+        }
     }
 
     #[test]
