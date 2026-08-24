@@ -231,6 +231,26 @@ capacity are not `HARD_NACK` evidence.
 - Next authorized structural action: move off the closed sign axis and bind one
   replay-ABI/lifetime owner that lowers all current co-binders.
 
+### Phase three settlement — sign-local one-word replay `HARD_NACK`
+
+- Plan: `src/point_add/memory/16-oneword-replay-plan.md`.
+- Evidence: `src/point_add/memory/17-oneword-replay-verdict.json` and
+  `src/point_add/memory/repro/pp_oneword_replay.py`.
+- Exact branch-matrix result: an even replay cell preserves only the untouched
+  `x` projective coordinate across both sign branches; an odd cell preserves
+  only `y`. The coordinates do not compose across a two-round pair.
+- Reachable-tape enumeration saturates all nonzero field classes: 28/28 at
+  width 5, 60/60 at width 6, and 126/126 at width 7. Terminal sign
+  normalisation recovers the exact inverse for every legal denominator.
+- Consequently a sign-local linear one-word replay needs a full-width
+  discriminator: projected production storage is 256 data + 256 discriminator
+  = 512 qubits before scratch, equal to the live replay pair.
+- This is not a lower bound for arbitrary nonlinear in-place division. Reopen
+  only with an explicit reversible transform and independent end-to-end Q/T
+  pricing; invoking the original division as the decoder is circular.
+- No production circuit, provider, nonce, queue, push, public-note, or
+  submission action was taken.
+
 ## Anti-rot ban list
 
 The following do not advance structural cadence:

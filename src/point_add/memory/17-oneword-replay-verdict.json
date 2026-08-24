@@ -1,0 +1,64 @@
+{
+  "binding": {
+    "source_commit": "67524171baaf568dc3dc606f38515745f70804ff",
+    "source_tree": "8202910d176fa1f3332ff961e6f3f789ca6a7ac2"
+  },
+  "local_linear_closure": {
+    "127": {
+      "even_transitions": [[[1, 0], [1, 0]]],
+      "odd_transitions": [[[0, 1], [0, 1]]],
+      "two_round_coordinate_exists": false
+    },
+    "29": {
+      "even_transitions": [[[1, 0], [1, 0]]],
+      "odd_transitions": [[[0, 1], [0, 1]]],
+      "two_round_coordinate_exists": false
+    },
+    "61": {
+      "even_transitions": [[[1, 0], [1, 0]]],
+      "odd_transitions": [[[0, 1], [0, 1]]],
+      "two_round_coordinate_exists": false
+    }
+  },
+  "production_implication": {
+    "minimum_discriminator_projection_qubits": 256,
+    "one_data_word_qubits": 256,
+    "projected_total_qubits_before_scratch": 512,
+    "replay_pair_qubits": 512
+  },
+  "reachable_replay_classes": [
+    {
+      "minimum_terminal_code_bits": 5,
+      "modulus": 29,
+      "prefix_pair_classes": [1, 2, 4, 8, 16, 28, 28, 28, 28, 28, 28, 28],
+      "reachable_denominators": 28,
+      "rounds": 12,
+      "terminal_inverse_ok": true,
+      "terminal_pair_classes": 28,
+      "width": 5
+    },
+    {
+      "minimum_terminal_code_bits": 6,
+      "modulus": 61,
+      "prefix_pair_classes": [1, 2, 4, 8, 16, 32, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60],
+      "reachable_denominators": 60,
+      "rounds": 17,
+      "terminal_inverse_ok": true,
+      "terminal_pair_classes": 60,
+      "width": 6
+    },
+    {
+      "minimum_terminal_code_bits": 7,
+      "modulus": 127,
+      "prefix_pair_classes": [1, 2, 4, 8, 16, 32, 64, 126, 126, 126, 126, 126, 126, 126, 126, 126, 126, 126, 126, 126],
+      "reachable_denominators": 126,
+      "rounds": 20,
+      "terminal_inverse_ok": true,
+      "terminal_pair_classes": 126,
+      "width": 7
+    }
+  ],
+  "reopen_condition": "an explicit nonlinear in-place division transform with independent correctness and end-to-end Q/T pricing",
+  "verdict": "HARD_NACK",
+  "verdict_scope": "sign-local linear one-word replay plus a sub-field-word discriminator"
+}
