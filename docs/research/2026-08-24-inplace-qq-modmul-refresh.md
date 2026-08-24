@@ -291,6 +291,36 @@ campaign ceiling is not used as a cross-metric rejection.
 
 Verdict: `HARD_NACK_Q_PRODUCT_WORD`.
 
+## Legacy naming reconciliation: two apparent counterexamples
+
+This addendum resolves two older titles that superficially appear to supply
+the missing direct unit action. It does not reopen the 2024-2026 search.
+
+Rines and Chuang's [*High Performance Quantum Modular
+Multipliers*](https://arxiv.org/html/1801.01081) reports and benchmarks
+"in-place" modular multipliers. The paper's resource section, however,
+explicitly restricts that analysis to a quantum-classical multiplier. Its
+in-place construction is two out-of-place calls joined by a swap, where the
+reverse call multiplies by a classically known inverse. Section 7 states that
+two quantum inputs would require a multiplicative-inverse circuit and that
+the inverter would dominate the resources. The same paper describes each new
+reduction design itself as exact and out of place. Therefore the often-cited
+leading 3n-qubit/4n-squared-Toffoli row is not a priced implementation of
+`(T,lambda)->(T,T*lambda mod p)` for quantum `T`.
+
+Cho et al.'s [*Quantum Modular
+Multiplication*](https://doi.org/10.1109/ACCESS.2020.3039167) really does claim
+quantum-quantum multipliers without a separate reduction stage, but only for
+the special arithmetic families `GF(2^n)` and `GF(2^n-1)`. Its published QQ
+resource formula uses `6n` qubits. At `n=256`, Q1536 already exceeds the
+component ceiling Q1100 by 436 qubits, and neither modulus is the secp256k1
+prime `2^256-2^32-977`. This is `HARD_NACK_Q_SPECIAL_MODULUS`, not evidence
+against all partial-product transforms.
+
+Together these sources sharpen the remaining premise: a transplant must be a
+variable-input destructive action for the exact secp modulus, not a constant
+multiplier labeled in-place or a 6n special-modulus QQ circuit.
+
 ## Result matrix
 
 | Required property | KMY/Yao | MBU modular adders | Qrisp Kaliski | DFT fixed multiplier | Folding Barrett |
