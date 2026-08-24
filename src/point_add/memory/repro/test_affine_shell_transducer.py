@@ -68,6 +68,28 @@ class AffineShellOracleTests(unittest.TestCase):
         self.assertTrue(all(row["reformulated_jacobian_count"] > 1 for row in reports))
         self.assertEqual([row["support_states"] for row in reports], [18, 124, 249])
 
+    def test_curve_support_wave_receipt_separates_information_from_cost(self) -> None:
+        first = shell.run_curve_support_wave((31, 127, 251))
+        second = shell.run_curve_support_wave((31, 127, 251))
+        self.assertEqual(first, second)
+        self.assertEqual(first["verdict"], "HOLD_CURVE_SUPPORT_CLEANUP_OPEN")
+        self.assertEqual(first["support_result"], "ADMIT_INFORMATION_ONLY")
+        self.assertEqual(
+            first["current_diagnostic"]["ops_sha256"],
+            "715257aeabdacc03c5a121bc4e1c9bbd563875198728211abbb1a40caeec3184",
+        )
+        self.assertEqual(
+            first["literal_point_decompression"]["verdict"],
+            "HARD_NACK_CURRENT_SQUARE_FERMAT_DECOMPRESS",
+        )
+        self.assertEqual(
+            first["literal_point_decompression"]["binary_exponent_squarings"], 253
+        )
+        self.assertGreater(
+            first["literal_point_decompression"]["budget_multiple"], 40.0
+        )
+        self.assertEqual(len(first["receipt_sha256"]), 64)
+
 
 if __name__ == "__main__":
     unittest.main()

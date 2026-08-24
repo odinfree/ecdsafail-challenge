@@ -12,6 +12,13 @@ import json
 BASE_COMMIT = "cbf229dbd46a7c677fe2e28da882b4f8a02bac7f"
 BASE_TREE = "eab2326ce33549eceeb5c10aa64eae33f148b0ac"
 DESIGN_PATH = "docs/superpowers/specs/2026-08-24-affine-shell-transducer-design.md"
+CURRENT_DIAGNOSTIC_Q = 1266
+CURRENT_DIAGNOSTIC_T = 911_367.14
+CURRENT_PP_MUL_T = 426_844.55
+CURRENT_SQUARE_T = 54_876.89
+CURRENT_OPS_SHA256 = "715257aeabdacc03c5a121bc4e1c9bbd563875198728211abbb1a40caeec3184"
+CAMPAIGN_REPLACEMENT_T_CEILING = 335_738.86
+SECP256K1_P = 2**256 - 2**32 - 977
 
 
 @dataclass(frozen=True)
@@ -275,6 +282,61 @@ def run_wave1(primes: tuple[int, ...]) -> dict[str, object]:
         "verdict": "HARD_NACK_LOW_DEGREE_SHEAR",
         "scope": "scalable symbolic translations, additive triangular shears, swaps, constant unit scalings, and zero-only corrections",
         "next_grammar": "REGISTER_SHARED_EUCLID",
+        "authority": {
+            "provider": False,
+            "nonce_grind": False,
+            "push": False,
+            "submission": False,
+        },
+    }
+    payload["receipt_sha256"] = hashlib.sha256(canonical_json(payload)).hexdigest()
+    return payload
+
+
+def run_curve_support_wave(primes: tuple[int, ...]) -> dict[str, object]:
+    cases = [curve_support_report(first_curve_point(prime)) for prime in primes]
+    sqrt_exponent = (SECP256K1_P + 1) // 4
+    binary_exponent_squarings = sqrt_exponent.bit_length() - 1
+    square_only_relaxation_t = binary_exponent_squarings * CURRENT_SQUARE_T
+    payload: dict[str, object] = {
+        "schema": "affine-shell-curve-support-v1",
+        "base_commit": BASE_COMMIT,
+        "base_tree": BASE_TREE,
+        "invariant": "d*T = 2*b*lambda - 3*a^2",
+        "cases": cases,
+        "support_result": "ADMIT_INFORMATION_ONLY",
+        "information_projection": {
+            "maximum_lambda_choices_per_t": max(
+                row["maximum_t_fiber_size"] for row in cases
+            ),
+            "conditional_branch_bits": 1,
+            "claim_scope": "exhaustive reduced-width curve support only",
+        },
+        "current_diagnostic": {
+            "ops_sha256": CURRENT_OPS_SHA256,
+            "qubits": CURRENT_DIAGNOSTIC_Q,
+            "total_t": CURRENT_DIAGNOSTIC_T,
+            "pp_mul_t": CURRENT_PP_MUL_T,
+            "non_pp_mul_t": CURRENT_DIAGNOSTIC_T - CURRENT_PP_MUL_T,
+            "replacement_t_ceiling": CAMPAIGN_REPLACEMENT_T_CEILING,
+        },
+        "literal_point_decompression": {
+            "method": "binary exponentiation by (p+1)/4 for secp256k1 p congruent to 3 mod 4",
+            "exponent_bit_length": sqrt_exponent.bit_length(),
+            "exponent_popcount": sqrt_exponent.bit_count(),
+            "binary_exponent_squarings": binary_exponent_squarings,
+            "current_square_t": CURRENT_SQUARE_T,
+            "square_only_relaxation_t": square_only_relaxation_t,
+            "budget_multiple": square_only_relaxation_t
+            / CAMPAIGN_REPLACEMENT_T_CEILING,
+            "favorable_omissions": "all non-square multiplies, branch extraction, routing, and cleanup",
+            "verdict": "HARD_NACK_CURRENT_SQUARE_FERMAT_DECOMPRESS",
+        },
+        "remaining_obligation": (
+            "an in-place curve-support compactor/decompactor or rational row "
+            "whose complete variable product and cleanup fit Q/T"
+        ),
+        "verdict": "HOLD_CURVE_SUPPORT_CLEANUP_OPEN",
         "authority": {
             "provider": False,
             "nonce_grind": False,
