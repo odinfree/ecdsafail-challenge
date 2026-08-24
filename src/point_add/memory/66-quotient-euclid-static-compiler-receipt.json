@@ -1,0 +1,57 @@
+{
+  "schema": "quotient-euclid-static-compiler-summary-v1",
+  "verdict": "HARD_NACK_QUOTIENT_EUCLID_STATIC_TRANSCRIPT_COMPILER",
+  "implementation_commit": "4561c66af0554766f04c2a7eaa0f260c40e38d41",
+  "implementation_tree": "bfebc54a796ce6b68e1c489670402551d1a95ea1",
+  "full_gate_receipt_sha256": "667a88d4331ed06dd63c0ec40b2f31c2b920183e1603099600849690169427ed",
+  "component_q_cap": 1100,
+  "component_t_cap": 335738.86,
+  "scratch_cap_beyond_inputs": 588,
+  "sample_witness": {
+    "count": 10000,
+    "sample_sha256": "65bbb5f5a52097a40e2da5ad500960d7488242d3bcebf11215810d9a56eb5cbc",
+    "max_raw_payload_bits": 355,
+    "max_gamma_bits": 548,
+    "raw_layout_peak_qubits": 1123,
+    "gamma_layout_peak_qubits": 1316
+  },
+  "historical_optimistic_cost_ledger": {
+    "scope": "archaeological screening ledger, not current measurement",
+    "replay_toffolis": 208385,
+    "extract_one_way_toffolis": 272640,
+    "compute_replay_uncompute_toffolis": 753665,
+    "gap_to_component_cap": 417926.14,
+    "omitted_costs": [
+      "alignment",
+      "delimiters",
+      "pointer",
+      "controls",
+      "canonicalization",
+      "phase repair",
+      "cleanup"
+    ]
+  },
+  "historical_witnesses": [
+    "f6fc46c465bef21aa157ad9f54917f2b2f07fc8e",
+    "ec4d5d0",
+    "13fe1be",
+    "192bc54",
+    "0721c17",
+    "c1aea55",
+    "6232c5e",
+    "7067522"
+  ],
+  "recurrence_remains_admitted": true,
+  "full_field_candidate": false,
+  "next_grammar": "ONLINE_TRANSPOSED_UNIT_ACTION",
+  "authority": {
+    "provider": false,
+    "nonce_grind": false,
+    "fleet": false,
+    "queue": false,
+    "push": false,
+    "public_note": false,
+    "promotion": false,
+    "submission": false
+  }
+}
