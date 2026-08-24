@@ -361,7 +361,10 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
             phase(b, "pp_div_walk", "pp_mul_walk");
             tape = Vec::with_capacity(rounds);
             for r in 0..plan.r1.min(rounds) {
-                tape.push(walk_round(b, &mut u, &mut v, r, rounds));
+                let sign = with_dirty_history(&tape, || {
+                    walk_round(b, &mut u, &mut v, r, rounds)
+                });
+                tape.push(sign);
             }
             phase(b, "pp_div_replay", "pp_mul_replay");
             // `walk_round(r1)` would shrink to `value_width(r1)` anyway; doing
@@ -374,36 +377,50 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
             set_walk_peak(walk_peak(&plan));
             set_chunks(pick_chunks(&plan, plan.r1.min(rounds), u.len()));
             for r in 0..plan.r1.min(rounds) {
-                replay_halving_round(b, r, tape[r], &coefficient, numerator);
+                with_dirty_history_except(&tape, tape[r], || {
+                    replay_halving_round(b, r, tape[r], &coefficient, numerator)
+                });
             }
             clear_chunks();
             for r in plan.r1..=plan.r2.min(rounds - 1) {
                 if r >= rounds {
                     break;
                 }
-                tape.push(walk_round(b, &mut u, &mut v, r, rounds));
+                let sign = with_dirty_history(&tape, || {
+                    walk_round(b, &mut u, &mut v, r, rounds)
+                });
+                tape.push(sign);
                 if r + 1 < rounds {
                     shrink_to(b, &mut u, &mut v, value_width(r + 1));
                 }
                 set_chunks(pick_chunks(&plan, tape.len(), u.len()));
-                replay_halving_round(b, r, tape[r], &coefficient, numerator);
+                with_dirty_history_except(&tape, tape[r], || {
+                    replay_halving_round(b, r, tape[r], &coefficient, numerator)
+                });
                 clear_chunks();
             }
             for r in (plan.r2 + 1).max(plan.r1)..rounds {
-                tape.push(walk_round(b, &mut u, &mut v, r, rounds));
+                let sign = with_dirty_history(&tape, || {
+                    walk_round(b, &mut u, &mut v, r, rounds)
+                });
+                tape.push(sign);
             }
             let loans = loan(b, &u, &v);
             set_chunks(pick_chunks(&plan, tape.len(), 1));
             for r in (plan.r2 + 1).max(plan.r1)..rounds {
-                replay_halving_round(b, r, tape[r], &coefficient, numerator);
+                with_dirty_history_except(&tape, tape[r], || {
+                    replay_halving_round(b, r, tape[r], &coefficient, numerator)
+                });
             }
             clear_chunks();
             if signed_frame() {
                 from_signed_frame(b, &coefficient);
                 from_signed_frame(b, numerator);
             }
-            conditional_mod_negate(b, u[u.len() - 1], &coefficient);
-            conditional_mod_negate(b, v[v.len() - 1], numerator);
+            with_dirty_history(&tape, || {
+                conditional_mod_negate(b, u[u.len() - 1], &coefficient);
+                conditional_mod_negate(b, v[v.len() - 1], numerator);
+            });
             for i in 0..N {
                 b.cx(numerator[i], coefficient[i]);
             }
@@ -423,11 +440,15 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
             for i in 0..N {
                 b.cx(numerator[i], coefficient[i]);
             }
-            conditional_mod_negate(b, u[u.len() - 1], &coefficient);
-            conditional_mod_negate(b, v[v.len() - 1], numerator);
+            with_dirty_history(&tape, || {
+                conditional_mod_negate(b, u[u.len() - 1], &coefficient);
+                conditional_mod_negate(b, v[v.len() - 1], numerator);
+            });
             set_chunks(pick_chunks(&plan, tape.len(), 1));
             for r in ((plan.r2 + 1).max(plan.r1)..rounds).rev() {
-                replay_doubling_round(b, r, tape[r], &coefficient, numerator);
+                with_dirty_history_except(&tape, tape[r], || {
+                    replay_doubling_round(b, r, tape[r], &coefficient, numerator)
+                });
             }
             clear_chunks();
             restore(b, &loans);
@@ -436,19 +457,27 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
             for r in ((plan.r2 + 1).max(plan.r1)..rounds).rev() {
                 let sign = tape.pop().expect("tape has round r");
                 assert_eq!(tape.len(), r);
-                walk_back_round(b, &mut u, &mut v, r, sign, rounds);
+                with_dirty_history(&tape, || {
+                    walk_back_round(b, &mut u, &mut v, r, sign, rounds)
+                });
             }
             for r in (plan.r1..=plan.r2.min(rounds - 1)).rev() {
                 set_chunks(pick_chunks(&plan, r + 1, u.len()));
-                replay_doubling_round(b, r, tape[r], &coefficient, numerator);
+                with_dirty_history_except(&tape, tape[r], || {
+                    replay_doubling_round(b, r, tape[r], &coefficient, numerator)
+                });
                 clear_chunks();
                 let sign = tape.pop().expect("tape has round r");
                 assert_eq!(tape.len(), r);
-                walk_back_round(b, &mut u, &mut v, r, sign, rounds);
+                with_dirty_history(&tape, || {
+                    walk_back_round(b, &mut u, &mut v, r, sign, rounds)
+                });
             }
             set_chunks(pick_chunks(&plan, plan.r1.min(rounds), u.len()));
             for r in (0..plan.r1.min(rounds)).rev() {
-                replay_doubling_round(b, r, tape[r], &coefficient, numerator);
+                with_dirty_history_except(&tape, tape[r], || {
+                    replay_doubling_round(b, r, tape[r], &coefficient, numerator)
+                });
             }
             clear_chunks();
             b.free_vec(&coefficient);
@@ -456,7 +485,9 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
             for r in (0..plan.r1.min(rounds)).rev() {
                 let sign = tape.pop().expect("tape has round r");
                 assert_eq!(tape.len(), r);
-                walk_back_round(b, &mut u, &mut v, r, sign, rounds);
+                with_dirty_history(&tape, || {
+                    walk_back_round(b, &mut u, &mut v, r, sign, rounds)
+                });
             }
             grow_to(b, &mut u, &mut v, VALUE_WIDTH);
         }
@@ -1070,6 +1101,61 @@ thread_local! {
     /// coefficient is live.  `None` = the walk owns the machine and keeps its
     /// single full-width carry ladder.
     static WALK_PEAK: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
+    /// Already-live sign-history wires that may be borrowed by an exact
+    /// dirty-workspace arithmetic cell.  A borrower must restore every wire
+    /// bit-for-bit and phase-clean before returning.
+    static DIRTY_HISTORY_POOL: std::cell::RefCell<Vec<QubitId>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+}
+
+fn dirty_history_enabled() -> bool {
+    std::env::var_os("SUB4_PP_DIRTY_HISTORY_ARITH").is_some()
+}
+
+fn dirty_history_worth(b: &B, clean_extra: usize) -> bool {
+    if !dirty_history_enabled() {
+        return false;
+    }
+    let target = std::env::var("SUB4_PP_DIRTY_HISTORY_Q_TARGET")
+        .ok()
+        .and_then(|value| value.parse::<u32>().ok())
+        .unwrap_or(1233);
+    b.active_qubits.saturating_add(clean_extra as u32) > target
+}
+
+fn with_dirty_history<R>(history: &[QubitId], body: impl FnOnce() -> R) -> R {
+    if !dirty_history_enabled() {
+        return body();
+    }
+    let prior = DIRTY_HISTORY_POOL.with(|pool| {
+        std::mem::replace(&mut *pool.borrow_mut(), history.to_vec())
+    });
+    let result = body();
+    DIRTY_HISTORY_POOL.with(|pool| {
+        *pool.borrow_mut() = prior;
+    });
+    result
+}
+
+fn dirty_history_pool() -> Vec<QubitId> {
+    DIRTY_HISTORY_POOL.with(|pool| pool.borrow().clone())
+}
+
+fn with_dirty_history_except<R>(
+    history: &[QubitId],
+    in_use: QubitId,
+    body: impl FnOnce() -> R,
+) -> R {
+    if !dirty_history_enabled() {
+        return body();
+    }
+    let available: Vec<QubitId> = history
+        .iter()
+        .copied()
+        .filter(|&q| q != in_use)
+        .collect();
+    with_dirty_history(&available, body)
 }
 fn set_walk_peak(peak: usize) {
     WALK_PEAK.with(|c| c.set(Some(peak)));
@@ -1132,6 +1218,28 @@ fn signed_add_wrapping_sigma_split(
     let n = source.len();
     debug_assert_eq!(n, target.len());
     debug_assert!(low >= 3 && low + 2 <= n);
+    let dirty = dirty_history_pool();
+    let clean_extra = low.max(n.saturating_sub(low + 2));
+    if dirty_history_worth(b, clean_extra) && n > 4 && dirty.len() >= n - 2 {
+        for &q in target {
+            b.cx(sign, q);
+        }
+        let clean2 = [b.alloc_qubit(), b.alloc_qubit()];
+        venting::iadd_dirty_2clean_qoffset(
+            b,
+            target,
+            &dirty[..n - 2],
+            &clean2,
+            source,
+            false,
+        );
+        b.free(clean2[1]);
+        b.free(clean2[0]);
+        for &q in target {
+            b.cx(sign, q);
+        }
+        return;
+    }
     let top_skip = top_skip && n >= 6;
 
     for &q in target {
@@ -1459,6 +1567,30 @@ fn signed_add_wrapping(
     target0_is_one: bool,
     top_skip: bool,
 ) {
+    let dirty = dirty_history_pool();
+    if dirty_history_worth(b, source.len().saturating_sub(4))
+        && source.len() > 4
+        && dirty.len() >= source.len() - 2
+    {
+        for &q in target {
+            b.cx(sign, q);
+        }
+        let clean2 = [b.alloc_qubit(), b.alloc_qubit()];
+        venting::iadd_dirty_2clean_qoffset(
+            b,
+            target,
+            &dirty[..source.len() - 2],
+            &clean2,
+            source,
+            false,
+        );
+        b.free(clean2[1]);
+        b.free(clean2[0]);
+        for &q in target {
+            b.cx(sign, q);
+        }
+        return;
+    }
     if std::env::var_os("SUB4_PINGPONG_GENERIC_WALK").is_none() {
         return signed_add_wrapping_sigma(b, sign, source, target, target0_is_one, top_skip);
     }
@@ -1938,14 +2070,33 @@ fn conditional_mod_negate(b: &mut B, control: QubitId, value: &[QubitId]) {
     let f = U256::MAX
         .wrapping_sub(SECP256K1_P)
         .wrapping_add(U256::from(1));
-    csub_nbit_const_direct_trunc_fast_dead_low(
-        b,
-        replay_fold_target(value),
-        f.wrapping_sub(U256::from(1)),
-        control,
-        endpoint_fold_window(),
-        false,
-    );
+    let target = replay_fold_target(value);
+    let dirty = dirty_history_pool();
+    if dirty_history_worth(b, target.len().saturating_sub(7))
+        && target.len() > 4
+        && dirty.len() >= target.len() - 2
+    {
+        let clean2 = [b.alloc_qubit(), b.alloc_qubit()];
+        venting::cisub_dirty_2clean_classical(
+            b,
+            target,
+            &dirty[..target.len() - 2],
+            &clean2,
+            f.wrapping_sub(U256::from(1)).as_limbs()[0],
+            control,
+        );
+        b.free(clean2[1]);
+        b.free(clean2[0]);
+    } else {
+        csub_nbit_const_direct_trunc_fast_dead_low(
+            b,
+            target,
+            f.wrapping_sub(U256::from(1)),
+            control,
+            endpoint_fold_window(),
+            false,
+        );
+    }
 }
 
 fn and_clean(b: &mut B, a: QubitId, c: QubitId) -> QubitId {
@@ -2112,6 +2263,61 @@ fn add_chunked_measured_with(
                 .unwrap_or_else(|| chunk_bounds(n, n.div_ceil(12))),
         },
     };
+    let clean_extra = bounds
+        .iter()
+        .map(|&(lo, hi)| hi - lo)
+        .max()
+        .unwrap_or(0)
+        .saturating_add(2);
+
+    // Structural prototype: the replay already owns hundreds of sign-history
+    // qubits.  The vented quantum-offset adder borrows those dirty wires and
+    // restores them exactly, replacing a clean carry ladder by two clean work
+    // bits (plus a structural-zero top pad when the caller needs carry-out).
+    // Keep the source-present chunked cell as the byte-exact fallback.
+    if dirty_history_worth(b, clean_extra) {
+        let dirty = dirty_history_pool();
+        let need = if final_carry {
+            n.saturating_sub(1)
+        } else {
+            n.saturating_sub(2)
+        };
+        if dirty.len() >= need {
+            let clean2 = [b.alloc_qubit(), b.alloc_qubit()];
+            let result = if final_carry {
+                let out = carry_out.unwrap_or_else(|| b.alloc_qubit());
+                let pad = b.alloc_qubit();
+                let mut acc_ext = acc.to_vec();
+                acc_ext.push(out);
+                let mut addend_ext = addend.to_vec();
+                addend_ext.push(pad);
+                venting::iadd_dirty_2clean_qoffset(
+                    b,
+                    &acc_ext,
+                    &dirty[..n - 1],
+                    &clean2,
+                    &addend_ext,
+                    false,
+                );
+                b.free(pad);
+                Some(out)
+            } else {
+                venting::iadd_dirty_2clean_qoffset(
+                    b,
+                    acc,
+                    &dirty[..n.saturating_sub(2)],
+                    &clean2,
+                    addend,
+                    false,
+                );
+                None
+            };
+            b.free(clean2[1]);
+            b.free(clean2[0]);
+            return result;
+        }
+    }
+
     let legacy = std::env::var_os("SUB4_PP_LEGACY_CHUNK_ORDER").is_some();
     let erase = |b: &mut B, carry: QubitId, lo: usize, hi: usize| {
         let width = hi - lo;
@@ -2318,6 +2524,46 @@ fn fused_fold_maskfree(
     b.free_vec(&carries);
 }
 
+/// Exact low-space form of [`fused_fold_maskfree`].  The selector flags are
+/// one-hot for {-f, 0, +f, +2f}; three controlled constant operations therefore
+/// realize the same wrapping correction.  The vented cells borrow sign-history
+/// wires as dirty workspace and restore them, so no clean carry ladder is live.
+fn fused_fold_dirty_history(
+    b: &mut B,
+    acc: &[QubitId],
+    f: U256,
+    plus_f: QubitId,
+    plus_2f: Option<QubitId>,
+    minus_f: QubitId,
+) -> bool {
+    if !dirty_history_worth(b, acc.len().saturating_sub(3)) || acc.len() <= 4 {
+        return false;
+    }
+    let dirty = dirty_history_pool();
+    if dirty.len() < acc.len() - 2 {
+        return false;
+    }
+    let clean2 = [b.alloc_qubit(), b.alloc_qubit()];
+    let dirty = &dirty[..acc.len() - 2];
+    let f_low = f.as_limbs()[0];
+    venting::ciadd_dirty_2clean_classical(b, acc, dirty, &clean2, f_low, plus_f, false);
+    if let Some(plus_2f) = plus_2f {
+        venting::ciadd_dirty_2clean_classical(
+            b,
+            acc,
+            dirty,
+            &clean2,
+            f_low.wrapping_mul(2),
+            plus_2f,
+            false,
+        );
+    }
+    venting::cisub_dirty_2clean_classical(b, acc, dirty, &clean2, f_low, minus_f);
+    b.free(clean2[1]);
+    b.free(clean2[0]);
+    true
+}
+
 fn signed_mod_add_pm_halve_fused(b: &mut B, sign: QubitId, source: &[QubitId], target: &[QubitId]) {
     let f = U256::MAX
         .wrapping_sub(SECP256K1_P)
@@ -2356,17 +2602,27 @@ fn signed_mod_add_pm_halve_fused(b: &mut B, sign: QubitId, source: &[QubitId], t
     // parity, so hold plus_f in that wire and restore parity afterwards.
     b.cx(sign, parity);
     b.cx(minus_f, parity);
-    let negative_f = twos_complement_bits(f, replay_fold_window());
-    fused_fold_maskfree(
+    let fold_target = &target[..replay_fold_window()];
+    if !fused_fold_dirty_history(
         b,
-        &target[..replay_fold_window()],
+        fold_target,
         f,
-        &negative_f,
         parity,
         Some(plus_2f),
         minus_f,
-        not_sign_and_parity,
-    );
+    ) {
+        let negative_f = twos_complement_bits(f, replay_fold_window());
+        fused_fold_maskfree(
+            b,
+            fold_target,
+            f,
+            &negative_f,
+            parity,
+            Some(plus_2f),
+            minus_f,
+            not_sign_and_parity,
+        );
+    }
 
     b.cx(minus_f, parity);
     b.cx(sign, parity);
@@ -2666,44 +2922,66 @@ fn signed_mod_double_add_pm_fused(
     b.cx(routed, plus_2f);
     b.cx(minus_f, plus_2f);
 
-    // +/-f is odd and +2f is even, so d^o selects the only bit-0 carry.
-    let odd_correction = b.alloc_qubit();
-    b.cx(doubled_out, odd_correction);
-    b.cx(add_out, odd_correction);
-    let first_carry = and_clean(b, target[0], odd_correction);
-    // The fold retains first_carry and does not read odd_correction. Clear and
-    // release this Clifford-derived flag across the binding carry ladder, then
-    // reconstruct it for the measurement uncompute below.
-    b.cx(add_out, odd_correction);
-    b.cx(doubled_out, odd_correction);
-    b.release_clean(odd_correction);
+    let use_dirty_fold = dirty_history_worth(b, replay_fold_window_mul().saturating_sub(3))
+        && dirty_history_pool().len() >= replay_fold_window_mul().saturating_sub(2);
+    // +/-f is odd and +2f is even, so d^o selects the only bit-0 carry in the
+    // clean-ladder implementation.  The dirty-history implementation invokes
+    // complete controlled add/sub cells and therefore needs no exposed carry.
+    let first_carry = if use_dirty_fold {
+        None
+    } else {
+        let odd_correction = b.alloc_qubit();
+        b.cx(doubled_out, odd_correction);
+        b.cx(add_out, odd_correction);
+        let first_carry = and_clean(b, target[0], odd_correction);
+        // The fold retains first_carry and does not read odd_correction. Clear
+        // and release the Clifford-derived flag across the binding ladder.
+        b.cx(add_out, odd_correction);
+        b.cx(doubled_out, odd_correction);
+        b.release_clean(odd_correction);
+        Some(first_carry)
+    };
     // plus_f = add_out ^ doubled_out ^ minus_f. The carry above captures
     // every use of add_out during the fold, so use that wire for plus_f.
     b.cx(doubled_out, add_out);
     b.cx(minus_f, add_out);
-    let negative_f = twos_complement_bits(f, replay_fold_window_mul());
-    fused_fold_maskfree(
-        b,
-        &target[..replay_fold_window_mul()],
-        f,
-        &negative_f,
-        add_out,
-        Some(plus_2f),
-        minus_f,
-        first_carry,
-    );
+    let fold_target = &target[..replay_fold_window_mul()];
+    if use_dirty_fold {
+        assert!(fused_fold_dirty_history(
+            b,
+            fold_target,
+            f,
+            add_out,
+            Some(plus_2f),
+            minus_f,
+        ));
+    } else {
+        let negative_f = twos_complement_bits(f, replay_fold_window_mul());
+        fused_fold_maskfree(
+            b,
+            fold_target,
+            f,
+            &negative_f,
+            add_out,
+            Some(plus_2f),
+            minus_f,
+            first_carry.expect("clean fold carry"),
+        );
+    }
 
     b.cx(minus_f, add_out);
     b.cx(doubled_out, add_out);
-    let odd_correction = b.alloc_qubit();
-    b.cx(doubled_out, odd_correction);
-    b.cx(add_out, odd_correction);
-    b.cx(odd_correction, target[0]);
-    and_uncompute(b, first_carry, target[0], odd_correction);
-    b.cx(odd_correction, target[0]);
-    b.cx(doubled_out, odd_correction);
-    b.cx(add_out, odd_correction);
-    b.free(odd_correction);
+    if let Some(first_carry) = first_carry {
+        let odd_correction = b.alloc_qubit();
+        b.cx(doubled_out, odd_correction);
+        b.cx(add_out, odd_correction);
+        b.cx(odd_correction, target[0]);
+        and_uncompute(b, first_carry, target[0], odd_correction);
+        b.cx(odd_correction, target[0]);
+        b.cx(doubled_out, odd_correction);
+        b.cx(add_out, odd_correction);
+        b.free(odd_correction);
+    }
 
     b.cx(minus_f, plus_2f);
     b.cx(routed, plus_2f);
