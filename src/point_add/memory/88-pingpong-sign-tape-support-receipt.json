@@ -1,0 +1,73 @@
+{
+  "schema": "pingpong-sign-tape-support-summary-v1",
+  "exact_local_verdict": "HARD_NACK_PINGPONG_FIXED_BLOCK_EXACT_CODEC",
+  "sample_verdict": "ADMIT_TERMINAL_SUFFIX_BIAS_SAMPLE_ONLY",
+  "implementation_commit": "968095d690466b10ee982b6e0c1a89adfc6fb064",
+  "implementation_tree": "1ef687b2a1dbedb95ae6c3d15b24f4f8370be3cc",
+  "oracle_sha256": "8a18ce8020480a6988fc99dc5b34aef72a1d1d38e8061e3208321d994552e97c",
+  "full_report_sha256": "2ab8dd5cf06bd73ca471320ea8a8de3629635cd20eec4fee73edfbfe66b083fd",
+  "gate_dump": {
+    "lanes": 64,
+    "rounds": 696,
+    "bits_compared": 44544,
+    "mismatches": 0,
+    "sha256": "366b0bb8074a371d1192a221b5756515d8caac358d2b8fa095e9b46d0fdd1455",
+    "configuration": {
+      "SUB4_PP_SCHED_BIAS": 300,
+      "SUB4_PP_FUSE_ROUND1": 0,
+      "SUB4_PP_ROUND0_SPARSE_FWD": 0
+    }
+  },
+  "exact_toy_domains": [
+    {"modulus": 31, "width": 5, "domain": 30},
+    {"modulus": 59, "width": 6, "domain": 58},
+    {"modulus": 127, "width": 7, "domain": 126},
+    {"modulus": 251, "width": 8, "domain": 250},
+    {"modulus": 503, "width": 9, "domain": 502},
+    {"modulus": 1019, "width": 10, "domain": 1018},
+    {"modulus": 4091, "width": 12, "domain": 4090}
+  ],
+  "production_sample": {
+    "count": 100000,
+    "sample_sha256": "6837f3ac66e89262a00ea30c213538f03d694632cf5d27852fe62d9d017f993e",
+    "partition_best_possible_savings": [
+      {"block_width": 4, "bits": 0},
+      {"block_width": 8, "bits": 1},
+      {"block_width": 12, "bits": 7},
+      {"block_width": 16, "bits": 14}
+    ],
+    "terminal_suffix_observation": {
+      "raw_bits": 56,
+      "observed_support": 9500,
+      "observed_rank_bits": 14,
+      "observed_raw_minus_rank": 42,
+      "exhaustive": false,
+      "decoder_constructed": false,
+      "reversible_cost_known": false
+    },
+    "convergence_round_quantiles": {
+      "p50": 621,
+      "p90": 650,
+      "p99": 673,
+      "p999": 692,
+      "p9999": 697
+    },
+    "round_656_survivors": 5595,
+    "round_656_survivor_fraction": 0.05595,
+    "projected_bad_walks_per_9024_shot_draw_for_simple_freeze": 504.8928
+  },
+  "binding_peak_impact": "none: the Q1266 binding operation is near round 335, before a terminal suffix codec would release wires",
+  "experiment_2_authorized": false,
+  "reason": "no exact or construction-independent 40-bit support saving; the only qualifying saving is sample-only and lacks a reversible decoder",
+  "scope": "FIXED_POSITION_INDEPENDENT_BLOCK_CODECS_AND_SIMPLE_TERMINAL_FREEZE_ONLY",
+  "authority": {
+    "provider": false,
+    "nonce_grind": false,
+    "fleet": false,
+    "queue": false,
+    "push": false,
+    "public_note": false,
+    "promotion": false,
+    "submission": false
+  }
+}
