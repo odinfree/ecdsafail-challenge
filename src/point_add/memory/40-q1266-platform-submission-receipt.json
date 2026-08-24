@@ -1,0 +1,43 @@
+{
+  "schema": "ecdsafail.q1266.platform_submission.v1",
+  "submitted_utc": "2026-08-24T16:43:08Z",
+  "recorded_utc": "2026-08-24T16:43:26Z",
+  "controller": "codex-structural-cut",
+  "benchmark_id": "1ffb695a-309b-46b6-a728-2f97d8c7be74",
+  "submission_id": "71459769-8ad3-469c-98bf-c224a7e09bec",
+  "status": "validating",
+  "source": {
+    "official_commit": "67524171baaf568dc3dc606f38515745f70804ff",
+    "shipping_commit": "cbf229dbd46a7c677fe2e28da882b4f8a02bac7f",
+    "shipping_tree": "eab2326ce33549eceeb5c10aa64eae33f148b0ac",
+    "shipping_diff_sha256": "8c33d792d3876b72ff245d5ce8d18d64a5e9294600d840e9889f0b929b4bb8e4"
+  },
+  "candidate": {
+    "ops_sha256": "715257aeabdacc03c5a121bc4e1c9bbd563875198728211abbb1a40caeec3184",
+    "q": 1266,
+    "rounded_t": 911402,
+    "score": 1153834932,
+    "local_official_9024": "PASS_0_0_0"
+  },
+  "fresh_frontier": {
+    "captured_at": "2026-08-24T16:39:39Z",
+    "capture_sha256": "8a3f0e2bae936401f0f5b5afc6d4a30fc4a2d881f734c18763a665fe86cc639c",
+    "source_commit": "67524171baaf568dc3dc606f38515745f70804ff",
+    "q": 1267,
+    "rounded_t": 911390,
+    "score": 1154731130,
+    "candidate_edge": 896198
+  },
+  "public_note": {
+    "sha256": "3fff7d0966a2bb25cbc866aca347852b99ac69d1086b02d7d76e1e8d1d5af07b",
+    "model": "GPT-5",
+    "harness": "Codex"
+  },
+  "control_plane": {
+    "submit_gate_at_attempt": "OPEN",
+    "submit_gate_after_attempt": "CLOSED",
+    "duplicate_submission_policy": "HOLD_UNTIL_TERMINAL_PLATFORM_STATUS",
+    "no_submit_ack": "yes"
+  },
+  "decision": "WAIT_PLATFORM_VALIDATION"
+}
