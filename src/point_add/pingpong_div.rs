@@ -2089,6 +2089,104 @@ pub(crate) fn add_chunked_measured_budgeted(
     LADDER_TARGET.with(|c| c.set(saved));
 }
 
+/// Research-only exact phase cleanup for the chunked replay adder.
+///
+/// The shipped adder erases each interior boundary as soon as the next chunk
+/// consumes it. Its truncated comparator therefore assumes a zero carry into
+/// the compared top window. This probe instead keeps boundary carries until
+/// the end, erases them in reverse, recomputes the carry entering the top
+/// comparison window, and supplies it to the phase comparator. It is not
+/// wired into the submission path.
+pub(crate) fn add_chunked_measured_exact_window_budgeted(
+    b: &mut B,
+    addend: &[QubitId],
+    acc: &[QubitId],
+    budget: usize,
+) {
+    let n = addend.len();
+    assert_eq!(acc.len(), n);
+    assert!(n > 0);
+
+    let bounds = chunk_layout(n, budget, false)
+        .unwrap_or_else(|| chunk_bounds(n, n.div_ceil(12)));
+    let mut boundaries: Vec<(QubitId, usize, usize, Option<QubitId>)> = Vec::new();
+    let mut carry_in = None;
+
+    for (index, &(lo, hi)) in bounds.iter().enumerate() {
+        let last = index + 1 == bounds.len();
+        let carry_out = (!last).then(|| b.alloc_qubit());
+        chunk_add(b, &addend[lo..hi], &acc[lo..hi], carry_in, carry_out);
+        if let Some(carry) = carry_out {
+            boundaries.push((carry, lo, hi, carry_in));
+        }
+        carry_in = carry_out;
+    }
+
+    for &(carry, lo, hi, chunk_cin) in boundaries.iter().rev() {
+        let width = hi - lo;
+        let compare = replay_chunk_compare().min(width);
+        let split = hi - compare;
+
+        let owned_zero;
+        let cin = match chunk_cin {
+            Some(q) => q,
+            None => {
+                owned_zero = b.alloc_qubit();
+                owned_zero
+            }
+        };
+
+        let window_cin = if split > lo {
+            let q = b.alloc_qubit();
+            cmp_lt_into_fast_with_cin(
+                b,
+                &acc[lo..split],
+                &addend[lo..split],
+                cin,
+                q,
+            );
+            q
+        } else {
+            cin
+        };
+
+        let phase = b.alloc_bit();
+        b.hmr(carry, phase);
+        let ctrl = b.alloc_qubit();
+        b.x(ctrl);
+        cmp_lt_phase_conditioned_with_cin(
+            b,
+            &acc[split..hi],
+            &addend[split..hi],
+            window_cin,
+            ctrl,
+            phase,
+        );
+        b.x(ctrl);
+        b.free(ctrl);
+
+        if split > lo {
+            cmp_lt_into_fast_with_cin(
+                b,
+                &acc[lo..split],
+                &addend[lo..split],
+                cin,
+                window_cin,
+            );
+            b.free(window_cin);
+        }
+        if chunk_cin.is_none() {
+            b.free(cin);
+        }
+        b.free(carry);
+    }
+}
+
+pub(crate) fn research_chunk_layout(width: usize, budget: usize) -> Vec<(usize, usize)> {
+    chunk_layout(width, budget, false)
+        .unwrap_or_else(|| chunk_bounds(width, width.div_ceil(12)))
+}
+
 /// Like [`add_chunked_measured`] but allocates the carry-out wire itself,
 /// only when the last chunk starts, and returns it.
 fn add_chunked_measured_late_carry(b: &mut B, addend: &[QubitId], acc: &[QubitId]) -> QubitId {
