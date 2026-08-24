@@ -1,0 +1,1111 @@
+{
+  "artifact": "pp-boundary-carry-liveness-v1",
+  "chunk_input_noninjectivity": [
+    {
+      "ambiguous_output_keys": 2,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "result": 1,
+          "width": 1
+        },
+        "right": {
+          "accumulator": 1,
+          "addend": 0,
+          "carry_in": 0,
+          "carry_out": 0,
+          "result": 1,
+          "width": 1
+        }
+      },
+      "width": 1
+    },
+    {
+      "ambiguous_output_keys": 12,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "result": 1,
+          "width": 2
+        },
+        "right": {
+          "accumulator": 1,
+          "addend": 0,
+          "carry_in": 0,
+          "carry_out": 0,
+          "result": 1,
+          "width": 2
+        }
+      },
+      "width": 2
+    },
+    {
+      "ambiguous_output_keys": 56,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "result": 1,
+          "width": 3
+        },
+        "right": {
+          "accumulator": 1,
+          "addend": 0,
+          "carry_in": 0,
+          "carry_out": 0,
+          "result": 1,
+          "width": 3
+        }
+      },
+      "width": 3
+    },
+    {
+      "ambiguous_output_keys": 240,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "result": 1,
+          "width": 4
+        },
+        "right": {
+          "accumulator": 1,
+          "addend": 0,
+          "carry_in": 0,
+          "carry_out": 0,
+          "result": 1,
+          "width": 4
+        }
+      },
+      "width": 4
+    },
+    {
+      "ambiguous_output_keys": 992,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "result": 1,
+          "width": 5
+        },
+        "right": {
+          "accumulator": 1,
+          "addend": 0,
+          "carry_in": 0,
+          "carry_out": 0,
+          "result": 1,
+          "width": 5
+        }
+      },
+      "width": 5
+    },
+    {
+      "ambiguous_output_keys": 4032,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "result": 1,
+          "width": 6
+        },
+        "right": {
+          "accumulator": 1,
+          "addend": 0,
+          "carry_in": 0,
+          "carry_out": 0,
+          "result": 1,
+          "width": 6
+        }
+      },
+      "width": 6
+    },
+    {
+      "ambiguous_output_keys": 16256,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "result": 1,
+          "width": 7
+        },
+        "right": {
+          "accumulator": 1,
+          "addend": 0,
+          "carry_in": 0,
+          "carry_out": 0,
+          "result": 1,
+          "width": 7
+        }
+      },
+      "width": 7
+    },
+    {
+      "ambiguous_output_keys": 65280,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "result": 1,
+          "width": 8
+        },
+        "right": {
+          "accumulator": 1,
+          "addend": 0,
+          "carry_in": 0,
+          "carry_out": 0,
+          "result": 1,
+          "width": 8
+        }
+      },
+      "width": 8
+    }
+  ],
+  "dependency_theorem": {
+    "co_resident_prefix_wires": 106,
+    "consequence": "one source/output host moves the bit but does not close its lifetime",
+    "entry": "c106",
+    "restore_requires": "c105 through c0, or exact recomputation of the omitted 106-bit prefix"
+  },
+  "live_binding": {
+    "qubits": 1267,
+    "rounded_toffoli": 911390,
+    "score": 1154731130
+  },
+  "maj_host_truth_table": [
+    {
+      "finished": [
+        0,
+        0,
+        0
+      ],
+      "hosted": [
+        0,
+        0,
+        0
+      ],
+      "input": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "finished": [
+        0,
+        1,
+        1
+      ],
+      "hosted": [
+        0,
+        0,
+        1
+      ],
+      "input": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "finished": [
+        0,
+        1,
+        0
+      ],
+      "hosted": [
+        0,
+        1,
+        0
+      ],
+      "input": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "finished": [
+        0,
+        0,
+        1
+      ],
+      "hosted": [
+        1,
+        1,
+        1
+      ],
+      "input": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "finished": [
+        1,
+        1,
+        0
+      ],
+      "hosted": [
+        0,
+        1,
+        1
+      ],
+      "input": [
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "finished": [
+        1,
+        0,
+        1
+      ],
+      "hosted": [
+        1,
+        1,
+        0
+      ],
+      "input": [
+        1,
+        0,
+        1
+      ]
+    },
+    {
+      "finished": [
+        1,
+        0,
+        0
+      ],
+      "hosted": [
+        1,
+        0,
+        1
+      ],
+      "input": [
+        1,
+        1,
+        0
+      ]
+    },
+    {
+      "finished": [
+        1,
+        1,
+        1
+      ],
+      "hosted": [
+        1,
+        0,
+        0
+      ],
+      "input": [
+        1,
+        1,
+        1
+      ]
+    }
+  ],
+  "non_authority": "no production edit, trusted replay, provider, nonce, fleet, queue, push, public note, protected instance, or submission",
+  "peak_owner": {
+    "boundaries": 2,
+    "chunk_width": 127,
+    "compare_window": 21,
+    "entry_carry_index": 106,
+    "entry_restore_dependency_count": 106,
+    "minimum_rounded_t_saving_if_q1268": 719,
+    "owned_carries": 126,
+    "q1268_strict_t_ceiling": 910671,
+    "replay_words": 512,
+    "tape": 335,
+    "total": 1267,
+    "walk_limbs": 292
+  },
+  "source_binding": {
+    "canonical_semantic_ops_sha256": "bd3612b1494a257234e8def20fb55a397f14246c1647e6c8c240080ef7e0ad37",
+    "commit": "67524171baaf568dc3dc606f38515745f70804ff",
+    "emitted_ops": 12593858,
+    "ops_sha256": "87371140be9e81a7b4a79b87b92cd0a8b0f13362bee5ecb23229807a8af6d05e",
+    "tree": "8202910d176fa1f3332ff961e6f3f789ca6a7ac2"
+  },
+  "top_window_ambiguity": [
+    {
+      "ambiguous_visible_keys": 8,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 2,
+          "window": 1
+        },
+        "right": {
+          "accumulator": 3,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 2,
+          "window": 1
+        }
+      },
+      "width": 2,
+      "window": 1
+    },
+    {
+      "ambiguous_visible_keys": 32,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 3,
+          "window": 1
+        },
+        "right": {
+          "accumulator": 7,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 3,
+          "window": 1
+        }
+      },
+      "width": 3,
+      "window": 1
+    },
+    {
+      "ambiguous_visible_keys": 16,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 3,
+          "window": 2
+        },
+        "right": {
+          "accumulator": 7,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 3,
+          "window": 2
+        }
+      },
+      "width": 3,
+      "window": 2
+    },
+    {
+      "ambiguous_visible_keys": 128,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 4,
+          "window": 1
+        },
+        "right": {
+          "accumulator": 15,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 4,
+          "window": 1
+        }
+      },
+      "width": 4,
+      "window": 1
+    },
+    {
+      "ambiguous_visible_keys": 64,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 4,
+          "window": 2
+        },
+        "right": {
+          "accumulator": 15,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 4,
+          "window": 2
+        }
+      },
+      "width": 4,
+      "window": 2
+    },
+    {
+      "ambiguous_visible_keys": 32,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 4,
+          "window": 3
+        },
+        "right": {
+          "accumulator": 15,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 4,
+          "window": 3
+        }
+      },
+      "width": 4,
+      "window": 3
+    },
+    {
+      "ambiguous_visible_keys": 512,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 5,
+          "window": 1
+        },
+        "right": {
+          "accumulator": 31,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 5,
+          "window": 1
+        }
+      },
+      "width": 5,
+      "window": 1
+    },
+    {
+      "ambiguous_visible_keys": 256,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 5,
+          "window": 2
+        },
+        "right": {
+          "accumulator": 31,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 5,
+          "window": 2
+        }
+      },
+      "width": 5,
+      "window": 2
+    },
+    {
+      "ambiguous_visible_keys": 128,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 5,
+          "window": 3
+        },
+        "right": {
+          "accumulator": 31,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 5,
+          "window": 3
+        }
+      },
+      "width": 5,
+      "window": 3
+    },
+    {
+      "ambiguous_visible_keys": 64,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 5,
+          "window": 4
+        },
+        "right": {
+          "accumulator": 31,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 5,
+          "window": 4
+        }
+      },
+      "width": 5,
+      "window": 4
+    },
+    {
+      "ambiguous_visible_keys": 2048,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 6,
+          "window": 1
+        },
+        "right": {
+          "accumulator": 63,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 6,
+          "window": 1
+        }
+      },
+      "width": 6,
+      "window": 1
+    },
+    {
+      "ambiguous_visible_keys": 1024,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 6,
+          "window": 2
+        },
+        "right": {
+          "accumulator": 63,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 6,
+          "window": 2
+        }
+      },
+      "width": 6,
+      "window": 2
+    },
+    {
+      "ambiguous_visible_keys": 512,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 6,
+          "window": 3
+        },
+        "right": {
+          "accumulator": 63,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 6,
+          "window": 3
+        }
+      },
+      "width": 6,
+      "window": 3
+    },
+    {
+      "ambiguous_visible_keys": 256,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 6,
+          "window": 4
+        },
+        "right": {
+          "accumulator": 63,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 6,
+          "window": 4
+        }
+      },
+      "width": 6,
+      "window": 4
+    },
+    {
+      "ambiguous_visible_keys": 128,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 6,
+          "window": 5
+        },
+        "right": {
+          "accumulator": 63,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 6,
+          "window": 5
+        }
+      },
+      "width": 6,
+      "window": 5
+    },
+    {
+      "ambiguous_visible_keys": 8192,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 7,
+          "window": 1
+        },
+        "right": {
+          "accumulator": 127,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 7,
+          "window": 1
+        }
+      },
+      "width": 7,
+      "window": 1
+    },
+    {
+      "ambiguous_visible_keys": 4096,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 7,
+          "window": 2
+        },
+        "right": {
+          "accumulator": 127,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 7,
+          "window": 2
+        }
+      },
+      "width": 7,
+      "window": 2
+    },
+    {
+      "ambiguous_visible_keys": 2048,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 7,
+          "window": 3
+        },
+        "right": {
+          "accumulator": 127,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 7,
+          "window": 3
+        }
+      },
+      "width": 7,
+      "window": 3
+    },
+    {
+      "ambiguous_visible_keys": 1024,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 7,
+          "window": 4
+        },
+        "right": {
+          "accumulator": 127,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 7,
+          "window": 4
+        }
+      },
+      "width": 7,
+      "window": 4
+    },
+    {
+      "ambiguous_visible_keys": 512,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 7,
+          "window": 5
+        },
+        "right": {
+          "accumulator": 127,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 7,
+          "window": 5
+        }
+      },
+      "width": 7,
+      "window": 5
+    },
+    {
+      "ambiguous_visible_keys": 256,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 7,
+          "window": 6
+        },
+        "right": {
+          "accumulator": 127,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 7,
+          "window": 6
+        }
+      },
+      "width": 7,
+      "window": 6
+    },
+    {
+      "ambiguous_visible_keys": 32768,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 8,
+          "window": 1
+        },
+        "right": {
+          "accumulator": 255,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 8,
+          "window": 1
+        }
+      },
+      "width": 8,
+      "window": 1
+    },
+    {
+      "ambiguous_visible_keys": 16384,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 8,
+          "window": 2
+        },
+        "right": {
+          "accumulator": 255,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 8,
+          "window": 2
+        }
+      },
+      "width": 8,
+      "window": 2
+    },
+    {
+      "ambiguous_visible_keys": 8192,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 8,
+          "window": 3
+        },
+        "right": {
+          "accumulator": 255,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 8,
+          "window": 3
+        }
+      },
+      "width": 8,
+      "window": 3
+    },
+    {
+      "ambiguous_visible_keys": 4096,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 8,
+          "window": 4
+        },
+        "right": {
+          "accumulator": 255,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 8,
+          "window": 4
+        }
+      },
+      "width": 8,
+      "window": 4
+    },
+    {
+      "ambiguous_visible_keys": 2048,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 8,
+          "window": 5
+        },
+        "right": {
+          "accumulator": 255,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 8,
+          "window": 5
+        }
+      },
+      "width": 8,
+      "window": 5
+    },
+    {
+      "ambiguous_visible_keys": 1024,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 8,
+          "window": 6
+        },
+        "right": {
+          "accumulator": 255,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 8,
+          "window": 6
+        }
+      },
+      "width": 8,
+      "window": 6
+    },
+    {
+      "ambiguous_visible_keys": 512,
+      "first_witness": {
+        "left": {
+          "accumulator": 0,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 0,
+          "entry_carry": 0,
+          "result": 1,
+          "width": 8,
+          "window": 7
+        },
+        "right": {
+          "accumulator": 255,
+          "addend": 0,
+          "carry_in": 1,
+          "carry_out": 1,
+          "entry_carry": 1,
+          "result": 0,
+          "width": 8,
+          "window": 7
+        }
+      },
+      "width": 8,
+      "window": 7
+    }
+  ],
+  "verdict": "HARD_NACK_ONE_ENTRY_CARRY_HOST"
+}

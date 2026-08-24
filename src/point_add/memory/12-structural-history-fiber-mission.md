@@ -341,6 +341,29 @@ capacity are not `HARD_NACK` evidence.
 - No Rust prototype, trusted replay, provider, nonce, fleet, queue, push,
   public note, protected-instance, or submission action was admitted.
 
+### Phase nine settlement — boundary carry/output host `HARD_NACK`
+
+- Evidence: `src/point_add/memory/26-boundary-carry-liveness-verdict.md`;
+  executable receipt
+  `src/point_add/memory/25-boundary-carry-liveness-receipt.json`.
+- The official zero-environment stream was rebuilt at 12,593,858 operations,
+  SHA-256 `87371140...d05e`, Q1267. Its exact owner equation is 335 tape +
+  512 replay words + 292 walk limbs + 126 owned carries + 2 boundaries.
+- The binding chunk is 127 bits; its 21-bit truncated repair needs entry carry
+  `c106`. Fixed-width chunk outputs are non-injective in their input carry, so
+  an output host cannot erase it.
+- The exact source-host MAJ/UMA cell restores only with its predecessor carry.
+  Restoring hosted `c106` therefore needs `c105..c0`, or recomputation of the
+  omitted 106-bit prefix. That is a 105-wire co-resident prefix or a prefix
+  replay, not a one-wire liveness cut.
+- Q1268 permits T910671, requiring at least 719 rounded T saved, but a lone
+  extra entry wire still has the same unresolved restore dependency.
+- Reopen only for a named binder donor with a non-recursive restore proof, an
+  exact early measurement/feed-forward schedule, a recoverable semantic map,
+  or a fully priced multi-pebble architecture.
+- No production source, trusted replay, provider, nonce, fleet, queue, push,
+  public note, protected-instance, or submission action was admitted.
+
 ## Anti-rot ban list
 
 The following do not advance structural cadence:
