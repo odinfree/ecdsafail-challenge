@@ -16,6 +16,7 @@ require_sha() {
 
 [[ ! -e bootstrap-logs ]] || fail prior_bootstrap_logs
 mkdir bootstrap-logs
+command -v zstd >/dev/null || fail zstd_missing
 require_sha 5f39b385c693a3f9179d7ba6d674c13676c0bb489bf2b07e208048b0e6ed561c ops.bin
 require_sha dfa7cc860e24a4785ae3ec4da5451e7afaa9685f6ae2d9fe77f23cb185f0fa6a src/ppgpu.cu
 require_sha 4423f04bb6810993bbe500b3adc147d0a088abb0cb78fc7bf93b973ddef49dc5 src/pp_model.h
