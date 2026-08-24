@@ -28,6 +28,7 @@ mod m60_dead_t10;
 mod d2_deep_strip;
 mod deep_strip_keys;
 mod dirtyscan;
+pub(crate) mod smallwidth_pareto;
 
 thread_local! {
     pub(crate) static CUR_DIVSTEP: std::cell::Cell<u32> = std::cell::Cell::new(0xffff_ffff);
