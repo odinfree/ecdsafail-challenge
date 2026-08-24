@@ -76,7 +76,7 @@ class QuotientEuclidUnitActionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             action.gamma_decode("0")
         with self.assertRaises(ValueError):
-            action.gamma_decode("101")
+            action.gamma_decode("001")
 
 
 if __name__ == "__main__":
