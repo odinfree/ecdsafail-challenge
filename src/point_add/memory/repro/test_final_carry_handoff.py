@@ -47,7 +47,7 @@ class SourceInventoryTests(unittest.TestCase):
         )
 
 
-class ReducedMiterTests(unittest.TestCase):
+class PhaseWitnessTests(unittest.TestCase):
     def test_phase_blind_candidate_is_rejected(self) -> None:
         mismatch = handoff.first_phase_blind_mismatch(range(5, 10))
         self.assertEqual(mismatch["site"], "divide")
@@ -73,32 +73,6 @@ class ReducedMiterTests(unittest.TestCase):
         self.assertEqual(witness["overflow"], 1)
         self.assertEqual(witness["flag_repair"], 0)
         self.assertEqual(witness["residual_phase_coefficient"], 1)
-
-    def test_baseline_reduced_miter_all_arms_and_inverse_cleanup(self) -> None:
-        report = handoff.run_reduced_miter(range(5, 10))
-        self.assertEqual(report["widths"], [5, 6, 7, 8, 9])
-        self.assertEqual(report["value_mismatches"], 0)
-        self.assertEqual(report["selector_cleanup_mismatches"], 0)
-        self.assertEqual(report["fold_cleanup_mismatches"], 0)
-        self.assertEqual(report["inverse_mismatches"], 0)
-        self.assertEqual(report["uncovered_sign_arms"], [])
-        self.assertEqual(report["uncovered_measurement_arms"], [])
-        self.assertGreater(report["basis_cases"], 0)
-        self.assertGreater(report["phase_coefficients_checked"], report["basis_cases"])
-
-    def test_exact_local_retained_chain_is_phase_clean_but_q_bounded(self) -> None:
-        report = handoff.run_exact_local_chain_miter(range(5, 10))
-
-        self.assertEqual(report["widths"], [5, 6, 7, 8, 9])
-        self.assertEqual(report["value_mismatches"], 0)
-        self.assertEqual(report["phase_mismatches"], 0)
-        self.assertEqual(report["ancilla_mismatches"], 0)
-        self.assertEqual(report["inverse_mismatches"], 0)
-        self.assertEqual(report["uncovered_sign_arms"], [])
-        self.assertEqual(report["uncovered_measurement_arms"], [])
-        self.assertEqual(report["candidate_final_phase"], 0)
-        self.assertGreater(report["carry_coefficients_checked"], report["basis_cases"])
-
 
 class PublicationRankTests(unittest.TestCase):
     def test_divide_selector_quotient_loses_overflow_on_both_sign_arms(self) -> None:
@@ -208,55 +182,56 @@ class NonlinearLowerBoundTests(unittest.TestCase):
         self.assertEqual(report["multiply"]["fold_width"], 53)
         self.assertEqual(report["true_cases"], 1)
 
-    def test_top_window_comparator_restricts_to_and_n(self) -> None:
+    def test_top_window_comparator_and_restriction_is_observation_only(self) -> None:
         report = handoff.comparator_and_restriction_report(range(5, 10), 22)
 
         self.assertEqual(report["exhaustive_widths"], [5, 6, 7, 8, 9])
         self.assertEqual(report["restriction_mismatches"], 0)
         self.assertEqual(report["exact_width"], 22)
         self.assertEqual(report["exact_and_arity"], 22)
-        self.assertEqual(report["multiplicative_complexity_lower_bound"], 21)
         self.assertEqual(report["source_comparator_ccx"], 21)
-        self.assertTrue(report["source_comparator_is_optimal_in_xor_and_model"])
+        self.assertNotIn("multiplicative_complexity_lower_bound", report)
+        self.assertNotIn("source_comparator_is_optimal_in_xor_and_model", report)
+        self.assertFalse(report["is_phase_cost_lower_bound"])
 
-    def test_partial_suffix_needs_237_predecessors_to_save_three_ccx(self) -> None:
-        below = handoff.retained_suffix_cost_bound(236, total_width=256)
-        threshold = handoff.retained_suffix_cost_bound(237, total_width=256)
-
-        self.assertEqual(below["exact_recompute_ccx_lower_bound"], 19)
-        self.assertEqual(below["saved_ccx_upper_bound"], 2)
-        self.assertEqual(below["all_cells_gross_average_t_upper_bound"], 1_383.0)
-        self.assertFalse(below["can_reach_target_before_added_cost"])
-
-        self.assertEqual(threshold["exact_recompute_ccx_lower_bound"], 18)
-        self.assertEqual(threshold["saved_ccx_upper_bound"], 3)
-        self.assertEqual(threshold["all_cells_gross_average_t_upper_bound"], 2_074.5)
-        self.assertTrue(threshold["can_reach_target_before_added_cost"])
-
-    def test_even_perfect_fold_host_reuse_cannot_fit_threshold_suffix(self) -> None:
-        report = handoff.perfect_dirty_host_q_bound(
-            retained_predecessors=237,
-            fold_entry_min={"divide": 1_142, "multiply": 1_139},
+    def test_retained_chunk_boundary_refutes_global_237_rank_q_bound(self) -> None:
+        evidence = json.loads(EVIDENCE.read_text())
+        report = handoff.boundary_assisted_host_relaxation(
+            evidence["static_census_records"],
+            saved_ccx_per_cell=3,
             peak_limit=1_266,
         )
 
-        self.assertEqual(report["divide"]["optimistic_peak"], 1_379)
-        self.assertEqual(report["multiply"]["optimistic_peak"], 1_376)
-        self.assertFalse(report["divide"]["fits"])
-        self.assertFalse(report["multiply"]["fits"])
-        self.assertEqual(report["assumption"], "all fold carry hosts replaced at zero cost")
+        self.assertEqual(report["recompute_ccx_budget"], 18)
+        self.assertEqual(report["fitting_cells"], 1_383)
+        self.assertEqual(report["site_counts"], {"divide": 692, "multiply": 691})
+        self.assertEqual(report["optimistic_peak_min"], 1_221)
+        self.assertEqual(report["optimistic_peak_max"], 1_252)
+        self.assertEqual(report["gross_average_t_if_synthesized"], 2_074.5)
+        self.assertTrue(report["requires_dirty_host_conjugation"])
+        self.assertFalse(report["is_construction_or_admission"])
 
 
 class TerminalEvidenceTests(unittest.TestCase):
-    def test_terminal_packet_is_bound_complete_and_hash_stable(self) -> None:
+    def test_refuted_terminal_claims_are_withdrawn(self) -> None:
         raw = EVIDENCE.read_bytes()
         evidence = json.loads(raw)
 
         self.assertEqual(
             hashlib.sha256(raw).hexdigest(),
-            "5862c7dd7e42fa76cd34f9296990989aa4a1d4741519e0078315e4e47be49cf7",
+            "06c9dedc8fd199fecffe1858c70e92f19fb9093afb449c69dcd4145997d96d75",
         )
-        self.assertEqual(evidence["verdict"], "HARD_NACK_CARRY_HANDOFF_FAMILY")
+        self.assertEqual(evidence["verdict"], "ALIVE_DIRTY_HOST_CONJUGATION_GAP")
+        self.assertFalse(evidence["admission"])
+        self.assertNotIn("reduced_baseline_miter", evidence)
+        self.assertNotIn("reduced_exact_local_chain_miter", evidence)
+        self.assertNotIn("suffix_cost_bounds", evidence)
+        self.assertNotIn("perfect_dirty_host_relaxations", evidence)
+        self.assertNotIn("comparator_lower_bound", evidence)
+        self.assertEqual(
+            evidence["review_correction"]["refuted_commit"],
+            "e885a164fa92b3c33ae5da7fb89327d8b1700e09",
+        )
         self.assertEqual(evidence["receipts"]["baseline_peak_q"], 1_266)
         self.assertEqual(
             evidence["receipts"]["ops_sha256"],
@@ -278,15 +253,13 @@ class TerminalEvidenceTests(unittest.TestCase):
             evidence["static_census"]["literal_retention"]["global_literal_peak_min"],
             1_288,
         )
-        self.assertEqual(
-            evidence["suffix_cost_bounds"]["236"]["saved_ccx_upper_bound"], 2
-        )
-        self.assertEqual(
-            evidence["suffix_cost_bounds"]["237"]["saved_ccx_upper_bound"], 3
-        )
-        self.assertTrue(
-            all(route["state"] == "KILLED" for route in evidence["route_registry"].values())
-        )
+        escape = evidence["boundary_assisted_host_relaxation"]
+        self.assertEqual(escape["fitting_cells"], 1_383)
+        self.assertEqual(escape["optimistic_peak_min"], 1_221)
+        self.assertEqual(escape["optimistic_peak_max"], 1_252)
+        self.assertEqual(evidence["route_registry"]["R1"]["state"], "ALIVE_WITH_GAP")
+        self.assertEqual(evidence["route_registry"]["R2"]["state"], "ALIVE_WITH_GAP")
+        self.assertEqual(evidence["route_registry"]["R3"]["state"], "REFUTED")
 
 
 

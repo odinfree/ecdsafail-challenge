@@ -1,4 +1,5 @@
 {
+  "admission": false,
   "binding": {
     "baseline_cleanup": {
       "divide": {
@@ -66,24 +67,21 @@
     "three_ccx_gross_average_t": 2074.5,
     "total_cells": 1383
   },
-  "comparator_lower_bound": {
-    "exact_and_arity": 22,
-    "exact_width": 22,
-    "exhaustive_widths": [
-      5,
-      6,
-      7,
-      8,
-      9
-    ],
-    "multiplicative_complexity_lower_bound": 21,
-    "proof_invariant": "a binary AND can merge at most two independent factor components; forming one monomial containing n inputs needs at least n-1 ANDs",
-    "restriction": "u0=0,v0=x0; ui=1 XOR xi,vi=0 for i>=1; therefore [u<v]=AND(x0..x[n-1])",
-    "restriction_cases": 992,
-    "restriction_mismatches": 0,
-    "schema": "final-carry-handoff-comparator-lower-bound-v1",
-    "source_comparator_ccx": 21,
-    "source_comparator_is_optimal_in_xor_and_model": true
+  "boundary_assisted_host_relaxation": {
+    "fitting_cells": 1383,
+    "gross_average_t_if_synthesized": 2074.5,
+    "is_construction_or_admission": false,
+    "optimistic_peak_max": 1252,
+    "optimistic_peak_min": 1221,
+    "peak_limit": 1266,
+    "recompute_ccx_budget": 18,
+    "requires_dirty_host_conjugation": true,
+    "saved_ccx_per_cell": 3,
+    "schema": "final-carry-handoff-boundary-host-relaxation-v1",
+    "site_counts": {
+      "divide": 692,
+      "multiply": 691
+    }
   },
   "economics": {
     "all_site_minimum_saved_ccx_per_cell": 3,
@@ -305,40 +303,7 @@
     },
     "window": 22
   },
-  "perfect_dirty_host_relaxations": {
-    "all_sites_three_saved_ccx": {
-      "assumption": "all fold carry hosts replaced at zero cost",
-      "divide": {
-        "fits": false,
-        "fold_entry_min": 1142,
-        "optimistic_peak": 1379
-      },
-      "multiply": {
-        "fits": false,
-        "fold_entry_min": 1139,
-        "optimistic_peak": 1376
-      },
-      "peak_limit": 1266,
-      "retained_predecessors": 237,
-      "schema": "final-carry-handoff-perfect-dirty-host-q-v1"
-    },
-    "single_site_five_saved_ccx": {
-      "assumption": "all fold carry hosts replaced at zero cost",
-      "divide": {
-        "fits": false,
-        "fold_entry_min": 1142,
-        "optimistic_peak": 1381
-      },
-      "multiply": {
-        "fits": false,
-        "fold_entry_min": 1139,
-        "optimistic_peak": 1378
-      },
-      "peak_limit": 1266,
-      "retained_predecessors": 239,
-      "schema": "final-carry-handoff-perfect-dirty-host-q-v1"
-    }
-  },
+  "next_gate": "independent gate-level forward/inverse/phase oracle, then an actual dirty-host Rust construction with exact Q/T census",
   "publication_rank": {
     "divide": {
       "ambiguity": "parity=0 selectors have rank zero in overflow",
@@ -463,63 +428,38 @@
     "ops_bytes": 45725252,
     "ops_sha256": "a4995dc4be4b7b314853d379941141b3b5753110412c07e8a2bc5d097d218ed1"
   },
-  "reduced_baseline_miter": {
-    "basis_cases": 1040532,
-    "fold_cleanup_mismatches": 0,
-    "geometry": "low width n-2; disjoint top-2 flag repair",
-    "input_range": "all canonical source,target in [0, 2^n-f_n)",
-    "inverse_mismatches": 0,
-    "measurement_arm_method": "coefficient-vector equality over independent HMR outcome bits",
-    "phase_coefficients_checked": 15868400,
-    "schema": "final-carry-handoff-reduced-miter-v1",
-    "selector_cleanup_mismatches": 0,
-    "uncovered_measurement_arms": [],
-    "uncovered_sign_arms": [],
-    "value_mismatches": 0,
-    "widths": [
-      5,
-      6,
-      7,
-      8,
-      9
-    ]
-  },
-  "reduced_exact_local_chain_miter": {
-    "ancilla_mismatches": 0,
-    "basis_cases": 1040532,
-    "candidate_final_phase": 0,
-    "carry_coefficients_checked": 8974732,
-    "inverse_mismatches": 0,
-    "measurement_arm_method": "coefficient equality for each independent retained-carry HMR bit",
-    "phase_mismatches": 0,
-    "schema": "final-carry-handoff-exact-local-chain-miter-v1",
-    "transfer_obligation": "the same majority recurrence has 256 positions at exact source; the separate static census charges its retained lifetime",
-    "uncovered_measurement_arms": [],
-    "uncovered_sign_arms": [],
-    "value_mismatches": 0,
-    "widths": [
-      5,
-      6,
-      7,
-      8,
-      9
+  "review_correction": {
+    "refuted_commit": "e885a164fa92b3c33ae5da7fb89327d8b1700e09",
+    "sustained_findings": [
+      "the reduced and exact-local-chain diagnostics reused the same arithmetic recurrence and did not execute an independent forward/inverse candidate circuit",
+      "the global k=237 suffix bound omitted the already computed incoming boundary of the final chunk",
+      "the 21-CCX AND value bound was not a phase-circuit lower bound; a terminal CCZ/HMR construction is cheaper",
+      "the selector collisions cover only the current four publication wires, not every reversible selector code"
+    ],
+    "withdrawn_claims": [
+      "phase/value/ancilla-clean retained-chain construction",
+      "Q1376-or-higher universal retained-suffix lower bound",
+      "21-CCX phase optimality",
+      "whole-family selector-publication impossibility",
+      "HARD_NACK_CARRY_HANDOFF_FAMILY"
     ]
   },
   "route_registry": {
     "R1": {
-      "falsifier": "exact-local retained-chain miter is phase/value clean, but literal retention fits 0/1383 cells (minimum Q1288); the 237-rank economic threshold reaches at least Q1376 even when every fold host is replaced at zero cost",
-      "state": "KILLED"
+      "gap": "synthesize and independently verify dirty retained boundary/top-suffix conjugation into fold carry hosts",
+      "state": "ALIVE_WITH_GAP"
     },
     "R2": {
-      "falsifier": "divide parity-zero publication has rank zero in add_out on both signs with exact secp witnesses; multiply preserves one complementary doubled/add carrier rank after q cleanup",
-      "state": "KILLED"
+      "gap": "search broader reversible selector codes with an independent executable oracle",
+      "observation": "the current four-wire selector publication collides on divide parity-zero arms and leaves one multiply rank",
+      "state": "ALIVE_WITH_GAP"
     },
     "R3": {
-      "falsifier": "the literal 22-bit repair restricts exactly to AND22 at both source sites, so its 21-CCX ripple is multiplicatively optimal; fewer than 237 retained predecessors can save at most two CCX/cell under exact-local cleanup",
-      "state": "KILLED"
+      "falsifier": "retaining the incoming final-chunk boundary reduces the optimistic threshold peak to Q1221..Q1252 on all 1383 cells, and the prior AND count was not a phase lower bound",
+      "state": "REFUTED"
     }
   },
-  "schema": "final-carry-handoff-terminal-evidence-v1",
+  "schema": "final-carry-handoff-refute-correction-v2",
   "static_census": {
     "by_site": {
       "divide": {
@@ -18611,96 +18551,5 @@
       "site_index": 690
     }
   ],
-  "suffix_cost_bounds": {
-    "0": {
-      "all_cells_gross_average_t_upper_bound": -161811.0,
-      "baseline_flag_ccx": 21,
-      "can_reach_target_before_added_cost": false,
-      "exact_recompute_ccx_lower_bound": 255,
-      "remaining_boundary_width": 256,
-      "retained_predecessors": 0,
-      "saved_ccx_upper_bound": -234,
-      "schema": "final-carry-handoff-retained-suffix-cost-v1",
-      "total_width": 256
-    },
-    "128": {
-      "all_cells_gross_average_t_upper_bound": -73299.0,
-      "baseline_flag_ccx": 21,
-      "can_reach_target_before_added_cost": false,
-      "exact_recompute_ccx_lower_bound": 127,
-      "remaining_boundary_width": 128,
-      "retained_predecessors": 128,
-      "saved_ccx_upper_bound": -106,
-      "schema": "final-carry-handoff-retained-suffix-cost-v1",
-      "total_width": 256
-    },
-    "234": {
-      "all_cells_gross_average_t_upper_bound": 0.0,
-      "baseline_flag_ccx": 21,
-      "can_reach_target_before_added_cost": false,
-      "exact_recompute_ccx_lower_bound": 21,
-      "remaining_boundary_width": 22,
-      "retained_predecessors": 234,
-      "saved_ccx_upper_bound": 0,
-      "schema": "final-carry-handoff-retained-suffix-cost-v1",
-      "total_width": 256
-    },
-    "235": {
-      "all_cells_gross_average_t_upper_bound": 691.5,
-      "baseline_flag_ccx": 21,
-      "can_reach_target_before_added_cost": false,
-      "exact_recompute_ccx_lower_bound": 20,
-      "remaining_boundary_width": 21,
-      "retained_predecessors": 235,
-      "saved_ccx_upper_bound": 1,
-      "schema": "final-carry-handoff-retained-suffix-cost-v1",
-      "total_width": 256
-    },
-    "236": {
-      "all_cells_gross_average_t_upper_bound": 1383.0,
-      "baseline_flag_ccx": 21,
-      "can_reach_target_before_added_cost": false,
-      "exact_recompute_ccx_lower_bound": 19,
-      "remaining_boundary_width": 20,
-      "retained_predecessors": 236,
-      "saved_ccx_upper_bound": 2,
-      "schema": "final-carry-handoff-retained-suffix-cost-v1",
-      "total_width": 256
-    },
-    "237": {
-      "all_cells_gross_average_t_upper_bound": 2074.5,
-      "baseline_flag_ccx": 21,
-      "can_reach_target_before_added_cost": true,
-      "exact_recompute_ccx_lower_bound": 18,
-      "remaining_boundary_width": 19,
-      "retained_predecessors": 237,
-      "saved_ccx_upper_bound": 3,
-      "schema": "final-carry-handoff-retained-suffix-cost-v1",
-      "total_width": 256
-    },
-    "239": {
-      "all_cells_gross_average_t_upper_bound": 3457.5,
-      "baseline_flag_ccx": 21,
-      "can_reach_target_before_added_cost": true,
-      "exact_recompute_ccx_lower_bound": 16,
-      "remaining_boundary_width": 17,
-      "retained_predecessors": 239,
-      "saved_ccx_upper_bound": 5,
-      "schema": "final-carry-handoff-retained-suffix-cost-v1",
-      "total_width": 256
-    },
-    "51": {
-      "all_cells_gross_average_t_upper_bound": -126544.5,
-      "baseline_flag_ccx": 21,
-      "can_reach_target_before_added_cost": false,
-      "exact_recompute_ccx_lower_bound": 204,
-      "remaining_boundary_width": 205,
-      "retained_predecessors": 51,
-      "saved_ccx_upper_bound": -183,
-      "schema": "final-carry-handoff-retained-suffix-cost-v1",
-      "total_width": 256
-    }
-  },
-  "terminal_reason": "Every permitted route crosses one of two checked walls: below the retained-rank threshold the exact phase predicate cannot save the minimum nonlinear cost, while at or above it the optimistic peak exceeds Q1266 before any dirty-host conversion cost is charged.",
-  "verdict": "HARD_NACK_CARRY_HANDOFF_FAMILY"
+  "verdict": "ALIVE_DIRTY_HOST_CONJUGATION_GAP"
 }

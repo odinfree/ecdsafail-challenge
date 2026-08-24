@@ -432,6 +432,11 @@ def divide_parity_zero_exact_witness() -> dict[str, Any]:
 
 
 def run_reduced_miter(widths: range) -> dict[str, Any]:
+    """Withdrawn: this model has no independent source/candidate oracle."""
+
+    raise RuntimeError(
+        "withdrawn after REFUTE: shared arithmetic cannot certify a miter"
+    )
     widths_list = list(widths)
     basis_cases = 0
     phase_checked = 0
@@ -505,15 +510,17 @@ def run_reduced_miter(widths: range) -> dict[str, Any]:
 
 
 def run_exact_local_chain_miter(widths: range) -> dict[str, Any]:
-    """Exhaust the constructive retained-chain exact-HMR candidate.
+    """Withdrawn: this never executed or inverted a candidate circuit.
 
-    The candidate retains each carry predecessor until the selected fold has
-    completed, then measurement-uncomputes the carry recurrence from top to
-    bottom.  Every independent HMR arm is represented by its Boolean residual
-    coefficient ``observed_carry XOR exact_majority``.  All coefficients must
-    vanish; this is stronger than reproducing the source's truncated final
-    repair residual.
+    The former implementation replayed the same carry recurrence used to
+    produce its observations and then set the reported final phase to a
+    literal zero.  It is retained temporarily only so the correction commit
+    shows exactly which API was revoked; no evidence generator calls it.
     """
+
+    raise RuntimeError(
+        "withdrawn after REFUTE: no independent gate-level candidate oracle"
+    )
 
     widths_list = list(widths)
     basis_cases = 0
@@ -1068,13 +1075,13 @@ def _comparator_and_restriction(bits: int, width: int) -> tuple[int, int, int]:
 def comparator_and_restriction_report(
     exhaustive_widths: range, exact_width: int
 ) -> dict[str, Any]:
-    """Return a checked AND restriction and its XOR/AND gate lower bound.
+    """Return only the checked AND restriction.
 
-    AND of ``n`` independent inputs has multiplicative complexity ``n-1``:
-    starting from n singleton factors, one binary multiplication can join at
-    most two existing factor components.  Since the source comparator restricts
-    to AND_n, no XOR/NOT/AND implementation can use fewer than n-1 nonlinear
-    gates.  The source's n-1 CCX ripple therefore meets this lower bound.
+    The former packet incorrectly promoted an XOR/AND value-computation bound
+    to a phase-circuit cost bound.  A phase implementation may use a terminal
+    CCZ plus measurement uncompute and can beat the claimed ``n-1`` Toffoli
+    count.  This report therefore preserves the source-valid restriction as an
+    observation while making no optimality or cost-lower-bound claim.
     """
 
     widths = list(exhaustive_widths)
@@ -1087,9 +1094,8 @@ def comparator_and_restriction_report(
             cases += 1
             mismatches += int(observed != expected)
 
-    lower_bound = exact_width - 1
     return {
-        "schema": "final-carry-handoff-comparator-lower-bound-v1",
+        "schema": "final-carry-handoff-comparator-and-observation-v2",
         "exhaustive_widths": widths,
         "restriction_cases": cases,
         "restriction_mismatches": mismatches,
@@ -1099,14 +1105,11 @@ def comparator_and_restriction_report(
         ),
         "exact_width": exact_width,
         "exact_and_arity": exact_width,
-        "multiplicative_complexity_lower_bound": lower_bound,
         "source_comparator_ccx": FLAG_COMPARE_CCX_PER_CELL,
-        "source_comparator_is_optimal_in_xor_and_model": (
-            lower_bound == FLAG_COMPARE_CCX_PER_CELL
-        ),
-        "proof_invariant": (
-            "a binary AND can merge at most two independent factor components; "
-            "forming one monomial containing n inputs needs at least n-1 ANDs"
+        "is_phase_cost_lower_bound": False,
+        "known_escape": (
+            "phase AND_n may use n-3 prefix CCX plus one terminal CCZ and "
+            "measurement uncompute; exact emitted-T accounting is required"
         ),
     }
 
@@ -1298,6 +1301,184 @@ def perfect_dirty_host_q_bound(
     return report
 
 
+def boundary_assisted_host_relaxation(
+    records: list[dict[str, Any]],
+    saved_ccx_per_cell: int,
+    peak_limit: int,
+) -> dict[str, Any]:
+    """Expose the retained final-chunk boundary escape missed by the old bound.
+
+    The incoming carry of the final chunk has already been computed by the
+    source adder.  Retaining that one boundary changes the remaining exact
+    cleanup problem from a predicate over all 256 positions to a predicate over
+    only the unretained prefix of the final chunk.  With ``b`` nonlinear gates
+    available, retaining ``w-b`` top predecessor carries plus the incoming
+    boundary is therefore an optimistic target for a final chunk of width
+    ``w``.
+
+    This calculation deliberately grants zero-cost replacement of every fold
+    carry host.  It is a counterexample to the former Q lower bound, not a
+    reversible construction: the dirty retained state still has to be
+    conjugated into those clean fold hosts and restored with phase and ancillas
+    clean.
+    """
+
+    if not 0 <= saved_ccx_per_cell <= FLAG_COMPARE_CCX_PER_CELL:
+        raise ValueError("saved CCX count is outside the source comparator")
+    recompute_budget = FLAG_COMPARE_CCX_PER_CELL - saved_ccx_per_cell
+    rows: list[dict[str, Any]] = []
+    fitting_cells = 0
+    sites: collections.Counter[str] = collections.Counter()
+    for record in records:
+        has_boundary = bool(
+            record.get(
+                "final_chunk_has_boundary",
+                int(record.get("chunk_count", 1)) > 1,
+            )
+        )
+        if not has_boundary:
+            raise ValueError("boundary-assisted relaxation requires a final chunk boundary")
+        width = int(record["final_chunk_width"])
+        retained_top = max(0, width - recompute_budget)
+        retained_extra = retained_top + 1
+        optimistic_peak = int(record["fold_entry_active"]) + retained_extra
+        fits = optimistic_peak <= peak_limit
+        fitting_cells += int(fits)
+        if fits:
+            sites[str(record["site"])] += 1
+        rows.append(
+            {
+                "sequence": int(record["sequence"]),
+                "site": str(record["site"]),
+                "final_chunk_width": width,
+                "retained_top_predecessors": retained_top,
+                "retained_incoming_boundary": 1,
+                "retained_extra_wires": retained_extra,
+                "fold_entry_active": int(record["fold_entry_active"]),
+                "optimistic_peak": optimistic_peak,
+                "fits": fits,
+            }
+        )
+
+    return {
+        "schema": "final-carry-handoff-boundary-host-relaxation-v1",
+        "saved_ccx_per_cell": saved_ccx_per_cell,
+        "recompute_ccx_budget": recompute_budget,
+        "peak_limit": peak_limit,
+        "records": rows,
+        "fitting_cells": fitting_cells,
+        "site_counts": dict(sorted(sites.items())),
+        "optimistic_peak_min": min(row["optimistic_peak"] for row in rows),
+        "optimistic_peak_max": max(row["optimistic_peak"] for row in rows),
+        "gross_average_t_if_synthesized": (
+            fitting_cells
+            * saved_ccx_per_cell
+            * (0.5**FLAG_COMPARE_CONDITION_DEPTH)
+        ),
+        "requires_dirty_host_conjugation": True,
+        "is_construction_or_admission": False,
+    }
+
+
+def correct_refuted_terminal_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
+    """Withdraw the refuted e885 terminal claims deterministically.
+
+    This is intentionally a nonterminal correction.  It preserves immutable
+    source/census receipts while removing the shared-oracle miter and the
+    invalid 256-wide suffix bound.  The replacement boundary relaxation only
+    identifies the live synthesis gap; it is neither a construction nor an
+    admission claim.
+    """
+
+    corrected = dict(evidence)
+    for key in (
+        "reduced_baseline_miter",
+        "reduced_exact_local_chain_miter",
+        "suffix_cost_bounds",
+        "perfect_dirty_host_relaxations",
+        "comparator_lower_bound",
+        "terminal_reason",
+    ):
+        corrected.pop(key, None)
+
+    boundary = boundary_assisted_host_relaxation(
+        corrected["static_census_records"],
+        saved_ccx_per_cell=3,
+        peak_limit=1_266,
+    )
+    boundary.pop("records")
+    corrected.update(
+        {
+            "schema": "final-carry-handoff-refute-correction-v2",
+            "verdict": "ALIVE_DIRTY_HOST_CONJUGATION_GAP",
+            "admission": False,
+            "review_correction": {
+                "refuted_commit": "e885a164fa92b3c33ae5da7fb89327d8b1700e09",
+                "sustained_findings": [
+                    (
+                        "the reduced and exact-local-chain diagnostics reused "
+                        "the same arithmetic recurrence and did not execute an "
+                        "independent forward/inverse candidate circuit"
+                    ),
+                    (
+                        "the global k=237 suffix bound omitted the already "
+                        "computed incoming boundary of the final chunk"
+                    ),
+                    (
+                        "the 21-CCX AND value bound was not a phase-circuit "
+                        "lower bound; a terminal CCZ/HMR construction is cheaper"
+                    ),
+                    (
+                        "the selector collisions cover only the current four "
+                        "publication wires, not every reversible selector code"
+                    ),
+                ],
+                "withdrawn_claims": [
+                    "phase/value/ancilla-clean retained-chain construction",
+                    "Q1376-or-higher universal retained-suffix lower bound",
+                    "21-CCX phase optimality",
+                    "whole-family selector-publication impossibility",
+                    "HARD_NACK_CARRY_HANDOFF_FAMILY",
+                ],
+            },
+            "boundary_assisted_host_relaxation": boundary,
+            "route_registry": {
+                "R1": {
+                    "state": "ALIVE_WITH_GAP",
+                    "gap": (
+                        "synthesize and independently verify dirty retained "
+                        "boundary/top-suffix conjugation into fold carry hosts"
+                    ),
+                },
+                "R2": {
+                    "state": "ALIVE_WITH_GAP",
+                    "observation": (
+                        "the current four-wire selector publication collides on "
+                        "divide parity-zero arms and leaves one multiply rank"
+                    ),
+                    "gap": (
+                        "search broader reversible selector codes with an "
+                        "independent executable oracle"
+                    ),
+                },
+                "R3": {
+                    "state": "REFUTED",
+                    "falsifier": (
+                        "retaining the incoming final-chunk boundary reduces the "
+                        "optimistic threshold peak to Q1221..Q1252 on all 1383 "
+                        "cells, and the prior AND count was not a phase lower bound"
+                    ),
+                },
+            },
+            "next_gate": (
+                "independent gate-level forward/inverse/phase oracle, then an "
+                "actual dirty-host Rust construction with exact Q/T census"
+            ),
+        }
+    )
+    return corrected
+
+
 def _file_sha256(path: pathlib.Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -1313,7 +1494,7 @@ def build_terminal_evidence(
     b0_log: pathlib.Path,
     ops_path: pathlib.Path,
 ) -> dict[str, Any]:
-    """Assemble the deterministic three-route terminal evidence packet."""
+    """Assemble the deterministic, nonterminal post-REFUTE evidence packet."""
 
     census_text = census_log.read_text()
     records = parse_static_census(census_text)
@@ -1323,11 +1504,6 @@ def build_terminal_evidence(
         raise RuntimeError(
             f"static census count mismatch: {census['site_counts']} != {expected_counts}"
         )
-    fold_entry_min = {
-        site: census["by_site"][site]["fold_entry_min"]
-        for site in ("divide", "multiply")
-    }
-
     b0_text = b0_log.read_text()
     b0_match = re.search(
         r"B0_CENSUS_BEGIN best_active=(\d+) best_ops=(\d+) "
@@ -1358,16 +1534,13 @@ def build_terminal_evidence(
             saved += 1
         site_only_min_saved[site] = saved
 
-    exact_chain = run_exact_local_chain_miter(range(5, 10))
-    reduced = run_reduced_miter(range(5, 10))
     publication = analyze_publication_rank()
     multiply_transfer = exact_multiply_transfer_report()
-    comparator_bound = comparator_and_restriction_report(range(5, 10), 22)
     exact_embedding = exact_secp_and_embedding_report(22)
 
-    return {
-        "schema": "final-carry-handoff-terminal-evidence-v1",
-        "verdict": "HARD_NACK_CARRY_HANDOFF_FAMILY",
+    evidence = {
+        "schema": "final-carry-handoff-refute-correction-v2",
+        "verdict": "ALIVE_DIRTY_HOST_CONJUGATION_GAP",
         "binding": build_inventory(repo),
         "receipts": {
             "census_command": (
@@ -1398,11 +1571,8 @@ def build_terminal_evidence(
                 "ops SHA equals the exact-source reference artifact"
             ),
         },
-        "reduced_baseline_miter": reduced,
-        "reduced_exact_local_chain_miter": exact_chain,
         "publication_rank": publication,
         "exact_multiply_transfer": multiply_transfer,
-        "comparator_lower_bound": comparator_bound,
         "exact_secp_and_embedding": exact_embedding,
         "static_census": census,
         "static_census_records": [
@@ -1421,18 +1591,6 @@ def build_terminal_evidence(
             }
             for row in records
         ],
-        "suffix_cost_bounds": {
-            str(k): retained_suffix_cost_bound(k, total_width=256)
-            for k in (0, 51, 128, 234, 235, 236, 237, 239)
-        },
-        "perfect_dirty_host_relaxations": {
-            "all_sites_three_saved_ccx": perfect_dirty_host_q_bound(
-                237, fold_entry_min, 1_266
-            ),
-            "single_site_five_saved_ccx": perfect_dirty_host_q_bound(
-                239, fold_entry_min, 1_266
-            ),
-        },
         "economics": {
             "total_cells": total_cells,
             "baseline_final_repair_average_t": (
@@ -1455,41 +1613,8 @@ def build_terminal_evidence(
             },
             "target_net_average_t": TARGET_NET_AVERAGE_T,
         },
-        "route_registry": {
-            "R1": {
-                "state": "KILLED",
-                "falsifier": (
-                    "exact-local retained-chain miter is phase/value clean, but "
-                    "literal retention fits 0/1383 cells (minimum Q1288); the "
-                    "237-rank economic threshold reaches at least Q1376 even "
-                    "when every fold host is replaced at zero cost"
-                ),
-            },
-            "R2": {
-                "state": "KILLED",
-                "falsifier": (
-                    "divide parity-zero publication has rank zero in add_out on "
-                    "both signs with exact secp witnesses; multiply preserves "
-                    "one complementary doubled/add carrier rank after q cleanup"
-                ),
-            },
-            "R3": {
-                "state": "KILLED",
-                "falsifier": (
-                    "the literal 22-bit repair restricts exactly to AND22 at "
-                    "both source sites, so its 21-CCX ripple is multiplicatively "
-                    "optimal; fewer than 237 retained predecessors can save at "
-                    "most two CCX/cell under exact-local cleanup"
-                ),
-            },
-        },
-        "terminal_reason": (
-            "Every permitted route crosses one of two checked walls: below the "
-            "retained-rank threshold the exact phase predicate cannot save the "
-            "minimum nonlinear cost, while at or above it the optimistic peak "
-            "exceeds Q1266 before any dirty-host conversion cost is charged."
-        ),
     }
+    return correct_refuted_terminal_evidence(evidence)
 
 
 def write_json(path: pathlib.Path, value: dict[str, Any]) -> None:
