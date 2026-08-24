@@ -1102,6 +1102,267 @@ PP_HD bool pp_sign_at(const u64 signs[11], int r) {
     return (signs[r / 64] >> (r % 64)) & 1;
 }
 
+// ─── source-bound phase-screen trace helpers ───────────────────────────────
+//
+// The fast phase screen records the three measured-boundary families proven
+// by the frozen two-pass mirror:
+//   family 0: pingpong_div.rs:2165 (chunk-boundary carry erase)
+//   family 1: pingpong_div.rs:2435 (divide replay flag erase)
+//   family 2: pingpong_div.rs:2774 (multiply replay flag erase)
+//
+// `values` and `families` are caller-owned so this arithmetic remains usable
+// from both host and device builds without a large per-thread struct.  A
+// family-order mismatch is a hard source/schedule mismatch, never a soft
+// prediction.
+#define PP_PHASE_FAMILY_CHUNK 0u
+#define PP_PHASE_FAMILY_DIV_FLAG 1u
+#define PP_PHASE_FAMILY_MUL_FLAG 2u
+#define PP_PHASE_FAMILY_SHELL_SUB 3u
+
+struct PP_PhaseTrace {
+    u8* values;
+    const u8* families;
+    int capacity;
+    int count;
+    bool invalid;
+    int invalid_at = -1;
+    u8 expected_family = 0xff;
+    u8 actual_family = 0xff;
+};
+
+PP_HD void pp_phase_emit(PP_PhaseTrace* tr, bool value, u8 family) {
+    if (tr == nullptr) return;
+    if (tr->count >= tr->capacity ||
+        (tr->families != nullptr && tr->families[tr->count] != family)) {
+        if (!tr->invalid) {
+            tr->invalid_at = tr->count;
+            tr->expected_family = tr->count < tr->capacity && tr->families != nullptr
+                                      ? tr->families[tr->count]
+                                      : 0xff;
+            tr->actual_family = family;
+        }
+        tr->invalid = true;
+        return;
+    }
+    tr->values[tr->count++] = value ? 1 : 0;
+}
+
+struct PP_ChunkLayout {
+    int count;
+    int lo[14];
+    int hi[14];
+};
+
+PP_HD int pp_chunk_live(int j, int k, int w, bool final_carry) {
+    bool has_next = j + 1 < k || final_carry;
+    return (j > 0 ? 1 : 0) + (has_next ? 1 : 0) + (w > 0 ? w - 1 : 0);
+}
+
+PP_HD int pp_layout_ladder(const int* sizes, int k, bool final_carry) {
+    int out = 0;
+    for (int j = 0; j < k; j++) {
+        int live = pp_chunk_live(j, k, sizes[j], final_carry);
+        if (live > out) out = live;
+    }
+    return out;
+}
+
+PP_HD void pp_chunk_bounds(int n, int chunk_width, PP_ChunkLayout* out) {
+    int chunks = (n + chunk_width - 1) / chunk_width;
+    if (chunks < 1) chunks = 1;
+    int base = n / chunks;
+    int extra = n % chunks;
+    int lo = 0;
+    out->count = chunks;
+    for (int j = 0; j < chunks; j++) {
+        int w = base + (j < extra ? 1 : 0);
+        out->lo[j] = lo;
+        out->hi[j] = lo + w;
+        lo += w;
+    }
+}
+
+// Literal fixed-array port of pingpong_div.rs::chunk_layout.  `target` is the
+// live carry-ladder budget and `final_carry` says whether the caller retains a
+// top carry wire.  The returned boundary sequence is therefore source-exact,
+// not a rebalanced approximation.
+PP_HD bool pp_chunk_layout(int n, int target, bool final_carry, PP_ChunkLayout* out) {
+    const int window = 22; // exact candidate replay_chunk_compare()
+    for (int wide = 0; wide <= 12; wide++) {
+        // (a) equal split into wide+1 chunks.
+        int k = wide + 1;
+        if (k <= n) {
+            PP_ChunkLayout candidate;
+            // Rust: chunk_bounds(n, n.div_ceil(k)).  Keep the intermediate
+            // ceiling because the resulting count is not assumed to be k.
+            pp_chunk_bounds(n, (n + k - 1) / k, &candidate);
+            k = candidate.count;
+            int sizes[14];
+            for (int j = 0; j < k; j++) sizes[j] = candidate.hi[j] - candidate.lo[j];
+            if (pp_layout_ladder(sizes, k, final_carry) <= target) {
+                *out = candidate;
+                return true;
+            }
+        }
+
+        // (b) exact-repair leading chunk plus wide+1 further chunks.
+        k = wide + 2;
+        if (k > n) continue;
+        int sizes[14];
+        int total = 0;
+        bool viable = true;
+        for (int j = 0; j < k; j++) {
+            int overhead = (j > 0 ? 1 : 0) + (j + 1 < k || final_carry ? 1 : 0);
+            int cap = target + 1 - overhead;
+            if (cap < 0) cap = 0;
+            sizes[j] = cap;
+        }
+        if (sizes[0] > window) sizes[0] = window;
+        for (int j = 0; j < k; j++) {
+            if (sizes[j] == 0) viable = false;
+            total += sizes[j];
+        }
+        if (!viable || total < n) continue;
+        int excess = total - n;
+        // Source order: leading chunk first, then wide chunks top-down.
+        for (int pass = 0; pass < k && excess > 0; pass++) {
+            int j = pass == 0 ? 0 : k - pass;
+            int cut = sizes[j] - 1;
+            if (cut > excess) cut = excess;
+            sizes[j] -= cut;
+            excess -= cut;
+        }
+        if (excess != 0 || pp_layout_ladder(sizes, k, final_carry) > target) continue;
+        out->count = k;
+        int lo = 0;
+        for (int j = 0; j < k; j++) {
+            out->lo[j] = lo;
+            out->hi[j] = lo + sizes[j];
+            lo += sizes[j];
+        }
+        return lo == n;
+    }
+    return false;
+}
+
+PP_HD bool pp_low_less4(const u64 a[4], const u64 b[4], int bits) {
+    if (bits <= 0) return false;
+    int top = (bits - 1) / 64;
+    int rem = bits - top * 64;
+    for (int i = top; i >= 0; i--) {
+        u64 av = a[i], bv = b[i];
+        if (i == top && rem < 64) {
+            u64 mask = (1ULL << rem) - 1;
+            av &= mask;
+            bv &= mask;
+        }
+        if (av != bv) return av < bv;
+    }
+    return false;
+}
+
+PP_HD u64 pp_slice4(const u64 a[4], int lo, int width) {
+    int limb = lo / 64;
+    int off = lo % 64;
+    u64 v = a[limb] >> off;
+    if (off != 0 && limb + 1 < 4) v |= a[limb + 1] << (64 - off);
+    if (width < 64) v &= (1ULL << width) - 1;
+    return v;
+}
+
+PP_HD bool pp_top_window_less4(const u64 a[4], const u64 b[4], int hi, int width) {
+    int w = width < hi ? width : hi;
+    return pp_slice4(a, hi - w, w) < pp_slice4(b, hi - w, w);
+}
+
+PP_HD int pp_replay_ladder_budget(bool multiply, int round) {
+    const int r1 = multiply ? 315 : 335;
+    int tape_len;
+    int walk_width;
+    if (round < r1) {
+        tape_len = r1;
+        walk_width = pp_value_width(r1);
+    } else if (round <= 645) {
+        tape_len = round + 1;
+        walk_width = pp_value_width(round + 1);
+    } else {
+        tape_len = multiply ? PP_ROUNDS_MUL : PP_ROUNDS_DIV;
+        walk_width = 1;
+    }
+    int allowance = 1267 - (tape_len + 2 * PP_N + 2 * walk_width);
+    if (allowance < 0) allowance = 0;
+    // Multiply keeps doubled_out live across the add.
+    return allowance - (multiply ? 1 : 0);
+}
+
+PP_HD bool pp_add256_phase(const u64 target[4], const u64 addend[4], u64 sum[4],
+                           int ladder_budget, PP_PhaseTrace* tr) {
+    bool carry = pp_add256(target, addend, sum);
+    PP_ChunkLayout layout;
+    if (!pp_chunk_layout(256, ladder_budget, true, &layout)) {
+        if (tr != nullptr) tr->invalid = true;
+        return carry;
+    }
+    for (int j = 0; j + 1 < layout.count; j++) {
+        int hi = layout.hi[j];
+        int width = hi - layout.lo[j];
+        bool true_carry = pp_low_less4(sum, addend, hi);
+        bool truncated = pp_top_window_less4(sum, addend, hi, width < 22 ? width : 22);
+        pp_phase_emit(tr, true_carry != truncated, PP_PHASE_FAMILY_CHUNK);
+    }
+    return carry;
+}
+
+PP_HD bool pp_halve_fused_phase(bool sign, const u64 s[4], u64 t[4], int round,
+                                PP_PhaseTrace* tr) {
+    if (sign) pp_not256(t);
+    u64 sum[4];
+    bool o = pp_add256_phase(t, s, sum, pp_replay_ladder_budget(false, round), tr);
+    for (int i = 0; i < 4; i++) t[i] = sum[i];
+    bool parity = (t[0] & 1) == 1;
+    bool nsap = !sign && parity;
+    bool sap = sign && parity;
+    bool minus_f = !o && nsap;
+    bool plus_2f = o && sap;
+    bool plus_f = minus_f ^ sign ^ parity;
+    int k = (int)plus_f + 2 * (int)plus_2f - (int)minus_f;
+    pp_fold54(t, k);
+
+    // pingpong_div.rs:2435: Hmr(overflow) followed by the conditioned
+    // 22-MSB post-fold comparison, while target is still complemented.
+    bool repaired = pp_top_window_less4(t, s, 256, 22);
+    pp_phase_emit(tr, o != repaired, PP_PHASE_FAMILY_DIV_FLAG);
+
+    if (sign) pp_not256(t);
+    u64 old0 = t[0] & 1;
+    pp_shr1_256(t);
+    t[3] |= (old0 ^ (u64)parity ^ (u64)o ^ (u64)sign) << 63;
+    return false;
+}
+
+PP_HD bool pp_double_add_fused_phase(bool sign, const u64 s[4], u64 t[4], int round,
+                                     PP_PhaseTrace* tr) {
+    bool d = pp_shl1_256(t) == 1;
+    if (sign) pp_not256(t);
+    u64 sum[4];
+    bool o = pp_add256_phase(t, s, sum, pp_replay_ladder_budget(true, round), tr);
+    for (int i = 0; i < 4; i++) t[i] = sum[i];
+    bool sxa = sign ^ o;
+    bool routed = d && sxa;
+    bool minus_f = routed && sign;
+    bool plus_2f = routed && !sign;
+    bool plus_f = d ^ o ^ minus_f;
+    int k = (int)plus_f + 2 * (int)plus_2f - (int)minus_f;
+    pp_fold53(t, k);
+
+    // pingpong_div.rs:2774, same post-fold / pre-uncomplement frame.
+    bool repaired = pp_top_window_less4(t, s, 256, 22);
+    pp_phase_emit(tr, o != repaired, PP_PHASE_FAMILY_MUL_FLAG);
+
+    if (sign) pp_not256(t);
+    return false;
+}
+
 // Divide replay. Returns x, y after conditional negates; clean iff x == y.
 PP_HD void pp_divide_replay(const u64 dy[4], const u64 signs[11], bool su, bool sv,
                             u64 x_out[4], u64 y_out[4]) {
@@ -1118,6 +1379,27 @@ PP_HD void pp_divide_replay(const u64 dy[4], const u64 signs[11], bool su, bool 
             pp_halve_fused(sign, x, y);
         } else {
             pp_halve_fused(sign, y, x);
+        }
+    }
+    if (su) pp_cneg(x);
+    if (sv) pp_cneg(y);
+    for (int i = 0; i < 4; i++) { x_out[i] = x[i]; y_out[i] = y[i]; }
+}
+
+PP_HD void pp_divide_replay_phase(const u64 dy[4], const u64 signs[11], bool su, bool sv,
+                                  u64 x_out[4], u64 y_out[4], PP_PhaseTrace* tr) {
+    u64 x[4] = {0, 0, 0, 0};
+    u64 y[4];
+    for (int i = 0; i < 4; i++) y[i] = dy[i];
+    pp_mod_halve_pm(&y[0]);
+    pp_seed_round_one(pp_sign_at(signs, 1), y, x);
+    pp_mod_halve_pm(x);
+    for (int r = 2; r < PP_ROUNDS_DIV; r++) {
+        bool sign = pp_sign_at(signs, r);
+        if (r % 2 == 0) {
+            pp_halve_fused_phase(sign, x, y, r, tr);
+        } else {
+            pp_halve_fused_phase(sign, y, x, r, tr);
         }
     }
     if (su) pp_cneg(x);
@@ -1145,6 +1427,26 @@ PP_HD void pp_multiply_replay(const u64 lam[4], const u64 signs[11], bool su, bo
     pp_mod_double_pm(x);
     pp_seed_round_one_inverse(pp_sign_at(signs, 1), y, x);
     // round 0: (source, target) = (x, y)
+    pp_mod_double_pm(y);
+    for (int i = 0; i < 4; i++) { x_out[i] = x[i]; y_out[i] = y[i]; }
+}
+
+PP_HD void pp_multiply_replay_phase(const u64 lam[4], const u64 signs[11], bool su, bool sv,
+                                    u64 x_out[4], u64 y_out[4], PP_PhaseTrace* tr) {
+    u64 x[4], y[4];
+    for (int i = 0; i < 4; i++) { x[i] = lam[i]; y[i] = lam[i]; }
+    if (su) pp_cneg(x);
+    if (sv) pp_cneg(y);
+    for (int r = PP_ROUNDS_MUL - 1; r >= 2; r--) {
+        bool sign = !pp_sign_at(signs, r);
+        if (r % 2 == 0) {
+            pp_double_add_fused_phase(sign, x, y, r, tr);
+        } else {
+            pp_double_add_fused_phase(sign, y, x, r, tr);
+        }
+    }
+    pp_mod_double_pm(x);
+    pp_seed_round_one_inverse(pp_sign_at(signs, 1), y, x);
     pp_mod_double_pm(y);
     for (int i = 0; i < 4; i++) { x_out[i] = x[i]; y_out[i] = y[i]; }
 }
@@ -1249,6 +1551,126 @@ PP_HD void pp_wide_xor(const PP_Wide a, const PP_Wide b, PP_Wide o) {
 
 PP_HD bool pp_wide_bit(const PP_Wide v, int i) { return (v[i / 64] >> (i % 64)) & 1; }
 
+PP_HD void pp_wide_copy(const PP_Wide a, PP_Wide out) {
+    for (int i = 0; i < 6; i++) out[i] = a[i];
+}
+
+PP_HD void pp_wide_mask_inplace(PP_Wide a, int bits) {
+    int full = bits / 64;
+    int rem = bits % 64;
+    if (rem != 0) {
+        a[full] &= (1ULL << rem) - 1;
+        full++;
+    }
+    for (int i = full; i < 6; i++) a[i] = 0;
+}
+
+PP_HD void pp_wide_not_bits(PP_Wide a, int bits) {
+    for (int i = 0; i < 6; i++) a[i] = ~a[i];
+    pp_wide_mask_inplace(a, bits);
+}
+
+PP_HD bool pp_wide_low_less(const PP_Wide a, const PP_Wide b, int bits) {
+    if (bits <= 0) return false;
+    int top = (bits - 1) / 64;
+    int rem = bits - top * 64;
+    for (int i = top; i >= 0; i--) {
+        u64 av = a[i], bv = b[i];
+        if (i == top && rem < 64) {
+            u64 mask = (1ULL << rem) - 1;
+            av &= mask;
+            bv &= mask;
+        }
+        if (av != bv) return av < bv;
+    }
+    return false;
+}
+
+PP_HD u64 pp_wide_slice_u64(const PP_Wide a, int lo, int width) {
+    int limb = lo / 64;
+    int off = lo % 64;
+    u64 v = a[limb] >> off;
+    if (off != 0 && limb + 1 < 6) v |= a[limb + 1] << (64 - off);
+    if (width < 64) v &= (1ULL << width) - 1;
+    return v;
+}
+
+// add_full() on a standalone `bits`-wide register, including the exact
+// pingpong_div.rs:2165 boundary sequence when the source selected the chunked
+// adder.  The result is reduced modulo 2^bits, matching the reversible add.
+PP_HD void pp_wide_add_phase(PP_Wide target, const PP_Wide addend, int bits,
+                             int ladder_budget, PP_PhaseTrace* tr) {
+    PP_Wide sum;
+    pp_wide_add(target, addend, sum);
+    pp_wide_mask_inplace(sum, bits);
+    PP_ChunkLayout layout;
+    if (!pp_chunk_layout(bits, ladder_budget, false, &layout)) {
+        if (tr != nullptr) tr->invalid = true;
+    } else {
+        for (int j = 0; j + 1 < layout.count; j++) {
+            int hi = layout.hi[j];
+            int width = layout.hi[j] - layout.lo[j];
+            int compare = width < 22 ? width : 22;
+            bool true_carry = pp_wide_low_less(sum, addend, hi);
+            bool repaired = pp_wide_slice_u64(sum, hi - compare, compare) <
+                            pp_wide_slice_u64(addend, hi - compare, compare);
+            pp_phase_emit(tr, true_carry != repaired, PP_PHASE_FAMILY_CHUNK);
+        }
+    }
+    pp_wide_copy(sum, target);
+}
+
+PP_HD void pp_wide_sub_phase(PP_Wide target, const PP_Wide addend, int bits,
+                             int ladder_budget, PP_PhaseTrace* tr) {
+    pp_wide_not_bits(target, bits);
+    pp_wide_add_phase(target, addend, bits, ladder_budget, tr);
+    pp_wide_not_bits(target, bits);
+}
+
+PP_HD void pp_tri_corr_phase(PP_Wide product, const PP_Wide x, int m, bool inverse,
+                             PP_PhaseTrace* tr) {
+    int n = 2 * m;
+    PP_Wide spread = {0, 0, 0, 0, 0, 0};
+    PP_Wide xext = {0, 0, 0, 0, 0, 0};
+    PP_Wide low = {0, 0, 0, 0, 0, 0};
+    for (int i = 0; i < m; i++) {
+        if (pp_wide_bit(x, i)) spread[(2 * i + 1) / 64] |= 1ULL << ((2 * i + 1) % 64);
+        if (pp_wide_bit(x, i)) xext[i / 64] |= 1ULL << (i % 64);
+        if (i + 1 < m && pp_wide_bit(x, i)) low[i / 64] |= 1ULL << (i % 64);
+    }
+    if (!inverse) {
+        pp_wide_add_phase(product, spread, n, 243, tr);
+        pp_wide_sub_phase(product, xext, n, 243, tr);
+        PP_Wide slice;
+        pp_wide_get(product, m, m, slice);
+        pp_wide_sub_phase(slice, low, m, 243, nullptr);
+        pp_wide_set(product, m, m, slice);
+    } else {
+        PP_Wide slice;
+        pp_wide_get(product, m, m, slice);
+        pp_wide_add_phase(slice, low, m, 243, nullptr);
+        pp_wide_set(product, m, m, slice);
+        pp_wide_add_phase(product, xext, n, 243, tr);
+        pp_wide_sub_phase(product, spread, n, 243, tr);
+    }
+}
+
+// Build the exact square product while emitting only tri_corr's two wide
+// boundary sites.  Applying inverse tri_corr to x^2 reconstructs the row-loop
+// accumulator; replaying forward then reproduces the source event values.
+PP_HD void pp_tri_square_forward_phase(const PP_Wide x, int m, PP_Wide product,
+                                       PP_PhaseTrace* tr) {
+    pp_wide_mul(x, x, product);
+    pp_wide_mask_inplace(product, 2 * m);
+    pp_tri_corr_phase(product, x, m, true, nullptr);
+    pp_tri_corr_phase(product, x, m, false, tr);
+}
+
+PP_HD void pp_tri_square_inverse_phase(PP_Wide product, const PP_Wide x, int m,
+                                       PP_PhaseTrace* tr) {
+    pp_tri_corr_phase(product, x, m, true, tr);
+}
+
 // add_f_window: if ctrl, add f to reg[..lsbs]; carry into bit lsbs dropped.
 PP_HD void pp_f_window(PP_Wide reg, bool ctrl, int lsbs) {
     if (!ctrl) return;
@@ -1273,6 +1695,27 @@ PP_HD void pp_mod_add_top_model(PP_Wide out, const PP_Wide value, int shift, boo
     pp_wide_add(acc, value, sum);
     bool ovf = pp_wide_bit(sum, 256 - shift);
     pp_wide_set(out, shift, 256 - shift, sum);
+    pp_f_window(out, ovf, PP_SQ_LSBS);
+    if (sign) pp_wide_xor(out, m256, out);
+}
+
+PP_HD void pp_mod_add_top_phase_model(PP_Wide out, const PP_Wide value, int shift, bool sign,
+                                      PP_PhaseTrace* tr) {
+    PP_Wide m256;
+    pp_wide_mask(256, m256);
+    if (sign) pp_wide_xor(out, m256, out);
+
+    // Source add_full() includes the dedicated overflow wire as the top bit:
+    // n = (256-shift) + 1, no retained carry-out above it.
+    int low_bits = 256 - shift;
+    int add_bits = low_bits + 1;
+    PP_Wide acc, add;
+    pp_wide_get(out, shift, low_bits, acc);
+    pp_wide_copy(value, add);
+    pp_wide_mask_inplace(add, low_bits);
+    pp_wide_add_phase(acc, add, add_bits, 243, tr);
+    bool ovf = pp_wide_bit(acc, low_bits);
+    pp_wide_set(out, shift, low_bits, acc);
     pp_f_window(out, ovf, PP_SQ_LSBS);
     if (sign) pp_wide_xor(out, m256, out);
 }
@@ -1339,6 +1782,27 @@ PP_HD void pp_apply_shift_full_model(PP_Wide out, const PP_Wide product, bool si
     }
 }
 
+PP_HD void pp_apply_shift_full_phase_model(PP_Wide out, const PP_Wide product, bool sign,
+                                           PP_PhaseTrace* tr) {
+    PP_F_NAF_TABLES;
+    bool s = sign;
+#pragma unroll
+    for (int i = 0; i < 5; i++) {
+        int shift = F_NAF_SHIFT[i];
+        if (F_NAF_NEG[i]) s = !s;
+        if (shift == 0) {
+            pp_mod_add_top_phase_model(out, product, 0, s, tr);
+        } else {
+            PP_Wide main_, tail;
+            pp_wide_get(product, 0, 256 - shift, main_);
+            pp_mod_add_top_phase_model(out, main_, shift, s, tr);
+            pp_wide_get(product, 256 - shift, shift, tail);
+            pp_apply_f_model(out, tail, shift, s);
+        }
+        if (F_NAF_NEG[i]) s = !s;
+    }
+}
+
 // product_register::square_sub: out -= y^2 mod p, circuit-exact.
 PP_HD void pp_square_model(const u64 y[4], const u64 out0[4], u64 out[4]) {
     PP_Wide yw, ylo, yhi, sum, pa, pb, pc, o;
@@ -1360,6 +1824,42 @@ PP_HD void pp_square_model(const u64 y[4], const u64 out0[4], u64 out[4]) {
     pp_apply_shift_full_model(o, pb, true);
     // step 5: out -= pc << 128
     pp_apply_shift_half_model(o, pc, 258, true);
+    for (int i = 0; i < 4; i++) out[i] = o[i];
+}
+
+// product_register::square_sub with its 17 source-bound chunk-boundary phase
+// predicates in emitted order.  Non-phase arithmetic is kept identical to
+// pp_square_model; the product-register construction is reconstructed only to
+// expose the measured carry values.
+PP_HD void pp_square_phase_model(const u64 y[4], const u64 out0[4], u64 out[4],
+                                 PP_PhaseTrace* tr) {
+    PP_Wide yw, ylo, yhi, sum, pa, pb, pc, o;
+    pp_wide_from4(y, yw);
+    pp_wide_get(yw, 0, 128, ylo);
+    pp_wide_get(yw, 128, 128, yhi);
+    pp_wide_add(ylo, yhi, sum);
+    pp_wide_mask_inplace(sum, 129);
+    pp_wide_from4(out0, o);
+
+    // product_a: tri forward (2), mod_add_top shift 0 (1), tri inverse (2).
+    pp_tri_square_forward_phase(ylo, 128, pa, tr);
+    pp_mod_add_top_phase_model(o, pa, 0, true, tr);
+    pp_apply_shift_half_model(o, pa, 256, false);
+    pp_tri_square_inverse_phase(pa, ylo, 128, tr);
+
+    // product_b: tri forward (2), apply_shift_full shifts 0/4/6/10 (4),
+    // tri inverse (2). Shift 32's 225-bit add fits the 243-wire ladder.
+    pp_tri_square_forward_phase(yhi, 128, pb, tr);
+    pp_apply_shift_half_model(o, pb, 256, false);
+    pp_apply_shift_full_phase_model(o, pb, true, tr);
+    pp_tri_square_inverse_phase(pb, yhi, 128, tr);
+
+    // product_c: the 129-bit sum has two forward and two inverse boundaries;
+    // its shift-half reduction stays below SQUARE_CHUNK_MIN.
+    pp_tri_square_forward_phase(sum, 129, pc, tr);
+    pp_apply_shift_half_model(o, pc, 258, true);
+    pp_tri_square_inverse_phase(pc, sum, 129, tr);
+
     for (int i = 0; i < 4; i++) out[i] = o[i];
 }
 
@@ -1386,6 +1886,39 @@ PP_HD void pp_coord_sub_model(const u64 reg[4], const u64 coord[4], u64 out[4]) 
         pp_wide_set(o, 0, PP_ARITH_LSBS, lu);
     }
     for (int i = 0; i < 4; i++) out[i] = o[i];
+}
+
+// mod_sub_vented's measured carry repair at
+// trailmix_ludicrous/arith.rs:1491. The measured target remains the original
+// full-add carry across the low pseudo-Mersenne correction.
+PP_HD void pp_coord_sub_phase_model(const u64 reg[4], const u64 coord[4], u64 out[4],
+                                    PP_PhaseTrace* tr) {
+    PP_Wide m256, rw, cw, nreg, s, w, o;
+    pp_wide_mask(256, m256);
+    pp_wide_from4(reg, rw);
+    pp_wide_from4(coord, cw);
+    pp_wide_xor(rw, m256, nreg);
+    pp_wide_add(nreg, cw, s);
+    bool anc = pp_wide_bit(s, 256);
+    pp_wide_xor(s, m256, w);
+    for (int i = 0; i < 6; i++) o[i] = w[i];
+    if (anc) {
+        PP_Wide m53, low, lc, fcw, s2, lu;
+        u64 fcv[4] = {PP_FC, 0, 0, 0};
+        pp_wide_mask(PP_ARITH_LSBS, m53);
+        pp_wide_get(o, 0, PP_ARITH_LSBS, low);
+        pp_wide_xor(low, m53, lc);
+        pp_wide_from4(fcv, fcw);
+        pp_wide_add(lc, fcw, s2);
+        pp_wide_xor(s2, m53, lu);
+        pp_wide_set(o, 0, PP_ARITH_LSBS, lu);
+    }
+    for (int i = 0; i < 4; i++) out[i] = o[i];
+
+    const u64 top_mask = (1ULL << 19) - 1;
+    u64 coord_top_not = pp_slice4(coord, 256 - 19, 19) ^ top_mask;
+    u64 result_top = pp_slice4(out, 256 - 19, 19);
+    pp_phase_emit(tr, anc != (coord_top_not < result_top), PP_PHASE_FAMILY_SHELL_SUB);
 }
 
 // mod_add_exact (coord_add3x): reg = (x + y) mod p, 53-bit f-window drop.
@@ -1571,6 +2104,60 @@ PP_HD u32 pp_shot_fault_mask_s(const u64 tx[4], const u64 ty[4], const u64 ox[4]
         return PP_F_RESULT;
     }
     return 0;
+}
+
+// Combined classical screen plus phase-predicate trace. Dirty shots retain the
+// classical mask and may have only a prefix of the trace; only mask==0 shots
+// are eligible for phase screening and must fill the bound schedule exactly.
+PP_HD u32 pp_shot_fault_phase_trace_s(const u64 tx[4], const u64 ty[4], const u64 ox[4],
+                                      const u64 oy[4], const u64 lam[4], u64 signs_d[11],
+                                      u64 signs_m[11], const u16* wtab, PP_PhaseTrace* tr) {
+    u64 rx[4], ry[4];
+    pp_expected_add(tx, ty, ox, oy, lam, rx, ry);
+
+    u64 x2[4], y2[4];
+    pp_coord_sub_phase_model(tx, ox, x2, tr);
+    pp_coord_sub_phase_model(ty, oy, y2, tr);
+
+    bool wd_fault, wd_term_ok, wd_u_neg, wd_v_neg;
+    pp_walk_sig(x2, PP_ROUNDS_DIV, &wd_fault, &wd_term_ok, &wd_u_neg, &wd_v_neg, signs_d, wtab);
+    if (wd_fault || !wd_term_ok || pp_walkback_fold_fault(x2)) return PP_F_WALK_DIV;
+
+    u64 xd[4], y2d[4];
+    pp_divide_replay_phase(y2, signs_d, wd_u_neg, wd_v_neg, xd, y2d, tr);
+    if (!pp_eq(xd, y2d)) return PP_F_REPLAY_DIV;
+
+    u64 three[4], x2b[4], x2c[4];
+    pp_fadd(ox, ox, three);
+    pp_fadd(three, ox, three);
+    pp_mod_add_exact_model(three, x2, x2b);
+    pp_square_phase_model(y2d, x2b, x2c, tr);
+
+    if (pp_is_zero(x2c)) return PP_F_WALK_MUL;
+    bool wm_fault, wm_term_ok, wm_u_neg, wm_v_neg;
+    pp_walk_sig(x2c, PP_ROUNDS_MUL, &wm_fault, &wm_term_ok, &wm_u_neg, &wm_v_neg, signs_m, wtab);
+    if (wm_fault || !wm_term_ok || pp_walkback_fold_fault(x2c)) return PP_F_WALK_MUL;
+
+    u64 xm[4], y2m[4];
+    pp_multiply_replay_phase(y2d, signs_m, wm_u_neg, wm_v_neg, xm, y2m, tr);
+    if (!pp_is_zero(xm)) return PP_F_REPLAY_MUL;
+
+    u64 y2f[4], x2f[4];
+    pp_coord_sub_phase_model(y2m, oy, y2f, tr);
+    pp_coord_rsub_model(x2c, ox, x2f);
+    if (!pp_eq(x2f, rx) || !pp_eq(y2f, ry)) return PP_F_RESULT;
+    return 0;
+}
+
+PP_HD u32 pp_shot_fault_phase_trace(const u64 tx[4], const u64 ty[4], const u64 ox[4],
+                                    const u64 oy[4], const u64 lam[4], PP_PhaseTrace* tr) {
+    u64 signs_d[11], signs_m[11];
+#ifdef __CUDA_ARCH__
+    const u16* tab = PP_WIDTH_SCHEDULE_D;
+#else
+    const u16* tab = PP_WIDTH_SCHEDULE;
+#endif
+    return pp_shot_fault_phase_trace_s(tx, ty, ox, oy, lam, signs_d, signs_m, tab, tr);
 }
 
 PP_HD u32 pp_shot_fault_mask(const u64 tx[4], const u64 ty[4], const u64 ox[4],
