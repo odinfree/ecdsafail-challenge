@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::{Component, Path};
+use std::path::Path;
 
 use crate::circuit::{BitId, Op, OperationType, QubitId, NO_BIT, NO_QUBIT, NO_REG};
 use sha2::{Digest, Sha256};
@@ -8,7 +8,7 @@ use sha3::{
     Shake256,
 };
 
-use super::{OriginRef, SourceSite, TracedOps};
+use super::{OriginRef, SourceLiteralMetadata, SourceSite, TracedOps};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) enum AbstractValue {
@@ -748,27 +748,42 @@ impl FamilyDisposition {
 /// It cannot observe operation indices, nonces, shots, or evaluator state.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct ExactSourcePredicate {
+    audit_path: &'static str,
+    audit_line: u32,
     trace_context: u32,
-    inverse_depth: u16,
-    flags: u16,
+    kind: GateKind,
+    source_literal: SourceLiteralMetadata,
 }
 
 impl ExactSourcePredicate {
     fn validate(self) -> Result<(), String> {
-        OriginRef {
-            site_id: 0,
-            emission_ordinal: 0,
-            inverse_depth: self.inverse_depth,
-            flags: self.flags,
+        if self.audit_line == 0 {
+            return Err("exact source predicate has zero source line".to_owned());
         }
-        .try_validate_transform_chain()
-        .map_err(str::to_owned)
+        let normalized = normalize_audit_path(self.audit_path)?;
+        if normalized != self.audit_path {
+            return Err("exact source predicate path is not canonical".to_owned());
+        }
+        self.source_literal
+            .validate_explicit()
+            .map_err(str::to_owned)
     }
 
-    fn matches(self, trace_context: u32, origin: OriginRef) -> bool {
-        self.trace_context == trace_context
-            && self.inverse_depth == origin.inverse_depth
-            && self.flags == origin.flags
+    fn scopes_family(
+        self,
+        audit_path: &str,
+        audit_line: u32,
+        trace_context: u32,
+        kind: GateKind,
+    ) -> bool {
+        self.audit_path == audit_path
+            && self.audit_line == audit_line
+            && self.trace_context == trace_context
+            && self.kind == kind
+    }
+
+    fn matches(self, source_literal: SourceLiteralMetadata) -> bool {
+        self.source_literal == source_literal
     }
 }
 
@@ -778,6 +793,8 @@ struct FamilyAccumulator {
     action_counts: [u64; AUDIT_ACTION_COUNT],
     rule_counts: [u64; PROOF_RULE_COUNT],
     predicate_exact: Vec<bool>,
+    non_keep_signature: Option<(AuditAction, ProofRule)>,
+    non_keep_coherent: bool,
 }
 
 impl FamilyAccumulator {
@@ -787,13 +804,16 @@ impl FamilyAccumulator {
             action_counts: [0; AUDIT_ACTION_COUNT],
             rule_counts: [0; PROOF_RULE_COUNT],
             predicate_exact: vec![true; predicate_count],
+            non_keep_signature: None,
+            non_keep_coherent: true,
         }
     }
 
     fn record(
         &mut self,
         decision: GateDecision,
-        trace_context: u32,
+        site: &ValidatedSite,
+        kind: GateKind,
         predicates: &[ExactSourcePredicate],
     ) -> Result<(), String> {
         self.decision_count = self
@@ -815,9 +835,22 @@ impl FamilyAccumulator {
             .checked_add(1)
             .ok_or_else(|| "family rule count overflow".to_owned())?;
         let is_non_keep = decision.action != AuditAction::Keep;
+        if is_non_keep {
+            let signature = (decision.action, decision.rule);
+            if let Some(existing) = self.non_keep_signature {
+                self.non_keep_coherent &= existing == signature;
+            } else {
+                self.non_keep_signature = Some(signature);
+            }
+        }
         for (is_exact, predicate) in self.predicate_exact.iter_mut().zip(predicates) {
-            let selected = predicate.matches(trace_context, decision.origin);
-            *is_exact &= selected == is_non_keep;
+            if !predicate.scopes_family(&site.audit_path, site.audit_line, site.trace_context, kind)
+            {
+                *is_exact = false;
+                continue;
+            }
+            let selected = predicate.matches(site.source_literal);
+            *is_exact &= site.source_literal.is_explicit() && selected == is_non_keep;
         }
         Ok(())
     }
@@ -830,6 +863,7 @@ struct FamilyRow {
     action_counts: [u64; AUDIT_ACTION_COUNT],
     rule_counts: [u64; PROOF_RULE_COUNT],
     disposition: FamilyDisposition,
+    accepted_predicate: Option<SourceLiteralMetadata>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -845,6 +879,7 @@ struct SiteRow {
     audit_path: String,
     audit_line: u32,
     trace_context: u32,
+    source_literal: SourceLiteralMetadata,
     occurrence_count: u64,
     transform_chain: String,
 }
@@ -859,6 +894,7 @@ struct ValidatedSite {
     audit_path: String,
     audit_line: u32,
     trace_context: u32,
+    source_literal: SourceLiteralMetadata,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -901,35 +937,30 @@ fn normalize_audit_path(path: &str) -> Result<String, String> {
     {
         return Err("audit source path contains a forbidden control character".to_owned());
     }
-    let path = Path::new(path);
-    if path.is_absolute() {
+    if Path::new(path).is_absolute() {
         return Err("audit source path must be repository-relative".to_owned());
     }
 
-    let mut components = Vec::new();
-    for component in path.components() {
-        match component {
-            Component::CurDir => {}
-            Component::Normal(component) => {
-                let component = component
-                    .to_str()
-                    .ok_or_else(|| "audit source path is not UTF-8".to_owned())?;
-                components.push(component);
-            }
-            Component::ParentDir => {
-                if components.pop().is_none() {
-                    return Err("audit source path traverses above repository root".to_owned());
-                }
-            }
-            Component::RootDir | Component::Prefix(_) => {
-                return Err("audit source path must be repository-relative".to_owned());
-            }
-        }
+    const CANONICAL_PREFIX: &str = "src/point_add/";
+    const COMPILER_ALIAS_PREFIX: &str = "src/bin/../point_add/";
+    let suffix = if let Some(suffix) = path.strip_prefix(CANONICAL_PREFIX) {
+        suffix
+    } else if let Some(suffix) = path.strip_prefix(COMPILER_ALIAS_PREFIX) {
+        suffix
+    } else {
+        return Err(
+            "audit source path is outside src/point_add or uses a forbidden traversal".to_owned(),
+        );
+    };
+    if suffix.is_empty()
+        || suffix.contains('\\')
+        || suffix
+            .split('/')
+            .any(|component| component.is_empty() || component == "." || component == "..")
+    {
+        return Err("audit source path contains a forbidden component".to_owned());
     }
-    if components.len() < 3 || components[0] != "src" || components[1] != "point_add" {
-        return Err("audit source path is outside src/point_add".to_owned());
-    }
-    Ok(components.join("/"))
+    Ok(format!("{CANONICAL_PREFIX}{suffix}"))
 }
 
 fn validate_origin_metadata(origin: OriginRef, sites: &[SourceSite]) -> Result<(), String> {
@@ -949,6 +980,7 @@ fn validate_origin_metadata(origin: OriginRef, sites: &[SourceSite]) -> Result<(
             origin.site_id
         ));
     }
+    site.source_literal.validate().map_err(str::to_owned)?;
     normalize_audit_path(site.file)?;
     Ok(())
 }
@@ -961,10 +993,12 @@ fn validate_sites(sites: &[SourceSite]) -> Result<Vec<ValidatedSite>, String> {
             if site.line == 0 {
                 return Err(format!("origin site_id {site_id} has zero source line"));
             }
+            site.source_literal.validate().map_err(str::to_owned)?;
             Ok(ValidatedSite {
                 audit_path: normalize_audit_path(site.file)?,
                 audit_line: site.line,
                 trace_context: site.trace_context,
+                source_literal: site.source_literal,
             })
         })
         .collect()
@@ -1046,11 +1080,16 @@ fn hash_stream(
         Digest::update(&mut provenance, site.audit_path.as_bytes());
         Digest::update(&mut provenance, site.audit_line.to_le_bytes());
         Digest::update(&mut provenance, site.trace_context.to_le_bytes());
+        Digest::update(&mut provenance, site.source_literal.key.to_le_bytes());
+        Digest::update(&mut provenance, site.source_literal.value.to_le_bytes());
         Digest::update(&mut provenance, origin.emission_ordinal.to_le_bytes());
         Digest::update(&mut provenance, origin.inverse_depth.to_le_bytes());
         Digest::update(&mut provenance, origin.flags.to_le_bytes());
-        origin
-            .stream_transform_chain_digest_preimage(|bytes| Digest::update(&mut provenance, bytes));
+        let transform_chain = origin.transform_chain();
+        let transform_chain_len = u32::try_from(transform_chain.len())
+            .map_err(|_| "rendered transform chain length exceeds u32".to_owned())?;
+        Digest::update(&mut provenance, transform_chain_len.to_le_bytes());
+        Digest::update(&mut provenance, transform_chain.as_bytes());
     }
 
     let provenance_sha256 = provenance.finalize().into();
@@ -1105,6 +1144,7 @@ fn audit_report_with_width(
                 audit_path: site.audit_path.clone(),
                 audit_line: site.audit_line,
                 trace_context: site.trace_context,
+                source_literal: site.source_literal,
                 occurrence_count,
                 transform_chain: origin.transform_chain(),
             }
@@ -1120,10 +1160,11 @@ fn audit_report_with_width(
             site.trace_context,
             GateKind::from_operation(decision.kind)?,
         );
+        let kind = key.3;
         family_accumulators
             .entry(key)
             .or_insert_with(|| FamilyAccumulator::new(predicates.len()))
-            .record(*decision, site.trace_context, predicates)?;
+            .record(*decision, site, kind, predicates)?;
     }
     let families = family_accumulators
         .into_iter()
@@ -1134,12 +1175,28 @@ fn audit_report_with_width(
                     .iter()
                     .filter(|&&count| count != 0)
                     .count();
-                let disposition = if distinct_actions == 1 {
-                    FamilyDisposition::UniformProvisional
-                } else if accumulator.predicate_exact.into_iter().any(|exact| exact) {
-                    FamilyDisposition::ExactPredicateProvisional
+                let distinct_rules = accumulator
+                    .rule_counts
+                    .iter()
+                    .filter(|&&count| count != 0)
+                    .count();
+                let is_uniform = distinct_actions == 1 && distinct_rules == 1;
+                let accepted_predicate = if !is_uniform
+                    && accumulator.non_keep_signature.is_some()
+                    && accumulator.non_keep_coherent
+                {
+                    accumulator
+                        .predicate_exact
+                        .iter()
+                        .position(|&exact| exact)
+                        .map(|index| predicates[index].source_literal)
                 } else {
-                    FamilyDisposition::DiagnosticMixed
+                    None
+                };
+                let disposition = match (is_uniform, accepted_predicate) {
+                    (true, _) => FamilyDisposition::UniformProvisional,
+                    (false, Some(_)) => FamilyDisposition::ExactPredicateProvisional,
+                    (false, None) => FamilyDisposition::DiagnosticMixed,
                 };
                 FamilyRow {
                     key: FamilyKey {
@@ -1152,6 +1209,7 @@ fn audit_report_with_width(
                     action_counts: accumulator.action_counts,
                     rule_counts: accumulator.rule_counts,
                     disposition,
+                    accepted_predicate,
                 }
             },
         )
@@ -1379,15 +1437,17 @@ fn render_raw_artifacts(report: &AuditReport) -> Result<BTreeMap<&'static str, V
     parse_raw_manifest(&manifest)?;
 
     let mut sites = String::from(
-        "site_id\taudit_path\taudit_line\ttrace_context\tinverse_depth\tflags\toccurrence_count\ttransform_chain\n",
+        "site_id\taudit_path\taudit_line\ttrace_context\tsource_literal_key\tsource_literal_value\tinverse_depth\tflags\toccurrence_count\ttransform_chain\n",
     );
     for site in &report.sites {
         sites.push_str(&format!(
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
             site.class.site_id,
             site.audit_path,
             site.audit_line,
             site.trace_context,
+            site.source_literal.key,
+            site.source_literal.value,
             site.class.inverse_depth,
             site.class.flags,
             site.occurrence_count,
@@ -1461,7 +1521,8 @@ fn render_raw_artifacts(report: &AuditReport) -> Result<BTreeMap<&'static str, V
         families.push('\t');
         families.push_str(header);
     }
-    families.push_str("\tdisposition\n");
+    families
+        .push_str("\tdisposition\tpredicate_source_literal_key\tpredicate_source_literal_value\n");
     for family in &report.families {
         families.push_str(&format!(
             "{}\t{}\t{}\t{}\t{}",
@@ -1474,7 +1535,15 @@ fn render_raw_artifacts(report: &AuditReport) -> Result<BTreeMap<&'static str, V
         for count in family.action_counts.iter().chain(&family.rule_counts) {
             families.push_str(&format!("\t{count}"));
         }
-        families.push_str(&format!("\t{}\n", family.disposition.as_str()));
+        families.push_str(&format!("\t{}", family.disposition.as_str()));
+        if let Some(source_literal) = family.accepted_predicate {
+            families.push_str(&format!(
+                "\t{}\t{}\n",
+                source_literal.key, source_literal.value
+            ));
+        } else {
+            families.push_str("\t-\t-\n");
+        }
     }
 
     let uniform_count = report
@@ -1502,28 +1571,13 @@ fn render_raw_artifacts(report: &AuditReport) -> Result<BTreeMap<&'static str, V
         uniform_count,
     );
 
-    let mut diagnostics = String::new();
-    for family in report
-        .families
-        .iter()
-        .filter(|family| family.disposition == FamilyDisposition::DiagnosticMixed)
-    {
-        diagnostics.push_str(&format!(
-            "mixed_family\t{}\t{}\t{}\t{}\n",
-            family.key.audit_path,
-            family.key.audit_line,
-            family.key.trace_context,
-            family.key.kind.as_str(),
-        ));
-    }
-
     Ok(BTreeMap::from([
         ("manifest.raw", manifest.into_bytes()),
         ("sites.tsv", sites.into_bytes()),
         ("witnesses.tsv", witnesses.into_bytes()),
         ("families.tsv", families.into_bytes()),
         ("summary.raw", summary.into_bytes()),
-        ("audit-diagnostics.log", diagnostics.into_bytes()),
+        ("audit-diagnostics.log", Vec::new()),
     ]))
 }
 
@@ -1609,6 +1663,7 @@ pub(crate) fn audit_and_write(
 mod tests {
     use super::*;
     use crate::circuit::{BitId, Op, OperationType, QubitId, RegisterId};
+    use crate::point_add::{emit_inverse, B};
 
     fn push_at(
         stream: &mut TracedOps,
@@ -1683,6 +1738,74 @@ mod tests {
         stream
     }
 
+    fn reduced_literal_predicate_stream(
+        width: usize,
+        keep_literal: SourceLiteralMetadata,
+        non_keep_literal: SourceLiteralMetadata,
+    ) -> TracedOps {
+        let mut stream = TracedOps::new(true);
+        for register in 0u64..4 {
+            for offset in 0..width as u64 {
+                let mut append = Op::empty();
+                append.kind = OperationType::AppendToRegister;
+                append.r_target = RegisterId(register);
+                if register < 2 {
+                    append.q_target = QubitId(register * width as u64 + offset);
+                } else {
+                    append.c_target = BitId((register - 2) * width as u64 + offset);
+                }
+                push_at(
+                    &mut stream,
+                    append,
+                    "src/point_add/literal_fixture.rs",
+                    10 + register as u32,
+                    0,
+                    0,
+                    0,
+                );
+            }
+            let mut declaration = Op::empty();
+            declaration.kind = OperationType::Register;
+            declaration.r_target = RegisterId(register);
+            push_at(
+                &mut stream,
+                declaration,
+                "src/point_add/literal_fixture.rs",
+                20 + register as u32,
+                0,
+                0,
+                0,
+            );
+        }
+
+        let auxiliary = (2 * width) as u64;
+        let mut keep = op3(OperationType::CCX);
+        keep.q_target = QubitId(auxiliary);
+        stream.push_at_with_source_literal(
+            keep,
+            "src/point_add/literal_fixture.rs",
+            90,
+            7,
+            0,
+            0,
+            keep_literal,
+        );
+
+        let mut drop = op3(OperationType::CCX);
+        drop.q_control2 = QubitId(auxiliary + 1);
+        drop.q_target = QubitId(auxiliary + 2);
+        stream.push_at_with_source_literal(
+            drop,
+            "src/point_add/literal_fixture.rs",
+            90,
+            7,
+            0,
+            0,
+            non_keep_literal,
+        );
+        stream
+    }
+
     #[test]
     fn report_census_is_total_sorted_normalized_and_has_exact_witness_operands() {
         let stream = reduced_audit_stream(2, "src/bin/../point_add/report_fixture.rs");
@@ -1753,44 +1876,131 @@ mod tests {
 
     #[test]
     fn report_exact_predicate_must_select_all_and_only_non_keep_occurrences() {
-        let stream = reduced_audit_stream(2, "src/point_add/report_fixture.rs");
+        let keep_literal = SourceLiteralMetadata { key: 1, value: 0 };
+        let non_keep_literal = SourceLiteralMetadata { key: 1, value: 1 };
+        let stream = reduced_literal_predicate_stream(2, keep_literal, non_keep_literal);
         let exact = ExactSourcePredicate {
+            audit_path: "src/point_add/literal_fixture.rs",
+            audit_line: 90,
             trace_context: 7,
-            inverse_depth: 0,
-            flags: crate::point_add::ORIGIN_SYNTHETIC_TAIL,
+            kind: GateKind::Ccx,
+            source_literal: non_keep_literal,
         };
         let report = audit_report_with_width(&stream, 2, &[exact]).expect("predicate report");
-        let mixed = report
-            .families
-            .iter()
-            .find(|family| family.key.trace_context == 7)
-            .expect("mixed family");
+        assert_eq!(report.families.len(), 1);
+        let mixed = &report.families[0];
+        assert_eq!(report.validated_sites[8].source_literal, keep_literal);
+        assert_eq!(report.validated_sites[9].source_literal, non_keep_literal);
+        assert_ne!(stream.origins()[12].site_id, stream.origins()[13].site_id);
+        assert_eq!(mixed.decision_count, 2);
         assert_eq!(
             mixed.disposition,
             FamilyDisposition::ExactPredicateProvisional
         );
+        assert_eq!(mixed.accepted_predicate, Some(non_keep_literal));
+        let rendered = render_raw_artifacts(&report).expect("render literal predicate");
+        let families = std::str::from_utf8(&rendered["families.tsv"]).unwrap();
+        assert!(families.contains("\texact_predicate_provisional\t1\t1\n"));
+        let sites = std::str::from_utf8(&rendered["sites.tsv"]).unwrap();
+        assert!(sites.starts_with(
+            "site_id\taudit_path\taudit_line\ttrace_context\tsource_literal_key\tsource_literal_value\t"
+        ));
 
         for wrong in [
-            ExactSourcePredicate { flags: 0, ..exact },
             ExactSourcePredicate {
-                inverse_depth: 1,
-                flags: crate::point_add::ORIGIN_EMIT_INVERSE,
+                source_literal: keep_literal,
                 ..exact
             },
             ExactSourcePredicate {
-                trace_context: 8,
+                audit_line: 91,
+                ..exact
+            },
+            ExactSourcePredicate {
+                audit_path: "src/point_add/other.rs",
                 ..exact
             },
         ] {
             let report =
                 audit_report_with_width(&stream, 2, &[wrong]).expect("wrong predicate report");
-            let mixed = report
-                .families
-                .iter()
-                .find(|family| family.key.trace_context == 7)
-                .expect("mixed family");
+            let mixed = &report.families[0];
             assert_eq!(mixed.disposition, FamilyDisposition::DiagnosticMixed);
+            assert_eq!(mixed.accepted_predicate, None);
         }
+    }
+
+    #[test]
+    fn report_exact_predicate_fails_closed_for_absent_or_malformed_literal_metadata() {
+        let exact = ExactSourcePredicate {
+            audit_path: "src/point_add/report_fixture.rs",
+            audit_line: 90,
+            trace_context: 7,
+            kind: GateKind::Ccx,
+            source_literal: SourceLiteralMetadata { key: 1, value: 1 },
+        };
+        let absent = reduced_audit_stream(2, "src/point_add/report_fixture.rs");
+        let report = audit_report_with_width(&absent, 2, &[exact]).expect("absent metadata report");
+        let family = report
+            .families
+            .iter()
+            .find(|family| family.key.trace_context == 7)
+            .expect("mixed family");
+        assert_eq!(family.disposition, FamilyDisposition::DiagnosticMixed);
+
+        let malformed = reduced_literal_predicate_stream(
+            2,
+            SourceLiteralMetadata { key: 0, value: 1 },
+            SourceLiteralMetadata { key: 1, value: 1 },
+        );
+        assert!(audit_report_with_width(&malformed, 2, &[exact]).is_err());
+
+        let absent_predicate = ExactSourcePredicate {
+            source_literal: SourceLiteralMetadata::NONE,
+            ..exact
+        };
+        assert!(audit_report_with_width(&absent, 2, &[absent_predicate]).is_err());
+    }
+
+    #[test]
+    fn report_exact_predicate_rejects_incoherent_non_keep_actions_and_rules() {
+        let keep_literal = SourceLiteralMetadata { key: 1, value: 0 };
+        let non_keep_literal = SourceLiteralMetadata { key: 1, value: 1 };
+        let mut stream = reduced_literal_predicate_stream(2, keep_literal, non_keep_literal);
+        push_at(
+            &mut stream,
+            x(14),
+            "src/point_add/literal_setup.rs",
+            80,
+            0,
+            0,
+            0,
+        );
+        let mut lower = op3(OperationType::CCX);
+        lower.q_control2 = QubitId(14);
+        lower.q_target = QubitId(15);
+        stream.push_at_with_source_literal(
+            lower,
+            "src/point_add/literal_fixture.rs",
+            90,
+            7,
+            0,
+            0,
+            non_keep_literal,
+        );
+        let exact = ExactSourcePredicate {
+            audit_path: "src/point_add/literal_fixture.rs",
+            audit_line: 90,
+            trace_context: 7,
+            kind: GateKind::Ccx,
+            source_literal: non_keep_literal,
+        };
+
+        let report = audit_report_with_width(&stream, 2, &[exact]).expect("coherence report");
+        assert_eq!(report.families.len(), 1);
+        assert_eq!(
+            report.families[0].disposition,
+            FamilyDisposition::DiagnosticMixed
+        );
+        assert_eq!(report.families[0].accepted_predicate, None);
     }
 
     #[test]
@@ -1803,6 +2013,15 @@ mod tests {
             "/src/point_add/absolute.rs",
             "src/elsewhere/outside.rs",
             "src/point_add/../elsewhere/outside.rs",
+            "src/point_add/a/../b.rs",
+            "src/bin/../point_add/a/../b.rs",
+            "src/bin/../../point_add/multiple.rs",
+            "src/bin/../bin/../point_add/multiple.rs",
+            "./src/bin/../point_add/prefix.rs",
+            "prefix/src/bin/../point_add/prefix.rs",
+            "src//bin/../point_add/prefix.rs",
+            "src/point_add//double.rs",
+            "src/point_add/back\\slash.rs",
             "../../src/point_add/traversal.rs",
         ] {
             let stream = reduced_audit_stream(2, bad_path);
@@ -1846,6 +2065,7 @@ mod tests {
                     file: "src/point_add/valid.rs",
                     line: 1,
                     trace_context: 0,
+                    source_literal: SourceLiteralMetadata::NONE,
                 }],
             )
             .is_err());
@@ -1860,6 +2080,18 @@ mod tests {
             zero_line.sites(),
         )
         .is_err());
+    }
+
+    #[test]
+    fn report_accepts_only_canonical_path_and_exact_compiler_alias() {
+        assert_eq!(
+            normalize_audit_path("src/point_add/report_fixture.rs").unwrap(),
+            "src/point_add/report_fixture.rs"
+        );
+        assert_eq!(
+            normalize_audit_path("src/bin/../point_add/report_fixture.rs").unwrap(),
+            "src/point_add/report_fixture.rs"
+        );
     }
 
     #[test]
@@ -1880,7 +2112,7 @@ mod tests {
                 "witnesses.tsv",
             ]
         );
-        assert!(first["audit-diagnostics.log"].starts_with(b"mixed_family\t"));
+        assert_eq!(first["audit-diagnostics.log"], b"");
         for (name, bytes) in &first {
             if *name != "audit-diagnostics.log" || !bytes.is_empty() {
                 assert_eq!(bytes.last(), Some(&b'\n'), "{name}");
@@ -1937,11 +2169,13 @@ mod tests {
                 file: "src/point_add/hash.rs",
                 line: 11,
                 trace_context: 12,
+                source_literal: SourceLiteralMetadata::NONE,
             },
             SourceSite {
                 file: "src/point_add/inverse.rs",
                 line: 22,
                 trace_context: 23,
+                source_literal: SourceLiteralMetadata::NONE,
             },
         ];
         let origins = [
@@ -1964,7 +2198,63 @@ mod tests {
         assert_eq!(hashes.trusted_xof32, trusted_xof32);
         assert_eq!(
             lowercase_hex(&hashes.provenance_sha256),
-            "0de60925527445b35e940ea1549b1bd21104bcd0446b4364e4690997ece1b9c1"
+            "b188de17c00c237241e124268168c870e4a8618bb43a5f7c94a67fac5807cee5"
+        );
+    }
+
+    #[test]
+    fn provenance_digest_binds_the_rendered_transform_chain_literal() {
+        let ops = [Op::empty(), Op::empty()];
+        let sites = [SourceSite {
+            file: "src/point_add/rendered_chain.rs",
+            line: 17,
+            trace_context: 23,
+            source_literal: SourceLiteralMetadata::NONE,
+        }];
+        let origins = [
+            OriginRef {
+                site_id: 0,
+                emission_ordinal: 5,
+                inverse_depth: 0,
+                flags: 0,
+            },
+            OriginRef {
+                site_id: 0,
+                emission_ordinal: 8,
+                inverse_depth: 2,
+                flags: crate::point_add::ORIGIN_EMIT_INVERSE
+                    | crate::point_add::ORIGIN_SYNTHETIC_TAIL,
+            },
+        ];
+
+        let mut expected = Sha256::new();
+        Digest::update(&mut expected, (origins.len() as u64).to_le_bytes());
+        for (index, origin) in origins.iter().copied().enumerate() {
+            let path = b"src/point_add/rendered_chain.rs";
+            Digest::update(&mut expected, (index as u64).to_le_bytes());
+            Digest::update(&mut expected, (path.len() as u32).to_le_bytes());
+            Digest::update(&mut expected, path);
+            Digest::update(&mut expected, 17u32.to_le_bytes());
+            Digest::update(&mut expected, 23u32.to_le_bytes());
+            Digest::update(&mut expected, SourceLiteralMetadata::NONE.key.to_le_bytes());
+            Digest::update(
+                &mut expected,
+                SourceLiteralMetadata::NONE.value.to_le_bytes(),
+            );
+            Digest::update(&mut expected, origin.emission_ordinal.to_le_bytes());
+            Digest::update(&mut expected, origin.inverse_depth.to_le_bytes());
+            Digest::update(&mut expected, origin.flags.to_le_bytes());
+            let transform_chain = origin.transform_chain();
+            Digest::update(&mut expected, (transform_chain.len() as u32).to_le_bytes());
+            Digest::update(&mut expected, transform_chain.as_bytes());
+        }
+
+        assert_eq!(
+            hash_stream(&ops, &origins, &sites)
+                .expect("rendered transform-chain digest")
+                .0
+                .provenance_sha256,
+            <[u8; 32]>::from(expected.finalize())
         );
     }
 
@@ -1975,11 +2265,17 @@ mod tests {
             file: "src/bin/../point_add/hash_flags.rs",
             line: 7,
             trace_context: 8,
+            source_literal: SourceLiteralMetadata::NONE,
         }];
         let sites_b = [SourceSite {
             file: "src/point_add/hash_flags.rs",
             line: 7,
             trace_context: 8,
+            source_literal: SourceLiteralMetadata::NONE,
+        }];
+        let sites_with_literal = [SourceSite {
+            source_literal: SourceLiteralMetadata { key: 4, value: 9 },
+            ..sites_b[0].clone()
         }];
         let origins = [
             (0, 0),
@@ -2026,8 +2322,14 @@ mod tests {
         let first = hash_stream(&ops, &origins, &sites_a).expect("all valid flags");
         let second = hash_stream(&ops, &origins, &sites_a).expect("repeat all valid flags");
         let normalized = hash_stream(&ops, &origins, &sites_b).expect("normalized path");
+        let literal_bound =
+            hash_stream(&ops, &origins, &sites_with_literal).expect("literal-bound path");
         assert_eq!(first.0, second.0);
         assert_eq!(first.0.provenance_sha256, normalized.0.provenance_sha256);
+        assert_ne!(
+            normalized.0.provenance_sha256,
+            literal_bound.0.provenance_sha256
+        );
     }
 
     struct TestDirectory(std::path::PathBuf);
@@ -2055,11 +2357,17 @@ mod tests {
     #[test]
     fn raw_writer_atomically_creates_exactly_six_deterministic_files() {
         let root = TestDirectory::new("success");
-        let stream = reduced_audit_stream(2, "src/point_add/report_fixture.rs");
+        let stream = reduced_literal_predicate_stream(
+            2,
+            SourceLiteralMetadata { key: 1, value: 0 },
+            SourceLiteralMetadata { key: 1, value: 1 },
+        );
         let predicate = ExactSourcePredicate {
+            audit_path: "src/point_add/literal_fixture.rs",
+            audit_line: 90,
             trace_context: 7,
-            inverse_depth: 0,
-            flags: crate::point_add::ORIGIN_SYNTHETIC_TAIL,
+            kind: GateKind::Ccx,
+            source_literal: SourceLiteralMetadata { key: 1, value: 1 },
         };
         let report = audit_and_write_with_width(&stream, &root.0, 2, &[predicate])
             .expect("atomic raw write");
@@ -2140,15 +2448,22 @@ mod tests {
         for (op, line) in [(push_condition(0), 30), (push_condition(1), 31)] {
             push_at(&mut stream, op, "src/point_add/full_path.rs", line, 5, 0, 0);
         }
-        push_at(
-            &mut stream,
-            x(auxiliary_q),
-            "src/point_add/inverse_block.rs",
-            40,
-            6,
-            2,
-            crate::point_add::ORIGIN_EMIT_INVERSE,
-        );
+        let mut inverse_builder = B::new_for_test();
+        inverse_builder.ops = stream;
+        emit_inverse(&mut inverse_builder, |builder| {
+            emit_inverse(builder, |builder| {
+                push_at(
+                    &mut builder.ops,
+                    x(auxiliary_q),
+                    "src/point_add/inverse_block.rs",
+                    40,
+                    6,
+                    0,
+                    0,
+                );
+            });
+        });
+        let mut stream = inverse_builder.ops.take();
         for (op, line) in [(pop_condition(), 41), (pop_condition(), 42)] {
             push_at(&mut stream, op, "src/point_add/full_path.rs", line, 5, 0, 0);
         }
@@ -2171,15 +2486,6 @@ mod tests {
         hmr.c_target = BitId(auxiliary_b);
         push_at(&mut stream, hmr, "src/point_add/full_path.rs", 51, 0, 0, 0);
 
-        push_at(
-            &mut stream,
-            x(auxiliary_q + 3),
-            "src/point_add/nonce_tail.rs",
-            60,
-            9,
-            0,
-            crate::point_add::ORIGIN_SYNTHETIC_TAIL | crate::point_add::ORIGIN_TAIL_NONCE_REWRITTEN,
-        );
         for (offset, kind) in [OperationType::CCX, OperationType::CCZ]
             .into_iter()
             .enumerate()
@@ -2190,14 +2496,24 @@ mod tests {
             push_at(
                 &mut stream,
                 gate,
-                "src/point_add/nonce_tail.rs",
+                "src/point_add/full_path.rs",
                 61 + offset as u32,
                 9,
                 0,
-                crate::point_add::ORIGIN_SYNTHETIC_TAIL
-                    | crate::point_add::ORIGIN_TAIL_NONCE_REWRITTEN,
+                0,
             );
         }
+
+        let tail_ops = [x(auxiliary_q + 3), x(auxiliary_q + 3)];
+        let tail = stream
+            .append_synthetic_tail_at(&tail_ops, "src/point_add/nonce_tail.rs", 60, 9)
+            .expect("append paired synthetic tail");
+        stream
+            .rewrite_synthetic_tail_targets(
+                tail,
+                &[QubitId(auxiliary_q + 7), QubitId(auxiliary_q + 7)],
+            )
+            .expect("rewrite paired synthetic tail");
         stream
     }
 
@@ -2228,6 +2544,23 @@ mod tests {
                 .all(|family| family.disposition == FamilyDisposition::UniformProvisional));
             assert!(render_raw_artifacts(&first).unwrap()["audit-diagnostics.log"].is_empty());
             assert_eq!(first.provenance_count, audited.len() as u64);
+            let inverse_origin = audited
+                .origins()
+                .iter()
+                .find(|origin| origin.inverse_depth == 2)
+                .expect("nested inverse origin");
+            assert_eq!(inverse_origin.flags, crate::point_add::ORIGIN_EMIT_INVERSE);
+            assert_eq!(
+                inverse_origin.transform_chain(),
+                "emit_inverse>emit_inverse"
+            );
+            assert!(audited.origins()[audited.len() - 2..].iter().all(|origin| {
+                origin.inverse_depth == 0
+                    && origin.flags
+                        == (crate::point_add::ORIGIN_SYNTHETIC_TAIL
+                            | crate::point_add::ORIGIN_TAIL_NONCE_REWRITTEN)
+                    && origin.transform_chain() == "synthetic_tail>tail_nonce_rewritten"
+            }));
             assert_eq!(first.core.xof_words_consumed, 2);
             assert_eq!(first.core.decisions.len(), 2);
             assert!(first
