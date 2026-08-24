@@ -63,3 +63,27 @@ Cumulative new production coverage through these completed records is
 has appeared and it was exact-postfiltered non-clean. Search continues under
 the existing lease with no trusted replay. `submit=CLOSED`,
 `no_submit_ack=yes`.
+
+## Subsequent zero-survivor slices
+
+Every row below has exit 0, exact source/ops/runtime hashes, state digest
+`bc16e98fdac46783`, `comb_bits=8`, and a locally harvested archive whose hash
+matches the remote hash.
+
+| worker/slice | exact half-open range | survivors | archive SHA-256 | bytes |
+| --- | --- | ---: | --- | ---: |
+| w0/3 | `[82503815659520,82503824048128)` | 0 | `d6eb75707b46e68269260778e299f480c8bbe5acfd288ff3621dae00eb8480dc` | 804 |
+| w0/4 | `[82503824048128,82503832436736)` | 0 | `668b35f2363cc996fa8e39bce346d22b118a8a2f275f24d2c0e9548e6b7fb0fb` | 803 |
+| w0/5 | `[82503832436736,82503840825344)` | 0 | `2cb19fa67420a538edbe563cd8f7f23b34a90ff51fea661a3521e0c53592b7a4` | 809 |
+| w0/6 | `[82503840825344,82503849213952)` | 0 | `38c21d7ac38e0ff5390b60f3c1224c2010d5ac3c91b3e6c5b0376967386e1a0a` | 809 |
+| w1/1 | `[82504334704640,82504343093248)` | 0 | `1a8c9f99feaba5d70609b3ebddd26d7f4623c8314881683464d5bc9638b0b8e2` | 1782 |
+| w1/2 | `[82504343093248,82504351481856)` | 0 | `feab91cedbe8cb2dcae5a94f920041e4a295054c3347a5940c75ec32aabdc282` | 810 |
+| w2/2 | `[82504879964160,82504888352768)` | 0 | `6ec85f6df6d37ce54eb7f6189e726c37f78d407ff0178a04c684408f40cc89e1` | 811 |
+| w2/3 | `[82504888352768,82504896741376)` | 0 | `48cd1ee7c006ff0a27cb5d9b37b86e31c8d4a52b7991da2517c2c4486eea7df4` | 810 |
+| w2/4 | `[82504896741376,82504905129984)` | 0 | `af330eb3f998b3fd53b510d2a977f83660c31af34e45aaa76d36477cdb389287` | 811 |
+| w2/5 | `[82504905129984,82504913518592)` | 0 | `3b9673d7d1f51c0760600af57d72bb187b162f4b42961c3af1abf5ea69fe970d` | 809 |
+
+Cumulative completed production coverage is now `110096384` nonces: the
+1,044,480-nonce production canary plus thirteen full `2^23` slices. Exactly one
+GPU survivor has appeared; exact CPU postfilter rejected it as phase-dirty.
+No trusted evaluator replay has run. `submit=CLOSED`, `no_submit_ack=yes`.
