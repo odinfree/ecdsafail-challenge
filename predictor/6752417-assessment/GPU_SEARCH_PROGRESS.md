@@ -123,9 +123,13 @@ No trusted evaluator replay has run. `submit=CLOSED`, `no_submit_ack=yes`.
 | w1/6 | `[82504376647680,82504385036288)` | 0 | `b0899bf2cbf60b7740be06d08d5daaeae9d2288fd574ee0342834394bbd1e450` | 808 |
 | w2/9 | `[82504938684416,82504947073024)` | 0 | `bca62a91e7cc3566fc2c2402b694777ba7007c72d369ce5a6f32f8a83173036e` | 811 |
 | w3/2 | `[82505416835072,82505425223680)` | 0 | `6213ca496d9fc689c7c07bb59b11fb4e3b714becc938e87029d0950312df9f1e` | 810 |
+| w0/11 | `[82503882768384,82503891156992)` | 0 | `284bb25f268ae21790d964fd9bef35d0e21ef2fae920a296350f912e6d5aaec4` | 809 |
+| w1/7 | `[82504385036288,82504393424896)` | 0 | `8f0668e6d32e6e93410956cdc1b559161f5ade7c47705fdb81ddc92371fc1f98` | 808 |
+| w2/10 | `[82504947073024,82504955461632)` | 0 | `f32f56c1f64a37cb3e68dc539aefabaa644532a02259298e1e4dc3a756d5ec9b` | 808 |
+| w3/3 | `[82505425223680,82505433612288)` | 0 | `826fbd48a01451b25f82f857eaa62b3a41bf6a02f534b26949d762932c0decdb` | 810 |
 
-Cumulative completed production coverage is `227536896` nonces: the
-1,044,480-nonce production canary plus twenty-seven full `2^23` slices. Two GPU
+Cumulative completed production coverage is `261091328` nonces: the
+1,044,480-nonce production canary plus thirty-one full `2^23` slices. Two GPU
 survivors have appeared and both were exact phase-dirty rejections. No trusted
 evaluator replay has run. `submit=CLOSED`, `no_submit_ack=yes`.
 
