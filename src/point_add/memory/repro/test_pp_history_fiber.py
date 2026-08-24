@@ -7,7 +7,14 @@ from pathlib import Path
 REPRO_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPRO_DIR))
 
-from pp_history_fiber import Config, bit1, half_mod, run_case
+from pp_history_fiber import (
+    Config,
+    bit1,
+    enumerate_fibers,
+    half_mod,
+    local_predecessor_signs,
+    run_case,
+)
 
 
 class ArithmeticTests(unittest.TestCase):
@@ -24,6 +31,20 @@ class ArithmeticTests(unittest.TestCase):
         for state in trace.states:
             self.assertEqual(state.u & 1, 1)
             self.assertEqual(state.v & 1, 1)
+
+
+class FiberTests(unittest.TestCase):
+    def test_every_width5_history_round_trips(self) -> None:
+        report = enumerate_fibers(Config(width=5, modulus=29, rounds=12))
+        self.assertEqual(report.input_count, 29 * 28)
+        self.assertEqual(report.rounds[-1].round_index, 12)
+        self.assertTrue(report.round_trip_ok)
+
+    def test_local_walk_endpoint_has_two_predecessor_signs(self) -> None:
+        self.assertEqual(
+            local_predecessor_signs(source=5, post_target=3, width=5),
+            (0, 1),
+        )
 
 
 if __name__ == "__main__":

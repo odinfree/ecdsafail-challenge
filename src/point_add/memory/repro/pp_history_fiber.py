@@ -9,7 +9,9 @@ constants with explicitly configured small odd moduli for exhaustive search.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
+from typing import Mapping
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +50,26 @@ class Trace:
     states: tuple[State, ...]
     signs: tuple[int, ...]
     history: int
+
+
+@dataclass(frozen=True, slots=True)
+class FiberRound:
+    round_index: int
+    raw_history_bits: int
+    endpoint_count: int
+    endpoint_history_count: int
+    maximum_fiber_size: int
+    minimum_code_bits: int
+    singleton_endpoints: int
+    members_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class FiberReport:
+    config: Config
+    input_count: int
+    rounds: tuple[FiberRound, ...]
+    round_trip_ok: bool
 
 
 def bit1(value: int, width: int) -> int:
@@ -128,3 +150,111 @@ def run_case(config: Config, denominator: int, numerator: int) -> Trace:
         signs.append(sign)
         history |= sign << round_index
     return Trace(tuple(states), tuple(signs), history)
+
+
+def local_predecessor_signs(source: int, post_target: int, width: int) -> tuple[int, ...]:
+    """Return the sign choices consistent with one odd post-walk state."""
+
+    if source & 1 == 0 or post_target & 1 == 0:
+        raise ValueError("source and post-target must both be odd")
+    valid: list[int] = []
+    for sign in (0, 1):
+        predecessor = 2 * post_target + (source if sign else -source)
+        observed = bit1(source, width) ^ bit1(predecessor, width)
+        if observed == sign:
+            valid.append(sign)
+    return tuple(valid)
+
+
+def encode(
+    endpoint: State,
+    history: int,
+    members: Mapping[State, tuple[int, ...]],
+) -> int:
+    """Return the canonical index of ``history`` in an endpoint fiber."""
+
+    fiber = members[endpoint]
+    try:
+        return fiber.index(history)
+    except ValueError as error:
+        raise KeyError("history is not a member of the endpoint fiber") from error
+
+
+def decode(
+    endpoint: State,
+    code: int,
+    members: Mapping[State, tuple[int, ...]],
+) -> int:
+    """Decode one canonical endpoint-fiber index."""
+
+    fiber = members[endpoint]
+    if not 0 <= code < len(fiber):
+        raise KeyError("code lies outside the endpoint fiber")
+    return fiber[code]
+
+
+def _fiber_digest(members: Mapping[State, tuple[int, ...]]) -> str:
+    digest = hashlib.sha256()
+    for endpoint in sorted(members):
+        histories = members[endpoint]
+        digest.update(
+            (
+                f"{endpoint.u},{endpoint.v},{endpoint.x},{endpoint.y}:"
+                + ",".join(str(history) for history in histories)
+                + "\n"
+            ).encode("ascii")
+        )
+    return digest.hexdigest()
+
+
+def enumerate_fibers(config: Config) -> FiberReport:
+    """Exhaustively enumerate exact reachable endpoint/history fibers."""
+
+    traces = [
+        run_case(config, denominator, numerator)
+        for denominator in range(1, config.modulus)
+        for numerator in range(config.modulus)
+    ]
+    rows: list[FiberRound] = []
+    round_trip_ok = True
+    for round_index in range(1, config.rounds + 1):
+        history_mask = (1 << round_index) - 1
+        grouped: dict[State, set[int]] = {}
+        for trace in traces:
+            endpoint = trace.states[round_index - 1]
+            history = trace.history & history_mask
+            grouped.setdefault(endpoint, set()).add(history)
+
+        members = {
+            endpoint: tuple(sorted(histories))
+            for endpoint, histories in grouped.items()
+        }
+        for endpoint, histories in members.items():
+            for history in histories:
+                code = encode(endpoint, history, members)
+                if decode(endpoint, code, members) != history:
+                    round_trip_ok = False
+                    raise AssertionError(
+                        f"round {round_index}: endpoint fiber failed to round trip"
+                    )
+
+        maximum_fiber_size = max(map(len, members.values()), default=0)
+        rows.append(
+            FiberRound(
+                round_index=round_index,
+                raw_history_bits=round_index,
+                endpoint_count=len(members),
+                endpoint_history_count=sum(map(len, members.values())),
+                maximum_fiber_size=maximum_fiber_size,
+                minimum_code_bits=(maximum_fiber_size - 1).bit_length(),
+                singleton_endpoints=sum(len(fiber) == 1 for fiber in members.values()),
+                members_sha256=_fiber_digest(members),
+            )
+        )
+
+    return FiberReport(
+        config=config,
+        input_count=len(traces),
+        rounds=tuple(rows),
+        round_trip_ok=round_trip_ok,
+    )
