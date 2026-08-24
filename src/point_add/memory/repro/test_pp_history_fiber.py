@@ -13,6 +13,7 @@ from pp_history_fiber import (
     enumerate_fibers,
     half_mod,
     local_predecessor_signs,
+    render_receipt,
     run_case,
 )
 
@@ -39,12 +40,19 @@ class FiberTests(unittest.TestCase):
         self.assertEqual(report.input_count, 29 * 28)
         self.assertEqual(report.rounds[-1].round_index, 12)
         self.assertTrue(report.round_trip_ok)
+        self.assertTrue(report.walk_converged)
 
     def test_local_walk_endpoint_has_two_predecessor_signs(self) -> None:
         self.assertEqual(
             local_predecessor_signs(source=5, post_target=3, width=5),
             (0, 1),
         )
+
+
+class CliTests(unittest.TestCase):
+    def test_receipt_is_byte_deterministic(self) -> None:
+        args = ["--width", "5", "--modulus", "29", "--rounds", "12"]
+        self.assertEqual(render_receipt(args), render_receipt(args))
 
 
 if __name__ == "__main__":

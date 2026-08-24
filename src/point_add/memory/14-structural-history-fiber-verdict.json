@@ -1,0 +1,427 @@
+{
+  "admission_checks": [
+    {
+      "evidence": [
+        true,
+        true
+      ],
+      "name": "all_histories_round_trip",
+      "pass": true
+    },
+    {
+      "evidence": [
+        true,
+        true
+      ],
+      "name": "all_walks_reach_terminal_family",
+      "pass": true
+    },
+    {
+      "evidence": [
+        0.3333333333333333,
+        0.29411764705882354
+      ],
+      "name": "code_raw_ratio_nonincreasing",
+      "pass": true
+    },
+    {
+      "evidence": {
+        "cap": 469,
+        "production_binding_history": 636,
+        "projected_resident_history": 188
+      },
+      "name": "modeled_q1100_history_cap",
+      "pass": true
+    }
+  ],
+  "binding": {
+    "live_frontier": {
+      "qubits": 1267,
+      "score": 1154731130,
+      "toffoli": 911390
+    },
+    "source_commit": "67524171baaf568dc3dc606f38515745f70804ff",
+    "source_tree": "8202910d176fa1f3332ff961e6f3f789ca6a7ac2"
+  },
+  "decoder_cost_gate": {
+    "q1000_history_cap": 369,
+    "q1000_toffoli_headroom": 243341,
+    "q1100_history_cap": 469,
+    "q1100_toffoli_headroom": 138365,
+    "status": "unresolved_next_phase"
+  },
+  "failed_checks": [],
+  "model_scope": {
+    "claim": "exact reduced-width fixed-schedule recurrence enumeration",
+    "not_a_candidate": true,
+    "production_binding_history": 636,
+    "projection_method": "ceil(636 * final minimum_code_bits / final raw_history_bits)"
+  },
+  "projected_resident_history": 188,
+  "reports": [
+    {
+      "config": {
+        "modulus": 29,
+        "rounds": 12,
+        "width": 5
+      },
+      "converged_input_count": 812,
+      "final_code_raw_ratio": {
+        "decimal": 0.3333333333333333,
+        "denominator": 12,
+        "numerator": 4
+      },
+      "input_count": 812,
+      "round_trip_ok": true,
+      "rounds": [
+        {
+          "endpoint_count": 812,
+          "endpoint_history_count": 812,
+          "maximum_fiber_size": 1,
+          "members_sha256": "0f20d9ed3cc998b08008a2d1e3d1bb792e7e60f2aba576c125f2ee2e9afb5d71",
+          "minimum_code_bits": 0,
+          "raw_history_bits": 1,
+          "round_index": 1,
+          "singleton_endpoints": 812
+        },
+        {
+          "endpoint_count": 812,
+          "endpoint_history_count": 812,
+          "maximum_fiber_size": 1,
+          "members_sha256": "946ccefa89b5fea8e8161e1dd8dc4f5c48e06d05608e6afc2b905482684b7621",
+          "minimum_code_bits": 0,
+          "raw_history_bits": 2,
+          "round_index": 2,
+          "singleton_endpoints": 812
+        },
+        {
+          "endpoint_count": 812,
+          "endpoint_history_count": 812,
+          "maximum_fiber_size": 1,
+          "members_sha256": "932ae35100608e302721a5a776b590bf419bafc11518b8cd3dc97d610f7619ad",
+          "minimum_code_bits": 0,
+          "raw_history_bits": 3,
+          "round_index": 3,
+          "singleton_endpoints": 812
+        },
+        {
+          "endpoint_count": 812,
+          "endpoint_history_count": 812,
+          "maximum_fiber_size": 1,
+          "members_sha256": "4ad3493cbf3ae6236ecafb1f2514f2d266722b3ec5af138fcb0403feed6bcb87",
+          "minimum_code_bits": 0,
+          "raw_history_bits": 4,
+          "round_index": 4,
+          "singleton_endpoints": 812
+        },
+        {
+          "endpoint_count": 812,
+          "endpoint_history_count": 812,
+          "maximum_fiber_size": 1,
+          "members_sha256": "fc82a5d20ea2fedcd539b2c36c13dc01a441255b741f743daf4011ef0a323205",
+          "minimum_code_bits": 0,
+          "raw_history_bits": 5,
+          "round_index": 5,
+          "singleton_endpoints": 812
+        },
+        {
+          "endpoint_count": 754,
+          "endpoint_history_count": 812,
+          "maximum_fiber_size": 2,
+          "members_sha256": "f2b2e8a4c3837612c59442c7b37503ceee1f29ebc224a0739c7ed6276afa170b",
+          "minimum_code_bits": 1,
+          "raw_history_bits": 6,
+          "round_index": 6,
+          "singleton_endpoints": 696
+        },
+        {
+          "endpoint_count": 638,
+          "endpoint_history_count": 812,
+          "maximum_fiber_size": 2,
+          "members_sha256": "4759ac5817792f633bd2053b0c6e9a58e60078aa146ae329d422084578ed0b25",
+          "minimum_code_bits": 1,
+          "raw_history_bits": 7,
+          "round_index": 7,
+          "singleton_endpoints": 464
+        },
+        {
+          "endpoint_count": 522,
+          "endpoint_history_count": 812,
+          "maximum_fiber_size": 4,
+          "members_sha256": "c0bf6905b04099b2f20f76620291e5e4828e230deb12df50482bec4ddb229d59",
+          "minimum_code_bits": 2,
+          "raw_history_bits": 8,
+          "round_index": 8,
+          "singleton_endpoints": 348
+        },
+        {
+          "endpoint_count": 406,
+          "endpoint_history_count": 812,
+          "maximum_fiber_size": 5,
+          "members_sha256": "8f9ae34a1c895be30bcbd1828a6ee3e30e6e4d5640c48483a9c54bee197a56c0",
+          "minimum_code_bits": 3,
+          "raw_history_bits": 9,
+          "round_index": 9,
+          "singleton_endpoints": 232
+        },
+        {
+          "endpoint_count": 290,
+          "endpoint_history_count": 812,
+          "maximum_fiber_size": 8,
+          "members_sha256": "22365f74d577db45907df63fd871bda972c1a34997f30fda054d827afd8fc289",
+          "minimum_code_bits": 3,
+          "raw_history_bits": 10,
+          "round_index": 10,
+          "singleton_endpoints": 174
+        },
+        {
+          "endpoint_count": 174,
+          "endpoint_history_count": 812,
+          "maximum_fiber_size": 9,
+          "members_sha256": "7c3a54becd09b6066bc2be792fca4e4b9caec59076cf22395644ec5d131d153c",
+          "minimum_code_bits": 4,
+          "raw_history_bits": 11,
+          "round_index": 11,
+          "singleton_endpoints": 58
+        },
+        {
+          "endpoint_count": 116,
+          "endpoint_history_count": 812,
+          "maximum_fiber_size": 10,
+          "members_sha256": "30a13e097190b23e361a198f19d4bb6459a43b5efd645d6487ed37e22edce218",
+          "minimum_code_bits": 4,
+          "raw_history_bits": 12,
+          "round_index": 12,
+          "singleton_endpoints": 0
+        }
+      ],
+      "terminal_walk_states": [
+        [
+          -1,
+          -1
+        ],
+        [
+          -1,
+          1
+        ],
+        [
+          1,
+          -1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "walk_converged": true
+    },
+    {
+      "config": {
+        "modulus": 61,
+        "rounds": 17,
+        "width": 6
+      },
+      "converged_input_count": 3660,
+      "final_code_raw_ratio": {
+        "decimal": 0.29411764705882354,
+        "denominator": 17,
+        "numerator": 5
+      },
+      "input_count": 3660,
+      "round_trip_ok": true,
+      "rounds": [
+        {
+          "endpoint_count": 3660,
+          "endpoint_history_count": 3660,
+          "maximum_fiber_size": 1,
+          "members_sha256": "3b991a0c61e5dae203f8c0f3ea20e34ddc90cc9d69e8afa4a22900dadbf35b89",
+          "minimum_code_bits": 0,
+          "raw_history_bits": 1,
+          "round_index": 1,
+          "singleton_endpoints": 3660
+        },
+        {
+          "endpoint_count": 3660,
+          "endpoint_history_count": 3660,
+          "maximum_fiber_size": 1,
+          "members_sha256": "a6f61c19aee1f32d3f3cebc6e323b3afe27fbccd7e32e7b3f52e7236ebc85de7",
+          "minimum_code_bits": 0,
+          "raw_history_bits": 2,
+          "round_index": 2,
+          "singleton_endpoints": 3660
+        },
+        {
+          "endpoint_count": 3660,
+          "endpoint_history_count": 3660,
+          "maximum_fiber_size": 1,
+          "members_sha256": "1f5f9233a1d353cdd4dc0557c85512dbf68a3ebce4cb06244499dc944a8e75bb",
+          "minimum_code_bits": 0,
+          "raw_history_bits": 3,
+          "round_index": 3,
+          "singleton_endpoints": 3660
+        },
+        {
+          "endpoint_count": 3660,
+          "endpoint_history_count": 3660,
+          "maximum_fiber_size": 1,
+          "members_sha256": "f5f7955bb464e8939211c84bf8d58ce6aa84050799a3b3e3ae4fdf02df0ad4a0",
+          "minimum_code_bits": 0,
+          "raw_history_bits": 4,
+          "round_index": 4,
+          "singleton_endpoints": 3660
+        },
+        {
+          "endpoint_count": 3660,
+          "endpoint_history_count": 3660,
+          "maximum_fiber_size": 1,
+          "members_sha256": "ec485cfd2a48ecd9034b7fde928e6ee80920e188951a7da46227b16a2413055f",
+          "minimum_code_bits": 0,
+          "raw_history_bits": 5,
+          "round_index": 5,
+          "singleton_endpoints": 3660
+        },
+        {
+          "endpoint_count": 3416,
+          "endpoint_history_count": 3660,
+          "maximum_fiber_size": 2,
+          "members_sha256": "7047d7252821d2b99e2b7a847eaba7e34c577bd23df893aa91fb48097024fb1e",
+          "minimum_code_bits": 1,
+          "raw_history_bits": 6,
+          "round_index": 6,
+          "singleton_endpoints": 3172
+        },
+        {
+          "endpoint_count": 3294,
+          "endpoint_history_count": 3660,
+          "maximum_fiber_size": 3,
+          "members_sha256": "306cd1daf8ccfa81464d9f5e3e900bc276b4dbf8725fa23f45644ea9bdb4a5f1",
+          "minimum_code_bits": 2,
+          "raw_history_bits": 7,
+          "round_index": 7,
+          "singleton_endpoints": 3050
+        },
+        {
+          "endpoint_count": 2928,
+          "endpoint_history_count": 3660,
+          "maximum_fiber_size": 4,
+          "members_sha256": "f9eef7afaec9609e755bd306b9be1c24b2465cf47593fcfaeec77e9f1270602a",
+          "minimum_code_bits": 2,
+          "raw_history_bits": 8,
+          "round_index": 8,
+          "singleton_endpoints": 2440
+        },
+        {
+          "endpoint_count": 2562,
+          "endpoint_history_count": 3660,
+          "maximum_fiber_size": 6,
+          "members_sha256": "4cc9cc9e0bf10d2f463cd17eff9ef1fd6fcee026d8e06b90cc300c2ad7909bb0",
+          "minimum_code_bits": 3,
+          "raw_history_bits": 9,
+          "round_index": 9,
+          "singleton_endpoints": 2074
+        },
+        {
+          "endpoint_count": 2196,
+          "endpoint_history_count": 3660,
+          "maximum_fiber_size": 9,
+          "members_sha256": "14ca23035227d0df91087327735da10bf5f957f53ace211729d233687772437f",
+          "minimum_code_bits": 4,
+          "raw_history_bits": 10,
+          "round_index": 10,
+          "singleton_endpoints": 1586
+        },
+        {
+          "endpoint_count": 1708,
+          "endpoint_history_count": 3660,
+          "maximum_fiber_size": 11,
+          "members_sha256": "b07e256b7e253c831f349587d4ed67ec9d5b60d6cfe50a7ff19eba2273f35622",
+          "minimum_code_bits": 4,
+          "raw_history_bits": 11,
+          "round_index": 11,
+          "singleton_endpoints": 1098
+        },
+        {
+          "endpoint_count": 1098,
+          "endpoint_history_count": 3660,
+          "maximum_fiber_size": 14,
+          "members_sha256": "f950b8f553e2793b1be1adfdcda0e7f03350a59de63263b6616cf7c9b8bed2cc",
+          "minimum_code_bits": 4,
+          "raw_history_bits": 12,
+          "round_index": 12,
+          "singleton_endpoints": 366
+        },
+        {
+          "endpoint_count": 854,
+          "endpoint_history_count": 3660,
+          "maximum_fiber_size": 16,
+          "members_sha256": "64da85869a7e50dba95643031547c2c2f2c3d9bfdd11f3684d1c9558b203f907",
+          "minimum_code_bits": 4,
+          "raw_history_bits": 13,
+          "round_index": 13,
+          "singleton_endpoints": 366
+        },
+        {
+          "endpoint_count": 610,
+          "endpoint_history_count": 3660,
+          "maximum_fiber_size": 18,
+          "members_sha256": "f97019008e1bc0830fd38d133c6820448650e3e94caecf56fed6b9036e563f0b",
+          "minimum_code_bits": 5,
+          "raw_history_bits": 14,
+          "round_index": 14,
+          "singleton_endpoints": 366
+        },
+        {
+          "endpoint_count": 488,
+          "endpoint_history_count": 3660,
+          "maximum_fiber_size": 19,
+          "members_sha256": "04931afeafe9eb3abc662f982fea59c9cebc0b4d1811c1f499cd014962aa54a2",
+          "minimum_code_bits": 5,
+          "raw_history_bits": 15,
+          "round_index": 15,
+          "singleton_endpoints": 244
+        },
+        {
+          "endpoint_count": 366,
+          "endpoint_history_count": 3660,
+          "maximum_fiber_size": 20,
+          "members_sha256": "8c19a1bf99093e7886bc9b9670120b46d7a90f7c0e2aaef8937fbd371a680e5c",
+          "minimum_code_bits": 5,
+          "raw_history_bits": 16,
+          "round_index": 16,
+          "singleton_endpoints": 122
+        },
+        {
+          "endpoint_count": 244,
+          "endpoint_history_count": 3660,
+          "maximum_fiber_size": 21,
+          "members_sha256": "e62f4f6ff084893dc6aac469b47ab1f87ed5101d04445572c7a5cb7302a28f0c",
+          "minimum_code_bits": 5,
+          "raw_history_bits": 17,
+          "round_index": 17,
+          "singleton_endpoints": 0
+        }
+      ],
+      "terminal_walk_states": [
+        [
+          -1,
+          -1
+        ],
+        [
+          -1,
+          1
+        ],
+        [
+          1,
+          -1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "walk_converged": true
+    }
+  ],
+  "verdict": "ADMIT",
+  "verdict_scope": "decoder_synthesis_only"
+}

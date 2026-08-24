@@ -9,9 +9,20 @@ constants with explicitly configured small odd moduli for exhaustive search.
 
 from __future__ import annotations
 
+import argparse
 import hashlib
+import json
+import math
+import sys
 from dataclasses import dataclass
 from typing import Mapping
+
+SOURCE_COMMIT = "67524171baaf568dc3dc606f38515745f70804ff"
+SOURCE_TREE = "8202910d176fa1f3332ff961e6f3f789ca6a7ac2"
+LIVE_SCORE = 1_154_731_130
+LIVE_QUBITS = 1_267
+LIVE_TOFFOLI = 911_390
+PRODUCTION_BINDING_HISTORY = 636
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,6 +81,9 @@ class FiberReport:
     input_count: int
     rounds: tuple[FiberRound, ...]
     round_trip_ok: bool
+    terminal_walk_states: tuple[tuple[int, int], ...]
+    converged_input_count: int
+    walk_converged: bool
 
 
 def bit1(value: int, width: int) -> int:
@@ -252,9 +266,157 @@ def enumerate_fibers(config: Config) -> FiberReport:
             )
         )
 
+    terminal_walk_states = tuple(
+        sorted({(trace.states[-1].u, trace.states[-1].v) for trace in traces})
+    )
+    converged_input_count = sum(
+        abs(trace.states[-1].u) == 1 and abs(trace.states[-1].v) == 1
+        for trace in traces
+    )
     return FiberReport(
         config=config,
         input_count=len(traces),
         rounds=tuple(rows),
         round_trip_ok=round_trip_ok,
+        terminal_walk_states=terminal_walk_states,
+        converged_input_count=converged_input_count,
+        walk_converged=converged_input_count == len(traces),
     )
+
+
+def _parse_configs(argv: list[str]) -> list[Config]:
+    parser = argparse.ArgumentParser(
+        description="Enumerate exact reduced-width ping-pong history fibers"
+    )
+    parser.add_argument("--width", type=int, action="append", required=True)
+    parser.add_argument("--modulus", type=int, action="append", required=True)
+    parser.add_argument("--rounds", type=int, action="append", required=True)
+    args = parser.parse_args(argv)
+    lengths = {len(args.width), len(args.modulus), len(args.rounds)}
+    if len(lengths) != 1:
+        parser.error("--width, --modulus, and --rounds counts must match")
+    return [
+        Config(width, modulus, rounds)
+        for width, modulus, rounds in zip(
+            args.width, args.modulus, args.rounds, strict=True
+        )
+    ]
+
+
+def _round_dict(row: FiberRound) -> dict[str, int | str]:
+    return {
+        "endpoint_count": row.endpoint_count,
+        "endpoint_history_count": row.endpoint_history_count,
+        "maximum_fiber_size": row.maximum_fiber_size,
+        "members_sha256": row.members_sha256,
+        "minimum_code_bits": row.minimum_code_bits,
+        "raw_history_bits": row.raw_history_bits,
+        "round_index": row.round_index,
+        "singleton_endpoints": row.singleton_endpoints,
+    }
+
+
+def _report_dict(report: FiberReport) -> dict[str, object]:
+    final = report.rounds[-1]
+    return {
+        "config": {
+            "modulus": report.config.modulus,
+            "rounds": report.config.rounds,
+            "width": report.config.width,
+        },
+        "converged_input_count": report.converged_input_count,
+        "final_code_raw_ratio": {
+            "denominator": final.raw_history_bits,
+            "decimal": final.minimum_code_bits / final.raw_history_bits,
+            "numerator": final.minimum_code_bits,
+        },
+        "input_count": report.input_count,
+        "round_trip_ok": report.round_trip_ok,
+        "rounds": [_round_dict(row) for row in report.rounds],
+        "terminal_walk_states": [list(state) for state in report.terminal_walk_states],
+        "walk_converged": report.walk_converged,
+    }
+
+
+def render_receipt(argv: list[str]) -> str:
+    """Return a byte-deterministic two-width mission receipt."""
+
+    configs = _parse_configs(argv)
+    reports = [enumerate_fibers(config) for config in configs]
+    final_rows = [report.rounds[-1] for report in reports]
+    final_ratios = [
+        row.minimum_code_bits / row.raw_history_bits for row in final_rows
+    ]
+    projected_resident = math.ceil(PRODUCTION_BINDING_HISTORY * final_ratios[-1])
+    stable_scaling = all(
+        current <= previous
+        for previous, current in zip(final_ratios, final_ratios[1:])
+    )
+    checks = [
+        {
+            "evidence": [report.round_trip_ok for report in reports],
+            "name": "all_histories_round_trip",
+            "pass": all(report.round_trip_ok for report in reports),
+        },
+        {
+            "evidence": [report.walk_converged for report in reports],
+            "name": "all_walks_reach_terminal_family",
+            "pass": all(report.walk_converged for report in reports),
+        },
+        {
+            "evidence": final_ratios,
+            "name": "code_raw_ratio_nonincreasing",
+            "pass": stable_scaling,
+        },
+        {
+            "evidence": {
+                "cap": 469,
+                "projected_resident_history": projected_resident,
+                "production_binding_history": PRODUCTION_BINDING_HISTORY,
+            },
+            "name": "modeled_q1100_history_cap",
+            "pass": projected_resident <= 469,
+        },
+    ]
+    failed = [check["name"] for check in checks if not check["pass"]]
+    verdict = "ADMIT" if not failed else "HARD_NACK"
+    receipt = {
+        "admission_checks": checks,
+        "binding": {
+            "live_frontier": {
+                "qubits": LIVE_QUBITS,
+                "score": LIVE_SCORE,
+                "toffoli": LIVE_TOFFOLI,
+            },
+            "source_commit": SOURCE_COMMIT,
+            "source_tree": SOURCE_TREE,
+        },
+        "decoder_cost_gate": {
+            "q1000_history_cap": 369,
+            "q1000_toffoli_headroom": 1_154_731 - LIVE_TOFFOLI,
+            "q1100_history_cap": 469,
+            "q1100_toffoli_headroom": 1_049_755 - LIVE_TOFFOLI,
+            "status": "unresolved_next_phase",
+        },
+        "failed_checks": failed,
+        "model_scope": {
+            "claim": "exact reduced-width fixed-schedule recurrence enumeration",
+            "not_a_candidate": True,
+            "production_binding_history": PRODUCTION_BINDING_HISTORY,
+            "projection_method": "ceil(636 * final minimum_code_bits / final raw_history_bits)",
+        },
+        "projected_resident_history": projected_resident,
+        "reports": [_report_dict(report) for report in reports],
+        "verdict": verdict,
+        "verdict_scope": "decoder_synthesis_only",
+    }
+    return json.dumps(receipt, indent=2, sort_keys=True) + "\n"
+
+
+def main(argv: list[str] | None = None) -> int:
+    sys.stdout.write(render_receipt(sys.argv[1:] if argv is None else argv))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
