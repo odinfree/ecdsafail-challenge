@@ -2006,6 +2006,16 @@ fn and_uncompute(b: &mut B, out: QubitId, a: QubitId, c: QubitId) {
     b.free(out);
 }
 
+/// Replace one owned chunk carry only when its pending allocation would cross
+/// the current Q1266 target at one of the two live Q1267 owners.  This is the
+/// exact Cuccaro MAJ/UMA source host first priced on the older Q1275 lane;
+/// default-off keeps the promoted stream byte-identical.
+fn binding_source_carry_q1266_enabled(b: &B, owned: usize) -> bool {
+    std::env::var_os("SUB4_BINDING_SOURCE_CARRY_Q1266").is_some()
+        && matches!(b.phase, "pp_div_replay" | "pp_mul_walkback")
+        && b.active_qubits as usize + owned > 1266
+}
+
 /// One Gidney chunk, preserving the addend and carry-in and optionally
 /// retaining the carry-out.  Every owned carry is measurement-uncomputed.
 fn chunk_add(
@@ -2034,6 +2044,99 @@ fn chunk_add(
     }
 
     let owned = num_carries - usize::from(carry_out.is_some());
+
+    // Cuccaro MAJ/UMA hybrid: preserve one carry in its source bit while the
+    // higher Gidney ladder runs, then restore source and incoming carry exactly
+    // before the lower carries are measurement-uncomputed.
+    let source_host = if binding_source_carry_q1266_enabled(b, owned) {
+        let candidate = usize::from(carry_in.is_none());
+        (candidate < owned).then_some(candidate)
+    } else {
+        None
+    };
+    if let Some(host_index) = source_host {
+        let clean_carries = b.alloc_qubits(owned - 1);
+        let mut clean_index = 0;
+        let mut carries = Vec::with_capacity(num_carries);
+        for i in 0..num_carries {
+            if i == host_index {
+                carries.push(addend[i]);
+            } else if carry_out.is_some() && i + 1 == num_carries {
+                carries.push(carry_out.expect("final carry exists"));
+            } else {
+                carries.push(clean_carries[clean_index]);
+                clean_index += 1;
+            }
+        }
+        debug_assert_eq!(clean_index, clean_carries.len());
+
+        for i in 0..num_carries {
+            let previous = if i == 0 {
+                carry_in
+            } else {
+                Some(carries[i - 1])
+            };
+            if i == host_index {
+                let previous = previous.expect("source carry has an incoming carry");
+                b.cx(addend[i], acc[i]);
+                b.cx(addend[i], previous);
+                b.ccx(acc[i], previous, addend[i]);
+            } else {
+                if let Some(previous) = previous {
+                    b.cx(previous, addend[i]);
+                    b.cx(previous, acc[i]);
+                }
+                b.ccx(addend[i], acc[i], carries[i]);
+                if let Some(previous) = previous {
+                    b.cx(previous, carries[i]);
+                }
+            }
+        }
+
+        if carry_out.is_some() {
+            let i = width - 1;
+            let previous = if i == 0 {
+                carry_in
+            } else {
+                Some(carries[i - 1])
+            };
+            if let Some(previous) = previous {
+                b.cx(previous, addend[i]);
+            }
+            b.cx(addend[i], acc[i]);
+        } else {
+            b.cx(carries[num_carries - 1], acc[width - 1]);
+            b.cx(addend[width - 1], acc[width - 1]);
+        }
+
+        for i in (0..owned).rev() {
+            let previous = if i == 0 {
+                carry_in
+            } else {
+                Some(carries[i - 1])
+            };
+            if i == host_index {
+                let previous = previous.expect("source carry has an incoming carry");
+                b.ccx(acc[i], previous, addend[i]);
+                b.cx(addend[i], previous);
+                b.cx(previous, acc[i]);
+            } else {
+                if let Some(previous) = previous {
+                    b.cx(previous, carries[i]);
+                }
+                let measured = b.alloc_bit();
+                b.hmr(carries[i], measured);
+                b.cz_if(addend[i], acc[i], measured);
+                if let Some(previous) = previous {
+                    b.cx(previous, addend[i]);
+                }
+                b.cx(addend[i], acc[i]);
+            }
+        }
+        b.free_vec(&clean_carries);
+        return;
+    }
+
     let mut carries = b.alloc_qubits(owned);
     if let Some(carry) = carry_out {
         carries.push(carry);
