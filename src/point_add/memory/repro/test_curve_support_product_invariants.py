@@ -36,6 +36,36 @@ class CurveSupportProductInvariantTests(unittest.TestCase):
         self.assertEqual(first["scope"], "AFFINE_CURVE_PRODUCT_SUPPORT")
         self.assertEqual(len(first["receipt_sha256"]), 64)
 
+    def test_separable_quadratic_case_has_exact_controls_and_counts(self) -> None:
+        report = miner.separable_quadratic_case_report(31)
+        self.assertEqual(report["width"], 5)
+        self.assertEqual(report["support_states"], 18)
+        self.assertEqual(report["feature_count"], 31)
+        self.assertEqual(report["mixed_partial_products_tested"], 25)
+        self.assertEqual(report["modular_output_bits_tested"], 5)
+        self.assertEqual(report["identity_failures"], 0)
+        self.assertTrue(report["positive_controls_ok"])
+        self.assertTrue(report["full_support_degree_three_rejected"])
+
+    def test_separable_quadratic_census_is_deterministic_and_scoped(self) -> None:
+        first = miner.run_separable_quadratic_census((31, 61, 127, 251))
+        second = miner.run_separable_quadratic_census((31, 61, 127, 251))
+        self.assertEqual(first, second)
+        self.assertEqual([row["width"] for row in first["cases"]], [5, 6, 7, 8])
+        self.assertEqual(first["scope"], "SEPARABLE_QUADRATIC_CURVE_SUPPORT")
+        self.assertEqual(first["grammar"], "AFFINE_PLUS_INTRA_REGISTER_QUADRATICS")
+        self.assertEqual(first["verdict"], "HARD_NACK_SEPARABLE_QUADRATIC_SUPPORT")
+        self.assertEqual(
+            [row["separable_mixed_partial_product_count"] for row in first["cases"]],
+            [3, 0, 0, 0],
+        )
+        self.assertEqual(
+            [row["separable_output_bit_count"] for row in first["cases"]],
+            [1, 0, 0, 0],
+        )
+        self.assertFalse(first["material_family"])
+        self.assertEqual(len(first["receipt_sha256"]), 64)
+
 
 if __name__ == "__main__":
     unittest.main()

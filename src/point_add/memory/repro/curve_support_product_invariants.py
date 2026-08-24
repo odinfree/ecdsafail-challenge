@@ -97,6 +97,30 @@ def _selected_names(mask: int, names: tuple[str, ...]) -> list[str]:
     return [name for index, name in enumerate(names) if (mask >> index) & 1]
 
 
+def _separable_quadratic_features(
+    t_vectors: tuple[int, ...],
+    lambda_vectors: tuple[int, ...],
+    support_states: int,
+) -> tuple[tuple[int, ...], tuple[str, ...]]:
+    """Return affine plus within-register degree-two features.
+
+    Mixed ``T_i AND lambda_j`` terms are deliberately excluded: they are the
+    targets whose elimination this grammar is meant to test.
+    """
+    features = [(1 << support_states) - 1, *t_vectors, *lambda_vectors]
+    names = [
+        "1",
+        *(f"t{bit}" for bit in range(len(t_vectors))),
+        *(f"l{bit}" for bit in range(len(lambda_vectors))),
+    ]
+    for prefix, vectors in (("t", t_vectors), ("l", lambda_vectors)):
+        for left in range(len(vectors)):
+            for right in range(left + 1, len(vectors)):
+                features.append(vectors[left] & vectors[right])
+                names.append(f"{prefix}{left}&{prefix}{right}")
+    return tuple(features), tuple(names)
+
+
 def case_report(prime: int) -> dict[str, object]:
     if not _is_prime(prime):
         raise ValueError("modulus must be prime")
@@ -170,6 +194,92 @@ def case_report(prime: int) -> dict[str, object]:
     }
 
 
+def separable_quadratic_case_report(prime: int) -> dict[str, object]:
+    """Test mixed product terms against separable degree-two features."""
+    if not _is_prime(prime):
+        raise ValueError("modulus must be prime")
+    case, rows = _support_rows(prime)
+    width = prime.bit_length()
+    t_vectors = _bit_vectors([row[3] for row in rows], width)
+    lambda_vectors = _bit_vectors([row[4] for row in rows], width)
+    product_vectors = _bit_vectors([row[5] for row in rows], width)
+    features, names = _separable_quadratic_features(
+        t_vectors, lambda_vectors, len(rows)
+    )
+
+    positive_controls_ok = all(
+        affine_solution(features, feature) is not None for feature in features
+    )
+    if width >= 2:
+        synthetic = (t_vectors[0] & t_vectors[1]) ^ (
+            lambda_vectors[0] & lambda_vectors[1]
+        )
+        positive_controls_ok &= affine_solution(features, synthetic) is not None
+
+    full_constant = 0b11111111
+    full_x = 0b11110000
+    full_y = 0b11001100
+    full_z = 0b10101010
+    full_degree_two = (
+        full_constant,
+        full_x,
+        full_y,
+        full_z,
+        full_x & full_y,
+        full_x & full_z,
+        full_y & full_z,
+    )
+    full_support_degree_three_rejected = (
+        affine_solution(full_degree_two, full_x & full_y & full_z) is None
+    )
+
+    separable_mixed_partial_products: list[dict[str, object]] = []
+    for t_bit, t_vector in enumerate(t_vectors):
+        for lambda_bit, lambda_vector in enumerate(lambda_vectors):
+            solution = affine_solution(features, t_vector & lambda_vector)
+            if solution is not None:
+                separable_mixed_partial_products.append(
+                    {
+                        "t_bit": t_bit,
+                        "lambda_bit": lambda_bit,
+                        "expression": _selected_names(solution, names),
+                    }
+                )
+
+    separable_output_bits: list[dict[str, object]] = []
+    for bit, vector in enumerate(product_vectors):
+        solution = affine_solution(features, vector)
+        if solution is not None:
+            separable_output_bits.append(
+                {"bit": bit, "expression": _selected_names(solution, names)}
+            )
+
+    identity_failures = sum(
+        (d * t - (2 * case.b * lam - 3 * case.a * case.a)) % prime != 0
+        for _x, _y, d, t, lam, _product in rows
+    )
+    return {
+        "prime": prime,
+        "width": width,
+        "a": case.a,
+        "b": case.b,
+        "support_states": len(rows),
+        "feature_count": len(features),
+        "mixed_partial_products_tested": width * width,
+        "modular_output_bits_tested": width,
+        "identity_failures": identity_failures,
+        "positive_controls_ok": bool(positive_controls_ok),
+        "full_support_degree_three_rejected": full_support_degree_three_rejected,
+        "separable_mixed_partial_product_count": len(
+            separable_mixed_partial_products
+        ),
+        "separable_mixed_partial_products": separable_mixed_partial_products,
+        "separable_output_bit_count": len(separable_output_bits),
+        "separable_output_bits": separable_output_bits,
+        "support_sha256": hashlib.sha256(shell.canonical_json(rows)).hexdigest(),
+    }
+
+
 def _persistent_pairs(cases: list[dict[str, object]], from_msb: bool) -> list[list[int]]:
     if len(cases) < 3:
         return []
@@ -178,6 +288,26 @@ def _persistent_pairs(cases: list[dict[str, object]], from_msb: bool) -> list[li
         width = int(case["width"])
         pairs: set[tuple[int, int]] = set()
         for row in case["affine_partial_products"]:
+            t_bit = int(row["t_bit"])
+            lambda_bit = int(row["lambda_bit"])
+            if from_msb:
+                t_bit = width - 1 - t_bit
+                lambda_bit = width - 1 - lambda_bit
+            pairs.add((t_bit, lambda_bit))
+        sets.append(pairs)
+    return [list(pair) for pair in sorted(set.intersection(*sets))]
+
+
+def _persistent_separable_pairs(
+    cases: list[dict[str, object]], from_msb: bool
+) -> list[list[int]]:
+    if len(cases) < 3:
+        return []
+    sets: list[set[tuple[int, int]]] = []
+    for case in cases[-3:]:
+        width = int(case["width"])
+        pairs: set[tuple[int, int]] = set()
+        for row in case["separable_mixed_partial_products"]:
             t_bit = int(row["t_bit"])
             lambda_bit = int(row["lambda_bit"])
             if from_msb:
@@ -211,6 +341,41 @@ def run_census(primes: tuple[int, ...]) -> dict[str, object]:
         ),
         "verdict_scope": "affine simplification of T_i AND lambda_j and output bits on exact curve support",
         "next_grammar": "NONLINEAR_SUPPORT_COMPACTOR",
+        "authority": {
+            "provider": False,
+            "nonce_grind": False,
+            "push": False,
+            "submission": False,
+        },
+    }
+    payload["receipt_sha256"] = hashlib.sha256(shell.canonical_json(payload)).hexdigest()
+    return payload
+
+
+def run_separable_quadratic_census(primes: tuple[int, ...]) -> dict[str, object]:
+    cases = [separable_quadratic_case_report(prime) for prime in primes]
+    persistent_lsb = _persistent_separable_pairs(cases, from_msb=False)
+    persistent_msb = _persistent_separable_pairs(cases, from_msb=True)
+    last_width = int(cases[-1]["width"])
+    material_family = max(len(persistent_lsb), len(persistent_msb)) >= last_width
+    payload: dict[str, object] = {
+        "schema": "separable-quadratic-curve-support-v1",
+        "scope": "SEPARABLE_QUADRATIC_CURVE_SUPPORT",
+        "grammar": "AFFINE_PLUS_INTRA_REGISTER_QUADRATICS",
+        "base_commit": BASE_COMMIT,
+        "base_tree": BASE_TREE,
+        "cases": cases,
+        "persistent_lsb_pairs_last_three_widths": persistent_lsb,
+        "persistent_msb_pairs_last_three_widths": persistent_msb,
+        "material_family": material_family,
+        "admission_rule": "at least n persistent normalized mixed-product relations across the largest three adjacent widths",
+        "verdict": (
+            "ADMIT_SEPARABLE_QUADRATIC_SUPPORT_FAMILY"
+            if material_family
+            else "HARD_NACK_SEPARABLE_QUADRATIC_SUPPORT"
+        ),
+        "verdict_scope": "degree-two expressions using affine and within-register quadratic features only",
+        "next_grammar": "CUBIC_OR_RATIONAL_SUPPORT_COMPACTOR",
         "authority": {
             "provider": False,
             "nonce_grind": False,
