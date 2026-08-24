@@ -1,12 +1,12 @@
-// ppgpu.cu — CUDA port of the ppfilter classical prefilter (pingpong fault
-// model, ROUNDS_DIV=696/ROUNDS_MUL=696) for the ecdsa.fail Q1272 rescaled
-// width-schedule stream at source commit
-// 091abce0c0ac73f5e1965034fa976fa14c855594. RTX 4090 (sm_89).
+// ppgpu.cu — CUDA port of the source-literal classical prefilter for the
+// ecdsa.fail 6752417 Q1266 odd-passenger candidate. The shared model binds the
+// executed depths (ROUNDS_DIV=696/ROUNDS_MUL=694), exact width schedule,
+// candidate operation count, and prefix-state digest. RTX 4090 (sm_89).
 //
 // Bit-exactness contract: per-shot fault masks and per-nonce survivor
-// verdicts must equal the unchanged trusted evaluator (see FIXTURES.md). All
-// arithmetic lives in pp_model.h, shared line-for-line with the CPU
-// reference (ppcpu.cpp).
+// verdicts must equal the qualified CPU reference on frozen calibration and
+// blind fixtures before any range scan. All arithmetic lives in pp_model.h,
+// shared line-for-line with the CPU reference (ppcpu.cpp).
 //
 // Kernel architecture (adapted from ecdsa-gpu-v2 cuda/gpu_island2.cu):
 //   one block per nonce, WAVE threads = WAVE shots per wave, thread 0
