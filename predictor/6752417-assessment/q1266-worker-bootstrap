@@ -46,6 +46,11 @@ grep -F '"comb_bits":8' bootstrap-logs/gpu-old-canary.stderr >/dev/null || fail 
 grep -F '"survivors":0' bootstrap-logs/gpu-old-canary.stderr >/dev/null || fail old_canary_count
 
 nvidia-smi --query-gpu=name,driver_version --format=csv,noheader > bootstrap-logs/gpu-runtime.txt
-nvcc --version > bootstrap-logs/nvcc-version.txt
+if command -v nvcc >/dev/null; then
+  nvcc --version > bootstrap-logs/nvcc-version.txt
+else
+  printf 'not-installed: distributed runtime does not compile on worker\n' \
+    > bootstrap-logs/nvcc-version.txt
+fi
 find bootstrap-logs -type f -print0 | sort -z | xargs -0 sha256sum > bootstrap-logs/SHA256SUMS
 printf 'q1266_worker_bootstrap=PASS canonical_runtime_sha256=4ff81a62f3be5333104df9bfd937a967d405656340d0e4656fb5d4d647c53956 old_canary_count=4096 old_canary_survivors=0 no_submit_ack=yes\n'
