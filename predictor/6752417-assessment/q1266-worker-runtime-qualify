@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd /root/q1266-comb8-parity
+rm -rf runtime-qual-logs
+mkdir -p runtime-qual-logs
+
+fail() {
+  printf 'worker_runtime_qualification=HARD_NACK reason=%s no_submit_ack=yes\n' "$1" >&2
+  exit 1
+}
+
+require_sha() {
+  local expected="$1" path="$2" actual
+  actual="$(sha256sum "$path" | awk '{print $1}')"
+  [[ "$actual" == "$expected" ]] || fail "sha_${path//\//_}"
+}
+
+require_sha 5f39b385c693a3f9179d7ba6d674c13676c0bb489bf2b07e208048b0e6ed561c ops.bin
+require_sha dfa7cc860e24a4785ae3ec4da5451e7afaa9685f6ae2d9fe77f23cb185f0fa6a src/ppgpu.cu
+require_sha 4423f04bb6810993bbe500b3adc147d0a088abb0cb78fc7bf93b973ddef49dc5 src/pp_model.h
+require_sha bccaf9d1be17f131be65d637957cd04f409c3c13a8d5a6904070dab58a2b3c57 src/pp_host.h
+require_sha 7598ef077ab15573f2f1ed0d216a84ed0788f3c59a33ae7ae00a30051a867094 build.sh
+require_sha 40b9c5e8ba54c0c3e023c93066f1595671619b9f969f56959918ffd29a62b6a1 gpu-worker-runtime-fixtures.tsv
+require_sha 13d55255d89015530936020386bf973c06d72feb4602f4154f400f7786333bae gpu-worker-runtime-cpu-fault-truth.tsv
+require_sha ccc51ee87f5e7ffb2c237c0035c8271cd60dc5594fc3ca7fd5c909338d7aaaaa gpu-worker-runtime-cpu-probe-truth.tsv
+
+if grep -Eq 'd_comb16|d_comb_bits|pp_comb_mul16|build_comb16|--comb-bits' src/ppgpu.cu; then
+  fail forbidden_comb16_source
+fi
+
+./ppcpu statedigest > runtime-qual-logs/ppcpu-statedigest.out
+[[ "$(cat runtime-qual-logs/ppcpu-statedigest.out)" == bc16e98fdac46783 ]] || fail cpu_state_digest
+
+start_s="$(date +%s)"
+nice -n 10 ./build.sh > runtime-qual-logs/build.log 2>&1 || fail build
+end_s="$(date +%s)"
+printf '%s\n' "$((end_s - start_s))" > runtime-qual-logs/build-seconds.txt
+sha256sum ppcpu ppgpu > runtime-qual-logs/raw-binary-sha256.txt
+stat -c '%n %s' ppcpu ppgpu > runtime-qual-logs/raw-binary-bytes.txt
+readelf -n ppgpu > runtime-qual-logs/raw-binary-notes.txt
+
+cp ppgpu ppgpu.runtime
+strip --strip-all ppgpu.runtime
+require_sha 4ff81a62f3be5333104df9bfd937a967d405656340d0e4656fb5d4d647c53956 ppgpu.runtime
+[[ "$(stat -c '%s' ppgpu.runtime)" == 2808400 ]] || fail canonical_runtime_bytes
+sha256sum ppgpu.runtime > runtime-qual-logs/canonical-runtime-sha256.txt
+stat -c '%n %s' ppgpu.runtime > runtime-qual-logs/canonical-runtime-bytes.txt
+
+set +e
+./ppgpu.runtime --ops ops.bin --comb-bits 8 > runtime-qual-logs/forbidden-cli.out 2> runtime-qual-logs/forbidden-cli.err
+forbidden_rc="$?"
+set -e
+[[ "$forbidden_rc" == 2 ]] || fail forbidden_cli_rc
+grep -F 'unknown arg --comb-bits' runtime-qual-logs/forbidden-cli.err >/dev/null || fail forbidden_cli_message
+
+mapfile -t nonces < <(awk -F '\t' 'NR > 1 { print $2 }' gpu-worker-runtime-fixtures.tsv)
+probe_nonces=(249439608138269 103425258175788 58779386481846)
+
+for nonce in "${nonces[@]}"; do
+  awk -F '\t' -v nonce="$nonce" 'NR > 1 && $2 == nonce { print $3, $4 }' \
+    gpu-worker-runtime-cpu-fault-truth.tsv > "runtime-qual-logs/expected-fault-${nonce}.out"
+  ./ppcpu faultshots "$nonce" > "runtime-qual-logs/cpu-fault-${nonce}.out" \
+    2> "runtime-qual-logs/cpu-fault-${nonce}.err"
+  diff -u "runtime-qual-logs/expected-fault-${nonce}.out" \
+    "runtime-qual-logs/cpu-fault-${nonce}.out" \
+    > "runtime-qual-logs/cpu-fault-${nonce}.diff" || fail "cpu_truth_${nonce}"
+done
+
+for nonce in "${probe_nonces[@]}"; do
+  awk -F '\t' -v nonce="$nonce" \
+    'NR > 1 && $2 == nonce && $3 == "bytes" { print $5 }' \
+    gpu-worker-runtime-cpu-probe-truth.tsv > "runtime-qual-logs/expected-bytes-${nonce}.out"
+  awk -F '\t' -v nonce="$nonce" \
+    'NR > 1 && $2 == nonce && $3 == "jac" { print $4 "=" $5 }' \
+    gpu-worker-runtime-cpu-probe-truth.tsv > "runtime-qual-logs/expected-jac-${nonce}.out"
+  ./ppcpu probebytes "$nonce" > "runtime-qual-logs/cpu-bytes-${nonce}.out"
+  ./ppcpu probejac "$nonce" > "runtime-qual-logs/cpu-jac-${nonce}.out"
+  diff -u "runtime-qual-logs/expected-bytes-${nonce}.out" \
+    "runtime-qual-logs/cpu-bytes-${nonce}.out" \
+    > "runtime-qual-logs/cpu-bytes-${nonce}.diff" || fail "cpu_bytes_${nonce}"
+  diff -u "runtime-qual-logs/expected-jac-${nonce}.out" \
+    "runtime-qual-logs/cpu-jac-${nonce}.out" \
+    > "runtime-qual-logs/cpu-jac-${nonce}.diff" || fail "cpu_jac_${nonce}"
+done
+
+for wave in 32 64 128 256; do
+  ./ppgpu.runtime --ops ops.bin --probe-batchinv --threads-block "$wave" \
+    > "runtime-qual-logs/gpu-batchinv-w${wave}.out" \
+    2> "runtime-qual-logs/gpu-batchinv-w${wave}.err"
+  grep -Fx "probe-batchinv: OK (0/${wave} bad)" \
+    "runtime-qual-logs/gpu-batchinv-w${wave}.out" >/dev/null || fail "batchinv_w${wave}"
+done
+
+for wave in 32 128 256; do
+  for nonce in "${nonces[@]}"; do
+    ./ppgpu.runtime --ops ops.bin --faultshots "$nonce" --threads-block "$wave" \
+      > "runtime-qual-logs/gpu-fault-w${wave}-${nonce}.out" \
+      2> "runtime-qual-logs/gpu-fault-w${wave}-${nonce}.err"
+    grep -F 'state_digest=bc16e98fdac46783' \
+      "runtime-qual-logs/gpu-fault-w${wave}-${nonce}.err" >/dev/null || fail "gpu_state_w${wave}_${nonce}"
+    diff -u "runtime-qual-logs/expected-fault-${nonce}.out" \
+      "runtime-qual-logs/gpu-fault-w${wave}-${nonce}.out" \
+      > "runtime-qual-logs/gpu-fault-w${wave}-${nonce}.diff" || fail "gpu_fault_w${wave}_${nonce}"
+  done
+done
+
+for wave in 32 256; do
+  for nonce in "${probe_nonces[@]}"; do
+    ./ppgpu.runtime --ops ops.bin --probe-bytes "$nonce" --threads-block "$wave" \
+      > "runtime-qual-logs/gpu-bytes-w${wave}-${nonce}.out" \
+      2> "runtime-qual-logs/gpu-bytes-w${wave}-${nonce}.err"
+    ./ppgpu.runtime --ops ops.bin --probe-jac "$nonce" --threads-block "$wave" \
+      > "runtime-qual-logs/gpu-jac-w${wave}-${nonce}.out" \
+      2> "runtime-qual-logs/gpu-jac-w${wave}-${nonce}.err"
+    diff -u "runtime-qual-logs/expected-bytes-${nonce}.out" \
+      "runtime-qual-logs/gpu-bytes-w${wave}-${nonce}.out" \
+      > "runtime-qual-logs/gpu-bytes-w${wave}-${nonce}.diff" || fail "gpu_bytes_w${wave}_${nonce}"
+    diff -u "runtime-qual-logs/expected-jac-${nonce}.out" \
+      "runtime-qual-logs/gpu-jac-w${wave}-${nonce}.out" \
+      > "runtime-qual-logs/gpu-jac-w${wave}-${nonce}.diff" || fail "gpu_jac_w${wave}_${nonce}"
+  done
+done
+
+./ppgpu.runtime --ops ops.bin --from 82503797833728 --to 82503797837824 \
+  --threads-block 128 > runtime-qual-logs/gpu-canary-w128.out \
+  2> runtime-qual-logs/gpu-canary-w128.err
+[[ ! -s runtime-qual-logs/gpu-canary-w128.out ]] || fail gpu_canary_survivor
+grep -F 'state_digest":"bc16e98fdac46783"' runtime-qual-logs/gpu-canary-w128.err >/dev/null || fail gpu_canary_state
+grep -F '"comb_bits":8' runtime-qual-logs/gpu-canary-w128.err >/dev/null || fail gpu_canary_comb
+grep -F '"survivors":0' runtime-qual-logs/gpu-canary-w128.err >/dev/null || fail gpu_canary_count
+
+nvidia-smi --query-gpu=name,driver_version --format=csv,noheader > runtime-qual-logs/gpu-runtime.txt
+nvcc --version > runtime-qual-logs/nvcc-version.txt
+find runtime-qual-logs -type f -print0 | sort -z | xargs -0 sha256sum \
+  > runtime-qual-logs/SHA256SUMS
+printf 'worker_runtime_qualification=PASS fixtures=8 fault_rows=132 fault_diffs=24 probes=12 batch_widths=4 canary_replays=1 canonical_runtime_sha256=4ff81a62f3be5333104df9bfd937a967d405656340d0e4656fb5d4d647c53956 no_submit_ack=yes\n'
