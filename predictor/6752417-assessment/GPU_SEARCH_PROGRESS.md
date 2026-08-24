@@ -145,3 +145,33 @@ evaluator replay has run. `submit=CLOSED`, `no_submit_ack=yes`.
 The w3/1 archive also contains that worker's complete bootstrap logs. Its exact
 distributed runtime, forbidden-CLI probe, batch-inversion probe, and exhausted
 4,096-nonce canary all passed before the first production range launched.
+
+## Terminal boundary and first exact-clean survivor
+
+The first exact-clean survivor stopped all new slice launches. The three slices
+already in flight were allowed to finish at their predeclared boundaries and
+were then harvested without replacement.
+
+| worker/slice | exact half-open range | survivors | archive SHA-256 | bytes |
+| --- | --- | ---: | --- | ---: |
+| w0/15 | `[82503916322816,82503924711424)` | 0 | `107b5232ce377ea5c76994a71a3f9222af2d659c47e50eb7d23ff073c75690c6` | 811 |
+| w1/10 | `[82504410202112,82504418590720)` | 0 | `341c25e8cddb0aa961a53233106528944d9c664cfb5e0094c0cd7418d82030d2` | 809 |
+| w2/13 | `[82504972238848,82504980627456)` | 0 | `a549b6a54b136b954e49c9c04220275dc8a43653b56c23145a5f02e6ad4642cf` | 808 |
+| w3/6 | `[82505450389504,82505458778112)` | 1 | `5595a547609cffd5a3ed10dcbeeee5e0400a02e01c2942d0e1c4b7cdde81bdc0` | 827 |
+
+The w3/6 GPU survivor is `82505456522172 pred_cls=0`. The admitted exact CPU
+postfilter, SHA-256
+`e47d8651e026c4292a1ad9e02b1b4756699400c1d11c5570aead0d51e8752136`,
+reported empty classical and raw-phase index sets, zero dirty batches, and:
+
+```text
+postfilter_summary nonce=82505456522172 shots=9024 q=1266 bits=952914 classical=0 raw_phase=0 dirty_batches=0 clean=true
+```
+
+Cumulative completed production coverage is `370143232` nonces: the
+1,044,480-nonce production canary plus forty-four full `2^23` slices. Three GPU
+survivors appeared; the first two were exact phase-dirty rejections and the
+third is the first exact-clean survivor. It owns the single trusted evaluator
+replay. No T comparison or alternate clean-candidate search is allowed. At this
+ledger boundary no trusted evaluator replay, queue, or submission action had
+run. `submit=CLOSED`, `no_submit_ack=yes`.
