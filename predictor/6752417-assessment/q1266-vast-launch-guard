@@ -42,17 +42,17 @@ require_sha() {
 git -C "$CANDIDATE_ROOT" diff --quiet || fail "candidate_dirty"
 git -C "$CANDIDATE_ROOT" diff --cached --quiet || fail "candidate_index_dirty"
 
-git -C "$PREDICTOR_ROOT" merge-base --is-ancestor 7ef751ce8cb47dbbe0bee67c8e1f364107f49786 HEAD || fail "contract_commit_missing"
-git -C "$PREDICTOR_ROOT" merge-base --is-ancestor de4b650d3cdc96c0e808bf6b61cbfafa103e8a74 HEAD || fail "truth_commit_missing"
+git -C "$PREDICTOR_ROOT" merge-base --is-ancestor b0d035ae6223e7eba25789f882d6379319a2935a HEAD || fail "contract_commit_missing"
+git -C "$PREDICTOR_ROOT" merge-base --is-ancestor 61cdd09e160d6b1251a19141d86cc9d59192f358 HEAD || fail "truth_commit_missing"
 git -C "$PREDICTOR_ROOT" diff --quiet || fail "predictor_dirty"
 git -C "$PREDICTOR_ROOT" diff --cached --quiet || fail "predictor_index_dirty"
 
 require_sha 5f39b385c693a3f9179d7ba6d674c13676c0bb489bf2b07e208048b0e6ed561c "$CANDIDATE_ROOT/ops.bin"
-require_sha 687d1df6cd5b853d55e38b3ae066045bdffe3d01e3508b10ffe6704145f9caaf "$ASSESSMENT/src/ppgpu.cu"
+require_sha dfa7cc860e24a4785ae3ec4da5451e7afaa9685f6ae2d9fe77f23cb185f0fa6a "$ASSESSMENT/src/ppgpu.cu"
 require_sha 4423f04bb6810993bbe500b3adc147d0a088abb0cb78fc7bf93b973ddef49dc5 "$ASSESSMENT/src/pp_model.h"
 require_sha bccaf9d1be17f131be65d637957cd04f409c3c13a8d5a6904070dab58a2b3c57 "$ASSESSMENT/src/pp_host.h"
 require_sha 7598ef077ab15573f2f1ed0d216a84ed0788f3c59a33ae7ae00a30051a867094 "$ASSESSMENT/build.sh"
-require_sha 5f61199791475bd7d2ee88a4b6f13c09b18f96e68bf5e576e5a3443c19b7d8a5 "$ASSESSMENT/gpu-cpu-fault-truth.tsv"
-require_sha cb718f024626b3b97925eb7d5411de90ea6cdeed0ac65b15041c17d112f3fb81 "$ASSESSMENT/gpu-cpu-probe-truth.tsv"
+require_sha de01b7d59032cbc9cc60b66443841ed3973f20777115833e37ab997b9c61d880 "$ASSESSMENT/gpu-comb8-cpu-fault-truth.tsv"
+require_sha 1a92b34c0a8dc288872575c661f5309ca14cbe9fc988279f099bc63599b8ec1b "$ASSESSMENT/gpu-comb8-cpu-probe-truth.tsv"
 
-printf 'q1266_vast_launch_guard=pass route=q1266_odd_passenger_gpu_parity canary_max_usd=2 daily_combined_max_usd=500 no_submit_ack=yes\n'
+printf 'q1266_vast_launch_guard=pass route=q1266_odd_passenger_comb8_gpu_parity canary_max_usd=2 daily_combined_max_usd=500 no_submit_ack=yes\n'
