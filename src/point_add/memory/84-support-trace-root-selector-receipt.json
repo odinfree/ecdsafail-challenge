@@ -1,0 +1,48 @@
+{
+  "schema": "support-trace-root-selector-summary-v1",
+  "branch_identity_verdict": "ADMIT_TRACE_BRANCH_TAG_SAMPLE_ONLY",
+  "verdict": "HARD_NACK_SUPPORT_TRACE_ROOT_SELECTOR_NATURAL_TAGS",
+  "implementation_commit": "e0120cbc12df82bc3f0ddf7dce926482f8816a8c",
+  "implementation_tree": "39406d253e194b3e189746d974b31f89d39da267",
+  "full_gate_receipt_sha256": "ceb2d90f181c8a7ad5a46124f7d5fa829d0c00b361e7a318ce9c7ee1d7b7f0d2",
+  "exact_branch_cases": [
+    {"modulus": 31, "width": 5, "fibers": 6, "bits": 3, "scheme": ["alternating_sum", 3]},
+    {"modulus": 61, "width": 6, "fibers": 20, "bits": 3, "scheme": ["maximum", 1, "weighted_sum", 2]},
+    {"modulus": 127, "width": 7, "fibers": 42, "bits": 4, "scheme": ["alternating_sum", 3, "last", 1]},
+    {"modulus": 1021, "width": 10, "fibers": 345, "bits": 8, "scheme": ["alternating_sum", 6, "last", 2]},
+    {"modulus": 4093, "width": 12, "fibers": 1390, "bits": 10, "scheme": ["alternating_sum", 3, "k", 7]}
+  ],
+  "affine_decoder_cases": [
+    {"modulus": 31, "width": 5, "bits": 5, "scheme": ["alternating_sum", 3, "maximum", 2]},
+    {"modulus": 61, "width": 6, "bits": 6, "scheme": ["k", 6]},
+    {"modulus": 127, "width": 7, "bits": 7, "scheme": ["k", 7]},
+    {"modulus": 251, "width": 8, "bits": 8, "scheme": ["k", 8]},
+    {"modulus": 509, "width": 9, "bits": 9, "scheme": ["k", 9]},
+    {"modulus": 1021, "width": 10, "bits": 10, "scheme": ["k", 10]},
+    {"modulus": 4093, "width": 12, "bits": 12, "scheme": ["k", 12]}
+  ],
+  "production_sample": {
+    "count": 10000,
+    "draws": 20143,
+    "sample_sha256": "d80ea7aaa4ab582b497314c44fb2e948bbe191637fa9d442f83a0f8c7b71a570",
+    "minimum_tag_bits": 13,
+    "scheme": ["sum", 7, "maximum", 6],
+    "collision_curve": [6877, 3594, 1815, 881, 434, 203, 96, 45, 18, 9, 4, 0],
+    "exhaustive_production_certificate": false,
+    "reversible_cost_known": false,
+    "root_carrier_proved": false
+  },
+  "scope": "NATURAL_LOW_BIT_TRACE_TAGS_AND_TAG_CONDITIONED_AFFINE_DECODERS_ONLY",
+  "full_field_candidate": false,
+  "next_grammar": "TRACE_CONDITIONED_COUPLED_SEED",
+  "authority": {
+    "provider": false,
+    "nonce_grind": false,
+    "fleet": false,
+    "queue": false,
+    "push": false,
+    "public_note": false,
+    "promotion": false,
+    "submission": false
+  }
+}
