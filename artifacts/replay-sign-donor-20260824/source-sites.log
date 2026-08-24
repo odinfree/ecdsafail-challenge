@@ -1,11 +1,11 @@
      1	use super::*;
-     2	
+     2
      3	/// Fixed-depth ping-pong division.  The value walk records one sign qubit per
      4	/// round; the coefficient pass consumes that log once, then the reverse value
      5	/// walk restores the denominator and clears the log.
      6	const ROUNDS_DEFAULT: usize = 704;
      7	const VALUE_WIDTH: usize = N + 3;
-     8	
+     8
      9	/// Fixed depth of the ping-pong walk.  The tape carries one sign qubit per
     10	/// round and is fully live during the coefficient replay, so this sets both the
     11	/// dominant term in peak width and (near-linearly) the gate count.  Lowering it
@@ -24,7 +24,7 @@
     24	        }
     25	    }
     26	}
-    27	
+    27
     28	fn rounds() -> usize {
     29	    static SLOT: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
     30	    // BAKE (2026-08-23, this rebase): 704, not 700 -- spends this base's
@@ -138,7 +138,7 @@
    843	    b.free(not_a1_xor_a0);
    844	    and_uncompute(b, both, not_a1, a0);
    845	}
-   846	
+   846
    847	/// Fuse the odd lift `a -= (!a0)*p` with ping-pong's first add and shift.
    848	/// With `p = 2^N-f`, `h=(f-1)/2`, and `q=floor(a/2)`, the four low-bit arms are
    849	/// one sparse map: `q - p + a1*p + a0*(p+1)/2`.
@@ -150,7 +150,7 @@
    855	        b.swap(v[i], v[i + 1]);
    856	    }
    857	    b.cx(a0, v[VALUE_WIDTH - 1]);
-   858	
+   858
    859	    let not_a1 = b.alloc_qubit();
    860	    b.x(not_a1);
    861	    b.cx(v[0], not_a1);
@@ -170,13 +170,13 @@
    875	        csub_nbit_const_direct_fast(b, &v[..N], h, a0);
    876	    }
    877	    b.cx(a0, v[N - 1]);
-   878	
+   878
    879	    // The four output ranges are disjoint: a1=0 is negative and a1=1 positive.
    880	    b.cx(v[VALUE_WIDTH - 1], not_a1);
    881	    b.free(not_a1);
    882	    a0
    883	}
-   884	
+   884
    885	/// W3: walk round 1 against the still-classical `u = p`.
    886	///
    887	/// Round 0 is already fused (`fused_lift_round0_forward`); round 1 was missed.
@@ -198,12 +198,12 @@
    903	            .unwrap_or(true)
    904	    })
    905	}
-   906	
+   906
    907	/// `(p+1)/2 = 2^255 - ROUND1_H` for `p = 2^256 - 2^32 - 977`.
    908	fn round1_h() -> U256 {
    909	    (U256::from(1) << 31) + U256::from(488)
    910	}
-   911	
+   911
    912	/// Borrow window for the sparse `h` correction: `h`'s top bit is 31, so this
    913	/// slice truncates the borrow 20 positions above it, matching
    914	/// `endpoint_fold_window()`.  Add and subtract use the identical slice, so the
@@ -212,7 +212,7 @@
    917	fn round1_window(width: usize) -> usize {
    918	    (32 + endpoint_fold_window()).min(width)
    919	}
-   920	
+   920
    921	fn fused_round1_forward(b: &mut B, u: &[QubitId], v: &[QubitId]) -> QubitId {
    922	    let width = u.len();
    923	    debug_assert_eq!(width, v.len());
@@ -242,7 +242,7 @@
   1630	        b.free(v.pop().expect("v has the scheduled width"));
   1631	    }
   1632	}
-  1633	
+  1633
   1634	fn grow_to(b: &mut B, u: &mut Vec<QubitId>, v: &mut Vec<QubitId>, width: usize) {
   1635	    while u.len() < width {
   1636	        let next_u = b.alloc_qubit();
@@ -253,7 +253,7 @@
   1641	        v.push(next_v);
   1642	    }
   1643	}
-  1644	
+  1644
   1645	/// One forward walk round; returns the sign qubit to append to the tape.
   1646	/// `rounds` is the calling traversal's own round count (see
   1647	/// [`walk_top_skip`]).
@@ -291,7 +291,7 @@
   1679	    b.cx(target[width - 2], target[width - 1]);
   1680	    sign
   1681	}
-  1682	
+  1682
   1683	/// One reverse walk round; consumes and frees the round's sign qubit.
   1684	/// `rounds` is the calling traversal's own round count (see
   1685	/// [`walk_top_skip`]).
@@ -333,7 +333,7 @@
   1721	    b.cx(source[1], sign);
   1722	    b.free(sign);
   1723	}
-  1724	
+  1724
   1725	fn replay_halving_round(b: &mut B, round: usize, sign: QubitId, x: &[QubitId], y: &[QubitId]) {
   1726	    let (source, target) = if round.is_multiple_of(2) { (x, y) } else { (y, x) };
   1727	    if round == 0 {
@@ -355,7 +355,7 @@
   1743	        }
   1744	    }
   1745	}
-  1746	
+  1746
   1747	fn replay_doubling_round(b: &mut B, round: usize, sign: QubitId, x: &[QubitId], y: &[QubitId]) {
   1748	    let fused = std::env::var_os("SUB4_PINGPONG_UNFUSED_INVERSE").is_none();
   1749	    let (source, target) = if round.is_multiple_of(2) { (x, y) } else { (y, x) };
@@ -384,7 +384,7 @@
   1773	    r2: usize,
   1774	    peak: usize,
   1775	}
-  1776	
+  1776
   1777	fn plan(direction: PingPongDirection, rounds: usize) -> Option<Plan> {
   1778	    if std::env::var_os("SUB4_PP_NO_INTERLEAVE").is_some() {
   1779	        return None;
@@ -427,21 +427,21 @@
   1816	    let peak = env("SUB4_PP_PEAK", 1273);
   1817	    Some(Plan { r1, r2, peak })
   1818	}
-  1819	
+  1819
   1820	/// Footprint outside the replay cell at an interleaved round: tape (round+1
   1821	/// signs), both coefficient registers, and the two walk registers at their
   1822	/// current width.
   1823	fn allowance(plan: &Plan, tape_len: usize, walk_width: usize) -> usize {
   1824	    plan.peak.saturating_sub(tape_len + 2 * N + 2 * walk_width)
   1825	}
-  1826	
+  1826
   1827	fn walk_peak(plan: &Plan) -> usize {
   1828	    std::env::var("SUB4_PP_WALK_PEAK")
   1829	        .ok()
   1830	        .and_then(|value| value.parse::<usize>().ok())
   1831	        .unwrap_or(plan.peak)
   1832	}
-  1833	
+  1833
   1834	fn value_walk(b: &mut B, u: &mut Vec<QubitId>, v: &mut Vec<QubitId>, rounds: usize) -> Vec<QubitId> {
   1835	    let mut tape = Vec::with_capacity(rounds);
   1836	    for round in 0..rounds {
@@ -453,7 +453,7 @@
   1842	            b.free(u.pop().expect("u has the scheduled width"));
   1843	            b.free(v.pop().expect("v has the scheduled width"));
   1844	        }
-  1845	
+  1845
   1846	        if round == 0 && fused_lift_round0_enabled() {
   1847	            tape.push(fused_lift_round0_forward(b, v));
   1848	            continue;
@@ -462,7 +462,7 @@
   1851	            tape.push(fused_round1_forward(b, &u[..width], &v[..width]));
   1852	            continue;
   1853	        }
-  1854	
+  1854
   1855	        let (source, target) = if round.is_multiple_of(2) {
   1856	            (&u[..width], &v[..width])
   1857	        } else {
@@ -478,7 +478,7 @@
   1867	        b.cx(source[1], sign);
   1868	        signed_add_wrapping(b, sign, source, target, true, walk_top_skip(round, rounds));
   1869	        tape.push(sign);
-  1870	
+  1870
   1871	        for i in 0..width - 1 {
   1872	            b.swap(target[i], target[i + 1]);
   1873	        }
@@ -486,22 +486,22 @@
   1875	    }
   1876	    tape
   1877	}
-  1878	
+  1878
   1879	fn value_walk_back(b: &mut B, u: &mut Vec<QubitId>, v: &mut Vec<QubitId>, tape: Vec<QubitId>) {
-  1950	
+  1950
   1951	fn and_clean(b: &mut B, a: QubitId, c: QubitId) -> QubitId {
   1952	    let out = b.alloc_qubit();
   1953	    b.ccx(a, c, out);
   1954	    out
   1955	}
-  1956	
+  1956
   1957	fn and_uncompute(b: &mut B, out: QubitId, a: QubitId, c: QubitId) {
   1958	    let measured = b.alloc_bit();
   1959	    b.hmr(out, measured);
   1960	    b.cz_if(a, c, measured);
   1961	    b.free(out);
   1962	}
-  1963	
+  1963
   1964	/// One Gidney chunk, preserving the addend and carry-in and optionally
   1965	/// retaining the carry-out.  Every owned carry is measurement-uncomputed.
   1966	fn chunk_add(
@@ -528,13 +528,13 @@
   1987	        b.cx(addend[0], acc[0]);
   1988	        return;
   1989	    }
-  1990	
+  1990
   1991	    let owned = num_carries - usize::from(carry_out.is_some());
   1992	    let mut carries = b.alloc_qubits(owned);
   1993	    if let Some(carry) = carry_out {
   1994	        carries.push(carry);
   1995	    }
-  1996	
+  1996
   1997	    for i in 0..num_carries {
   1998	        let previous = if i == 0 {
   1999	            carry_in
@@ -550,7 +550,7 @@
   2009	            b.cx(previous, carries[i]);
   2010	        }
   2011	    }
-  2012	
+  2012
   2013	    if carry_out.is_some() {
   2014	        let i = width - 1;
   2015	        let previous = if i == 0 {
@@ -566,7 +566,7 @@
   2025	        b.cx(carries[num_carries - 1], acc[width - 1]);
   2026	        b.cx(addend[width - 1], acc[width - 1]);
   2027	    }
-  2028	
+  2028
   2029	    for i in (0..owned).rev() {
   2030	        let previous = if i == 0 {
   2031	            carry_in
@@ -586,7 +586,7 @@
   2045	    }
   2046	    b.free_vec(&carries[..owned]);
   2047	}
-  2048	
+  2048
   2049	fn chunk_bounds(width: usize, chunk: usize) -> Vec<(usize, usize)> {
   2050	    let chunks = width.div_ceil(chunk.max(1)).max(1);
   2051	    let (base, extra) = (width / chunks, width % chunks);
@@ -599,7 +599,7 @@
   2058	    }
   2059	    bounds
   2060	}
-  2061	
+  2061
   2062	/// Exact value add with approximate measurement-only erasure of chunk carries.
   2063	///
   2064	/// Footprint discipline (the chunk ladder is the binding allocation at the
@@ -615,7 +615,7 @@
   2074	) {
   2075	    add_chunked_measured_with(b, addend, acc, carry_out, false);
   2076	}
-  2077	
+  2077
   2078	/// [`add_chunked_measured`] under an explicit live-ladder budget.
   2079	pub(crate) fn add_chunked_measured_budgeted(
   2080	    b: &mut B,
@@ -629,13 +629,13 @@
   2088	    add_chunked_measured_with(b, addend, acc, carry_out, false);
   2089	    LADDER_TARGET.with(|c| c.set(saved));
   2090	}
-  2091	
+  2091
   2092	/// Like [`add_chunked_measured`] but allocates the carry-out wire itself,
   2093	/// only when the last chunk starts, and returns it.
   2094	fn add_chunked_measured_late_carry(b: &mut B, addend: &[QubitId], acc: &[QubitId]) -> QubitId {
   2095	    add_chunked_measured_with(b, addend, acc, None, true).expect("late carry-out allocated")
   2096	}
-  2097	
+  2097
   2098	fn add_chunked_measured_with(
   2099	    b: &mut B,
   2100	    addend: &[QubitId],
@@ -691,14 +691,14 @@
   2150	        }
   2151	        carry_in = next;
   2152	    }
-  2153	
+  2153
   2154	    for index in (0..live_boundaries.len()).rev() {
   2155	        let (carry, lo, hi) = live_boundaries[index];
   2156	        erase(b, carry, lo, hi);
   2157	    }
   2158	    final_carry
   2159	}
-  2160	
+  2160
   2480	/// Signed-frame replay cell: `target <- (target -/+ source)/2 (mod p)`.
   2481	fn signed_mod_add_pm_halve_fused_signed(
   2482	    b: &mut B,
@@ -707,13 +707,13 @@
   2485	    target: &[QubitId],
   2486	) {
   2487	    let f = pseudo_mersenne_f();
-  2488	
+  2488
   2489	    // Bit 256 of the exact two's-complement sum is `carry ^ t255 ^ s255`.
   2490	    // Preload the two sign bits; the adder xors the carry-out in.
   2491	    let hi = b.alloc_qubit();
   2492	    b.cx(target[N - 1], hi);
   2493	    b.cx(source[N - 1], hi);
-  2494	
+  2494
   2495	    for &q in target {
   2496	        b.cx(sign, q);
   2497	    }
@@ -722,17 +722,17 @@
   2500	        b.cx(sign, q);
   2501	    }
   2502	    // (target, hi) now holds V = target -/+ source exactly, |V| < 2^256.
-  2503	
+  2503
   2504	    let parity = b.alloc_qubit();
   2505	    b.cx(target[0], parity);
-  2506	
+  2506
   2507	    // eps = -sign(V) * (V mod 2), so R = V + eps*p is even and |R| < 2^256.
   2508	    // eps*p = eps*2^256 - eps*f; +-2^256 is the same bit-256 flip mod 2^257.
   2509	    let minus_f = and_clean(b, parity, hi); // V < 0 and odd  -> add +p -> low -f
   2510	    let plus_f = b.alloc_qubit(); // V >= 0 and odd -> add -p -> low +f
   2511	    b.cx(parity, plus_f);
   2512	    b.cx(minus_f, plus_f);
-  2513	
+  2513
   2514	    let negative_f = twos_complement_bits(f, replay_fold_window());
   2515	    fused_fold_maskfree(
   2516	        b,
@@ -744,13 +744,13 @@
   2522	        minus_f,
   2523	        parity,
   2524	    );
-  2525	
+  2525
   2526	    b.cx(parity, plus_f);
   2527	    b.cx(minus_f, plus_f);
   2528	    b.free(plus_f);
   2529	    and_uncompute(b, minus_f, parity, hi);
   2530	    b.cx(parity, hi); // hi = bit 256 of R = sign(R)
-  2531	
+  2531
   2532	    // The reduction decision.  See `signed_frame`.
   2533	    let phase = b.alloc_bit();
   2534	    b.hmr(parity, phase);
@@ -759,7 +759,7 @@
   2537	        signed_parity_repair(b, sign, source, target, hi, phase, repair);
   2538	    }
   2539	    b.free(parity);
-  2540	
+  2540
   2541	    // R is even: shift down, then move bit 256 into the vacated top wire.
   2542	    for i in 0..N - 1 {
   2543	        b.swap(target[i], target[i + 1]);
@@ -776,13 +776,13 @@
   2634	    let f = U256::MAX
   2635	        .wrapping_sub(SECP256K1_P)
   2636	        .wrapping_add(U256::from(1));
-  2637	
+  2637
   2638	    let doubled_out = b.alloc_qubit();
   2639	    b.swap(target[N - 1], doubled_out);
   2640	    for i in (0..N - 1).rev() {
   2641	        b.swap(target[i], target[i + 1]);
   2642	    }
-  2643	
+  2643
   2644	    for &q in target {
   2645	        b.cx(sign, q);
   2646	    }
@@ -793,7 +793,7 @@
   2651	    } else {
   2652	        add_chunked_measured_late_carry(b, source, target)
   2653	    };
-  2654	
+  2654
   2655	    // In the complemented subtraction frame the correction multiple is
   2656	    // d+o when sign=0 and o-d when sign=1, hence {-1,0,+1,+2}.
   2657	    let sign_xor_add = b.alloc_qubit();
@@ -807,7 +807,7 @@
   2665	    let plus_2f = b.alloc_qubit();
   2666	    b.cx(routed, plus_2f);
   2667	    b.cx(minus_f, plus_2f);
-  2668	
+  2668
   2669	    // +/-f is odd and +2f is even, so d^o selects the only bit-0 carry.
   2670	    let odd_correction = b.alloc_qubit();
   2671	    b.cx(doubled_out, odd_correction);
@@ -834,7 +834,7 @@
   2692	        minus_f,
   2693	        first_carry,
   2694	    );
-  2695	
+  2695
   2696	    b.cx(minus_f, add_out);
   2697	    b.cx(doubled_out, add_out);
   2698	    let odd_correction = b.alloc_qubit();
@@ -846,7 +846,7 @@
   2704	    b.cx(doubled_out, odd_correction);
   2705	    b.cx(add_out, odd_correction);
   2706	    b.free(odd_correction);
-  2707	
+  2707
   2708	    b.cx(minus_f, plus_2f);
   2709	    b.cx(routed, plus_2f);
   2710	    b.free(plus_2f);
@@ -858,7 +858,7 @@
   2716	    b.cx(add_out, sign_xor_add);
   2717	    b.cx(sign, sign_xor_add);
   2718	    b.free(sign_xor_add);
-  2719	
+  2719
   2720	    // After the fold, still in the complemented frame,
   2721	    // target[0] = sign ^ source[0] ^ d ^ o.  Clear d without a second ripple.
   2722	    b.cx(target[0], doubled_out);
@@ -866,7 +866,7 @@
   2724	    b.cx(source[0], doubled_out);
   2725	    b.cx(add_out, doubled_out);
   2726	    b.free(doubled_out);
-  2727	
+  2727
   2728	    let phase = b.alloc_bit();
   2729	    b.hmr(add_out, phase);
   2730	    cmp_lt_phase_conditioned(
@@ -881,7 +881,7 @@
   2739	    }
   2740	}
   2458	    set_default_env("TLM_SQUARE_F_SHIFTED_LOW", "1");
-  2459	
+  2459
   2460	    // Freeze the Q1267 fallback composition while keeping each knob
   2461	    // externally overridable for focused reliability experiments. The
   2462	    // pingpong tail nonce intentionally remains at the frontier fallback.
@@ -899,7 +899,7 @@
   2474	    set_default_env("SUB4_PP_REPLAY_CHUNK", "96");
   2475	    set_default_env("SUB4_PP_REPLAY_CHUNK_COMPARE", "22");
    132	## Session 2 — structural investigation (deeper pass). Six rigorous dead-end proofs.
-   133	
+   133
    134	**1. Sign non-recomputability (THEOREM, kills tape fusion).** The walk recurrence is
    135	`t ← (t + (−1)^sign·s)/2` with both operands odd and `sign = t1⊕s1` (sign=0→add iff
    136	t1=s1; this exactly makes the halved result odd, preserving the invariant). Mod-4 check
@@ -907,7 +907,7 @@
    138	t⁻=2t'+s always has t⁻1≠s1 (consistent with sign=1). Both pre-images are always valid ⇒
    139	the sign bit is information-theoretically lost from the value state ⇒ the tape cannot be
    140	freed early or recomputed. Tape=703 is NECESSARY for this recurrence.
-   141	
+   141
    142	**2. Pebbling loses to the plateau.** Checkpointing (u,v) at round B costs 2·width(B)
    143	qubits to free B tape bits; the schedule keeps 2·width(r)+r nearly balanced against any
    144	cut point, and the uncompute re-walks cost ≈ +29% T for −3% Q at the best single split.

@@ -323,6 +323,6 @@ Evidence artifact SHA-256 before the final report commit:
 | `pp-profile.log` | `019d2f8a8443f5446f868c7f5d03495d13fa2ef4b76f359b86dacc881d96a72b` |
 | `b0-replay-peak.log` | `16f0d3102e702942d92b498c9171fd534cd982121be7f35ff46ead110cf5745f` |
 | `b0-mul-peak.log` | `0ef0c1e8912e0b0181676a3a4d70a9b6154c1c8f5d74db31e99022839ff4ba4a` |
-| `source-sites.log` | `d71ae9d55b81acb156cc4aaa757f563738482a1ed0fb91d2ba435b730b6f6cbf` |
+| `source-sites.log` | `725fa5d3d3a1ce1941abdb718815cdc1d61cf580a15ad1ebd6721ac10f1a0be6` |
 | `default-build.log` | `72ea7c2252d89f6073393fea0cff5c2b3b5ac418ea4921ad912c6383c831f666` |
 | `cargo-test.log` | `3613d61c75b13e25e38c756dbeeed09b8b245ca6bf9a5dd50f6b568ee9ba33c1` |
