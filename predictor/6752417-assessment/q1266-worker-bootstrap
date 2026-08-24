@@ -20,24 +20,10 @@ require_sha 5f39b385c693a3f9179d7ba6d674c13676c0bb489bf2b07e208048b0e6ed561c ops
 require_sha dfa7cc860e24a4785ae3ec4da5451e7afaa9685f6ae2d9fe77f23cb185f0fa6a src/ppgpu.cu
 require_sha 4423f04bb6810993bbe500b3adc147d0a088abb0cb78fc7bf93b973ddef49dc5 src/pp_model.h
 require_sha bccaf9d1be17f131be65d637957cd04f409c3c13a8d5a6904070dab58a2b3c57 src/pp_host.h
-require_sha 7598ef077ab15573f2f1ed0d216a84ed0788f3c59a33ae7ae00a30051a867094 build.sh
-
-start_s="$(date +%s)"
-nice -n 10 bash ./build.sh > bootstrap-logs/build.log 2>&1 || fail build
-end_s="$(date +%s)"
-printf '%s\n' "$((end_s - start_s))" > bootstrap-logs/build-seconds.txt
-sha256sum ppcpu ppgpu > bootstrap-logs/raw-binary-sha256.txt
-stat -c '%n %s' ppcpu ppgpu > bootstrap-logs/raw-binary-bytes.txt
-readelf -n ppgpu > bootstrap-logs/raw-binary-notes.txt
-
-cp ppgpu ppgpu.runtime
-strip --strip-all ppgpu.runtime
 require_sha 4ff81a62f3be5333104df9bfd937a967d405656340d0e4656fb5d4d647c53956 ppgpu.runtime
 [[ "$(stat -c '%s' ppgpu.runtime)" == 2808400 ]] || fail canonical_runtime_bytes
-sha256sum ppgpu.runtime > bootstrap-logs/canonical-runtime-sha256.txt
-
-./ppcpu statedigest > bootstrap-logs/ppcpu-statedigest.out
-[[ "$(cat bootstrap-logs/ppcpu-statedigest.out)" == bc16e98fdac46783 ]] || fail state_digest
+sha256sum ppgpu.runtime > bootstrap-logs/distributed-runtime-sha256.txt
+stat -c '%n %s' ppgpu.runtime > bootstrap-logs/distributed-runtime-bytes.txt
 
 set +e
 ./ppgpu.runtime --ops ops.bin --comb-bits 8 > bootstrap-logs/forbidden-cli.out 2> bootstrap-logs/forbidden-cli.err

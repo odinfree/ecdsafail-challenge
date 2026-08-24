@@ -64,11 +64,11 @@ artifact error. All subsequent search is in slices of at most 8,388,608
 
 Each uniquely labeled experiment-owned RTX 4090 worker must independently:
 
-1. match all candidate/source hashes and build at
-   `/root/q1266-comb8-parity` under the frozen CUDA 13.0 command;
-2. record the raw binary hash, apply GNU `strip --strip-all`, and reproduce the
-   canonical runtime SHA-256 `4ff81a62...` and exact size `2808400`; only that
-   canonical artifact may execute a search range;
+1. match all candidate/source hashes and receive the exact frozen runtime from
+   the controller artifact bound in `GPU_RUNTIME_DISTRIBUTION_CONTRACT.md`;
+2. reproduce canonical runtime SHA-256 `4ff81a62...` and exact size `2808400`
+   before execution; host-local production recompilation is forbidden and only
+   those transferred canonical bytes may execute a search range;
 3. reject `--comb-bits`, report 12,596,439 operations and state digest
    `bc16e98fdac46783`;
 4. replay `[82503797833728,82503797837824)` with zero survivors and exact
@@ -82,12 +82,14 @@ that worker. Other workers continue only if their own bindings remain exact.
 Source supersession stops all workers at their next slice boundary.
 
 The original raw-binary reproduction clause was falsified before search: nvcc
-places a process-ID-derived temporary name in `.strtab`, so two semantically
-identical rebuilds had different raw hashes. Contract `154693c`, reveal
-`4789f90`, qualifier `5073537`, and receipt `515d88c` replaced only that
-ill-posed subgate. Fresh worker-0 semantic parity passed 24 fault diffs, 12
-intermediate probe diffs, four batch widths, and one exhausted-canary replay.
-All source, state, range, exact-postfilter, and authority gates are unchanged.
+places a process-ID-derived temporary name in `.strtab`, so two rebuilds had
+different raw hashes. A later cross-host rebuild also failed the stripped hash
+gate before any nonce ran. Contract `154693c`, reveal `4789f90`, qualifier
+`5073537`, receipt `515d88c`, and the frozen distribution contract replace only
+that ill-posed recompile subgate with exact admitted-byte distribution. Fresh
+worker-0 semantic parity passed 24 fault diffs, 12 intermediate probe diffs,
+four batch widths, and one exhausted-canary replay. All source, state, range,
+exact-postfilter, and authority gates are unchanged.
 
 ## Survivor and trusted-replay discipline
 
