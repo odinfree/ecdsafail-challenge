@@ -23,8 +23,13 @@ queues, public notes, pushes, or submission.
   `8da6a28600573512cf300388b14c561e9d13e82b`
 - admitted comb8 CUDA source SHA-256:
   `dfa7cc860e24a4785ae3ec4da5451e7afaa9685f6ae2d9fe77f23cb185f0fa6a`
-- admitted GPU binary SHA-256:
+- parity-host raw GPU binary SHA-256 (provenance only):
   `8f6f0a59f451ca2ddcd71f07772fd855f8078664f66ed9181d7513825fe78edd`
+- deterministic worker-runtime receipt commit:
+  `515d88c044affbe53cd56f95f3e1f0d0590f48f0`
+- canonical stripped GPU runtime SHA-256 / bytes:
+  `4ff81a62f3be5333104df9bfd937a967d405656340d0e4656fb5d4d647c53956` /
+  `2808400`
 - exact CPU postfilter receipt commit:
   `115876715b1502fff105e2b662cb63c116c17ca6`
 - exact CPU postfilter binary SHA-256:
@@ -50,7 +55,7 @@ changing its derivation:
 - worker 3: `[82505408446464, 82505945317376)`
 
 Worker 0 skips the already searched 4096-prefix and owns the production canary.
-Workers 1-3 do not launch until worker 0 passes remote source/binary checks, an
+Workers 1-3 do not launch until worker 0 passes remote source/runtime checks, an
 exact replay of the old 4096 canary, and the production canary with no CUDA or
 artifact error. All subsequent search is in slices of at most 8,388,608
 (`2^23`) nonces. No slice crosses a worker boundary.
@@ -59,9 +64,11 @@ artifact error. All subsequent search is in slices of at most 8,388,608
 
 Each uniquely labeled experiment-owned RTX 4090 worker must independently:
 
-1. match all candidate/source/truth hashes and build under the frozen CUDA 13.0
-   command;
-2. reproduce admitted GPU binary SHA-256 `8f6f0a59...`;
+1. match all candidate/source hashes and build at
+   `/root/q1266-comb8-parity` under the frozen CUDA 13.0 command;
+2. record the raw binary hash, apply GNU `strip --strip-all`, and reproduce the
+   canonical runtime SHA-256 `4ff81a62...` and exact size `2808400`; only that
+   canonical artifact may execute a search range;
 3. reject `--comb-bits`, report 12,596,439 operations and state digest
    `bc16e98fdac46783`;
 4. replay `[82503797833728,82503797837824)` with zero survivors and exact
@@ -73,6 +80,14 @@ Each uniquely labeled experiment-owned RTX 4090 worker must independently:
 Any source, hash, binary, state, overlap, overflow, CUDA, or logging error stops
 that worker. Other workers continue only if their own bindings remain exact.
 Source supersession stops all workers at their next slice boundary.
+
+The original raw-binary reproduction clause was falsified before search: nvcc
+places a process-ID-derived temporary name in `.strtab`, so two semantically
+identical rebuilds had different raw hashes. Contract `154693c`, reveal
+`4789f90`, qualifier `5073537`, and receipt `515d88c` replaced only that
+ill-posed subgate. Fresh worker-0 semantic parity passed 24 fault diffs, 12
+intermediate probe diffs, four batch widths, and one exhausted-canary replay.
+All source, state, range, exact-postfilter, and authority gates are unchanged.
 
 ## Survivor and trusted-replay discipline
 

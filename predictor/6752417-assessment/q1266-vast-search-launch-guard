@@ -42,6 +42,7 @@ git -C "$CANDIDATE_ROOT" diff --cached --quiet || fail candidate_index_dirty
 
 git -C "$PREDICTOR_ROOT" merge-base --is-ancestor 8da6a28600573512cf300388b14c561e9d13e82b HEAD || fail gpu_receipt_missing
 git -C "$PREDICTOR_ROOT" merge-base --is-ancestor 0c2358e8d926ec80cc6f38e6dd12f0a0c20e6513 HEAD || fail search_order_missing
+git -C "$PREDICTOR_ROOT" merge-base --is-ancestor 515d88c044affbe53cd56f95f3e1f0d0590f48f0 HEAD || fail runtime_receipt_missing
 git -C "$PREDICTOR_ROOT" diff --quiet || fail predictor_dirty
 git -C "$PREDICTOR_ROOT" diff --cached --quiet || fail predictor_index_dirty
 
@@ -50,6 +51,8 @@ require_sha dfa7cc860e24a4785ae3ec4da5451e7afaa9685f6ae2d9fe77f23cb185f0fa6a "$A
 require_sha 4423f04bb6810993bbe500b3adc147d0a088abb0cb78fc7bf93b973ddef49dc5 "$ASSESSMENT/src/pp_model.h"
 require_sha bccaf9d1be17f131be65d637957cd04f409c3c13a8d5a6904070dab58a2b3c57 "$ASSESSMENT/src/pp_host.h"
 require_sha 7598ef077ab15573f2f1ed0d216a84ed0788f3c59a33ae7ae00a30051a867094 "$ASSESSMENT/build.sh"
+require_sha 6866d0e06171f2463b862e7c8ab30466e9813f27a4acdc99df0a59b4afb03710 "$ASSESSMENT/GPU_WORKER_RUNTIME_RECEIPT.md"
+require_sha 42f68a1fcdabc26c7a159464b947f053ad33e5279704fc8ac9b8b3413c661ec5 "$ASSESSMENT/q1266-worker-runtime-qualify"
 
 inventory="$({ vastai show instances-v1 --all --status running loading --raw || exit 1; } | ruby -rjson -e '
   x=JSON.parse(STDIN.read)
