@@ -773,13 +773,30 @@ mod tests {
         }
     }
 
-    fn lowered_phase(action: AuditAction, values: [bool; 3]) -> bool {
+    fn lowered_phase(action: AuditAction, facts: [AbstractValue; 3], values: [bool; 3]) -> bool {
         match action {
             AuditAction::Keep => values.into_iter().all(|value| value),
             AuditAction::NoCostIdentity | AuditAction::Drop => false,
             AuditAction::LowerToNeg => true,
-            AuditAction::LowerToZ => values[2],
-            AuditAction::LowerToCZ => values[1] && values[2],
+            AuditAction::LowerToZ => {
+                let mut surviving = facts
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, &fact)| (fact != AbstractValue::Known1).then_some(index));
+                let wire = surviving.next().expect("one surviving Z wire");
+                assert!(surviving.next().is_none(), "exactly one surviving Z wire");
+                values[wire]
+            }
+            AuditAction::LowerToCZ => {
+                let mut surviving = facts
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, &fact)| (fact != AbstractValue::Known1).then_some(index));
+                let first = surviving.next().expect("first surviving CZ wire");
+                let second = surviving.next().expect("second surviving CZ wire");
+                assert!(surviving.next().is_none(), "exactly two surviving CZ wires");
+                values[first] && values[second]
+            }
             AuditAction::LowerToX | AuditAction::LowerToCX => {
                 panic!("non-phase lowering in CCZ test")
             }
@@ -788,34 +805,21 @@ mod tests {
 
     #[test]
     fn ccz_one_two_three_known_ones_lower_exactly() {
-        let abstract_cases = [
-            (
-                [
-                    AbstractValue::Known1,
-                    AbstractValue::Known1,
-                    AbstractValue::Known1,
-                ],
-                AuditAction::LowerToNeg,
-            ),
-            (
-                [
-                    AbstractValue::Known1,
-                    AbstractValue::Known1,
-                    AbstractValue::Unknown,
-                ],
-                AuditAction::LowerToZ,
-            ),
-            (
-                [
-                    AbstractValue::Known1,
-                    AbstractValue::Unknown,
-                    AbstractValue::Unknown,
-                ],
-                AuditAction::LowerToCZ,
-            ),
-        ];
-
-        for (facts, expected_action) in abstract_cases {
+        for known_one_mask in 1u8..8 {
+            let known_ones = known_one_mask.count_ones();
+            let facts = std::array::from_fn(|index| {
+                if known_one_mask & (1 << index) == 0 {
+                    AbstractValue::Unknown
+                } else {
+                    AbstractValue::Known1
+                }
+            });
+            let expected_action = match known_ones {
+                1 => AuditAction::LowerToCZ,
+                2 => AuditAction::LowerToZ,
+                3 => AuditAction::LowerToNeg,
+                _ => unreachable!(),
+            };
             let (_, decision) = apply_gate(OperationType::CCZ, facts);
             assert_eq!(decision.action, expected_action);
             for assignment in 0u8..8 {
@@ -835,8 +839,8 @@ mod tests {
                 if consistent {
                     assert_eq!(
                         concrete_phase(OperationType::CCZ, values),
-                        lowered_phase(decision.action, values),
-                        "facts={facts:?} assignment={assignment:03b}"
+                        lowered_phase(decision.action, facts, values),
+                        "known_one_mask={known_one_mask:03b} facts={facts:?} assignment={assignment:03b}"
                     );
                 }
             }
@@ -868,7 +872,7 @@ mod tests {
             ];
             assert_eq!(
                 concrete_phase(OperationType::CCZ, values),
-                lowered_phase(decision.action, values),
+                lowered_phase(decision.action, facts, values),
                 "concrete assignment={assignment:03b} action={:?}",
                 decision.action
             );
@@ -1277,7 +1281,32 @@ mod tests {
         }
     }
 
-    fn reduced_sequence(width: usize) -> (AbstractMachine, Vec<Op>) {
+    struct SoundnessFixture {
+        name: String,
+        machine: AbstractMachine,
+        ops: Vec<Op>,
+        xof_words: usize,
+        require_known_after_every_prefix: bool,
+    }
+
+    fn conditioned_swap(control: u64, target: u64, condition: u64) -> Op {
+        let mut op = Op::empty();
+        op.kind = OperationType::Swap;
+        op.q_control1 = QubitId(control);
+        op.q_target = QubitId(target);
+        op.c_condition = BitId(condition);
+        op
+    }
+
+    fn conditioned_bit(kind: OperationType, target: u64, condition: u64) -> Op {
+        let mut op = Op::empty();
+        op.kind = kind;
+        op.c_target = BitId(target);
+        op.c_condition = BitId(condition);
+        op
+    }
+
+    fn declared_input_fixture(width: usize) -> SoundnessFixture {
         let input_qubits = 2 * width;
         let input_bits = 2 * width;
         let auxiliary = input_qubits as u64;
@@ -1364,11 +1393,291 @@ mod tests {
         cz.q_target = QubitId(1);
         ops.push(cz);
 
-        (machine, ops)
+        for lane in 0..width as u64 {
+            let mut cx = Op::empty();
+            cx.kind = OperationType::CX;
+            cx.q_control1 = QubitId(lane);
+            cx.q_target = QubitId(width as u64 + lane);
+            cx.c_condition = BitId(lane);
+            ops.push(cx);
+
+            ops.push(conditioned_swap(
+                lane,
+                width as u64 + lane,
+                width as u64 + lane,
+            ));
+            ops.push(conditioned_bit(
+                OperationType::BitInvert,
+                lane,
+                width as u64 + lane,
+            ));
+            ops.push(conditioned_bit(
+                OperationType::BitStore0,
+                width as u64 + lane,
+                lane,
+            ));
+        }
+
+        let mut touched_qubits = vec![false; input_qubits];
+        let mut touched_bits = vec![false; input_bits];
+        for op in &ops {
+            for id in [op.q_control2, op.q_control1, op.q_target] {
+                if let Ok(index) = usize::try_from(id.0) {
+                    if index < input_qubits {
+                        touched_qubits[index] = true;
+                    }
+                }
+            }
+            for id in [op.c_target, op.c_condition] {
+                if let Ok(index) = usize::try_from(id.0) {
+                    if index < input_bits {
+                        touched_bits[index] = true;
+                    }
+                }
+            }
+        }
+        assert!(
+            touched_qubits.into_iter().all(|touched| touched),
+            "width {width} must use every declared qubit lane"
+        );
+        assert!(
+            touched_bits.into_iter().all(|touched| touched),
+            "width {width} must use every declared bit lane"
+        );
+
+        SoundnessFixture {
+            name: format!("declared-input-width-{width}"),
+            machine,
+            ops,
+            xof_words: 2,
+            require_known_after_every_prefix: false,
+        }
+    }
+
+    fn swap_and_classical_fixture() -> SoundnessFixture {
+        let machine = AbstractMachine::for_test(
+            vec![
+                AbstractValue::Known0,
+                AbstractValue::Known1,
+                AbstractValue::Known1,
+                AbstractValue::Known0,
+                AbstractValue::Known1,
+                AbstractValue::Known1,
+            ],
+            vec![
+                AbstractValue::Known0,
+                AbstractValue::Known1,
+                AbstractValue::Unknown,
+                AbstractValue::Known1,
+                AbstractValue::Known0,
+                AbstractValue::Known1,
+                AbstractValue::Unknown,
+            ],
+        );
+        let ops = vec![
+            conditioned_swap(0, 1, 0),
+            conditioned_swap(0, 1, 1),
+            conditioned_swap(2, 3, 2),
+            conditioned_swap(4, 5, 2),
+            conditioned_bit(OperationType::BitInvert, 0, 0),
+            conditioned_bit(OperationType::BitInvert, 1, 1),
+            conditioned_bit(OperationType::BitStore0, 3, 3),
+            conditioned_bit(OperationType::BitStore1, 4, 4),
+            conditioned_bit(OperationType::BitStore1, 5, 5),
+            conditioned_bit(OperationType::BitStore0, 6, 6),
+        ];
+        SoundnessFixture {
+            name: "conditional-swap-and-classical-aliases".to_owned(),
+            machine,
+            ops,
+            xof_words: 0,
+            require_known_after_every_prefix: true,
+        }
+    }
+
+    fn ccx_fixture() -> SoundnessFixture {
+        let cases = [
+            (
+                [
+                    AbstractValue::Known0,
+                    AbstractValue::Unknown,
+                    AbstractValue::Known1,
+                ],
+                None,
+            ),
+            (
+                [
+                    AbstractValue::Unknown,
+                    AbstractValue::Known0,
+                    AbstractValue::Known0,
+                ],
+                Some(1),
+            ),
+            (
+                [
+                    AbstractValue::Known1,
+                    AbstractValue::Known1,
+                    AbstractValue::Known0,
+                ],
+                Some(1),
+            ),
+            (
+                [
+                    AbstractValue::Known1,
+                    AbstractValue::Unknown,
+                    AbstractValue::Known0,
+                ],
+                None,
+            ),
+            (
+                [
+                    AbstractValue::Unknown,
+                    AbstractValue::Known1,
+                    AbstractValue::Known1,
+                ],
+                None,
+            ),
+            (
+                [
+                    AbstractValue::Unknown,
+                    AbstractValue::Unknown,
+                    AbstractValue::Known0,
+                ],
+                None,
+            ),
+            (
+                [
+                    AbstractValue::Known1,
+                    AbstractValue::Known1,
+                    AbstractValue::Known0,
+                ],
+                Some(0),
+            ),
+            (
+                [
+                    AbstractValue::Known1,
+                    AbstractValue::Known1,
+                    AbstractValue::Known0,
+                ],
+                Some(2),
+            ),
+        ];
+        let mut qubits = Vec::with_capacity(cases.len() * 3);
+        let mut ops = Vec::with_capacity(cases.len());
+        for (case_index, (facts, condition)) in cases.into_iter().enumerate() {
+            let first = qubits.len() as u64;
+            qubits.extend(facts);
+            let mut op = Op::empty();
+            op.kind = OperationType::CCX;
+            op.q_control2 = QubitId(first);
+            op.q_control1 = QubitId(first + 1);
+            op.q_target = QubitId(first + 2);
+            if let Some(condition) = condition {
+                op.c_condition = BitId(condition);
+            }
+            assert_eq!(first as usize, case_index * 3);
+            ops.push(op);
+        }
+        SoundnessFixture {
+            name: "ccx-drop-lower-and-keep-cases".to_owned(),
+            machine: AbstractMachine::for_test(
+                qubits,
+                vec![
+                    AbstractValue::Known0,
+                    AbstractValue::Known1,
+                    AbstractValue::Unknown,
+                ],
+            ),
+            ops,
+            xof_words: 0,
+            require_known_after_every_prefix: true,
+        }
+    }
+
+    fn ccz_fixture() -> SoundnessFixture {
+        let mut cases = Vec::new();
+        for zero_position in 0..3 {
+            let mut facts = [AbstractValue::Known1; 3];
+            facts[zero_position] = AbstractValue::Known0;
+            facts[(zero_position + 1) % 3] = AbstractValue::Unknown;
+            cases.push(facts);
+        }
+        for known_one_mask in 1u8..8 {
+            cases.push(std::array::from_fn(|index| {
+                if known_one_mask & (1 << index) == 0 {
+                    AbstractValue::Unknown
+                } else {
+                    AbstractValue::Known1
+                }
+            }));
+        }
+
+        let mut qubits = Vec::with_capacity(cases.len() * 3);
+        let mut ops = Vec::with_capacity(cases.len());
+        for facts in cases {
+            let first = qubits.len() as u64;
+            qubits.extend(facts);
+            let mut op = Op::empty();
+            op.kind = OperationType::CCZ;
+            op.q_control2 = QubitId(first);
+            op.q_control1 = QubitId(first + 1);
+            op.q_target = QubitId(first + 2);
+            ops.push(op);
+        }
+        SoundnessFixture {
+            name: "ccz-fact-position-cases".to_owned(),
+            machine: AbstractMachine::for_test(qubits, Vec::new()),
+            ops,
+            xof_words: 0,
+            require_known_after_every_prefix: true,
+        }
+    }
+
+    fn stochastic_fixture() -> SoundnessFixture {
+        let machine = AbstractMachine::for_test(
+            vec![
+                AbstractValue::Known1,
+                AbstractValue::Known0,
+                AbstractValue::Known1,
+                AbstractValue::Known0,
+                AbstractValue::Known1,
+                AbstractValue::Known0,
+            ],
+            vec![
+                AbstractValue::Known1,
+                AbstractValue::Known0,
+                AbstractValue::Unknown,
+                AbstractValue::Known0,
+                AbstractValue::Known1,
+            ],
+        );
+        let mut ops = Vec::new();
+        for (target, condition) in [(0, 1), (1, 2), (2, 0)] {
+            let mut reset = Op::empty();
+            reset.kind = OperationType::R;
+            reset.q_target = QubitId(target);
+            reset.c_condition = BitId(condition);
+            ops.push(reset);
+        }
+        for (target, result_and_condition) in [(3, 4), (4, 1), (5, 2)] {
+            let mut hmr = Op::empty();
+            hmr.kind = OperationType::Hmr;
+            hmr.q_target = QubitId(target);
+            hmr.c_target = BitId(result_and_condition);
+            hmr.c_condition = BitId(result_and_condition);
+            ops.push(hmr);
+        }
+        SoundnessFixture {
+            name: "reset-hmr-and-result-condition-aliases".to_owned(),
+            machine,
+            ops,
+            xof_words: 6,
+            require_known_after_every_prefix: true,
+        }
     }
 
     fn assert_abstract_snapshot_sound(
-        width: usize,
+        fixture: &str,
         prefix: usize,
         assignment: usize,
         xof_pattern: usize,
@@ -1377,6 +1686,8 @@ mod tests {
         concrete_qubits: &[u64],
         concrete_bits: &[u64],
     ) {
+        assert_eq!(abstract_qubits.len(), concrete_qubits.len());
+        assert_eq!(abstract_bits.len(), concrete_bits.len());
         for (id, (&abstract_value, &concrete)) in
             abstract_qubits.iter().zip(concrete_qubits).enumerate()
         {
@@ -1384,11 +1695,11 @@ mod tests {
             match abstract_value {
                 AbstractValue::Known0 => assert_eq!(
                     concrete, 0,
-                    "width={width} prefix={prefix} assignment={assignment} xof={xof_pattern} q{id}"
+                    "fixture={fixture} prefix={prefix} assignment={assignment} xof={xof_pattern} q{id}"
                 ),
                 AbstractValue::Known1 => assert_eq!(
                     concrete, 1,
-                    "width={width} prefix={prefix} assignment={assignment} xof={xof_pattern} q{id}"
+                    "fixture={fixture} prefix={prefix} assignment={assignment} xof={xof_pattern} q{id}"
                 ),
                 AbstractValue::Unknown => {}
             }
@@ -1400,13 +1711,120 @@ mod tests {
             match abstract_value {
                 AbstractValue::Known0 => assert_eq!(
                     concrete, 0,
-                    "width={width} prefix={prefix} assignment={assignment} xof={xof_pattern} b{id}"
+                    "fixture={fixture} prefix={prefix} assignment={assignment} xof={xof_pattern} b{id}"
                 ),
                 AbstractValue::Known1 => assert_eq!(
                     concrete, 1,
-                    "width={width} prefix={prefix} assignment={assignment} xof={xof_pattern} b{id}"
+                    "fixture={fixture} prefix={prefix} assignment={assignment} xof={xof_pattern} b{id}"
                 ),
                 AbstractValue::Unknown => {}
+            }
+        }
+    }
+
+    fn initialize_concrete_state(
+        facts: &[AbstractValue],
+        concrete: &mut [u64],
+        assignment: usize,
+        unknown_index: &mut usize,
+    ) {
+        for (&fact, concrete) in facts.iter().zip(concrete) {
+            *concrete = match fact {
+                AbstractValue::Known0 => 0,
+                AbstractValue::Known1 => 1,
+                AbstractValue::Unknown => {
+                    let value = ((assignment >> *unknown_index) & 1) as u64;
+                    *unknown_index += 1;
+                    value
+                }
+            };
+        }
+    }
+
+    fn run_soundness_fixture(mut fixture: SoundnessFixture) {
+        let initial_qubits = fixture.machine.qubits.clone();
+        let initial_bits = fixture.machine.bits.clone();
+        let unknown_count = initial_qubits
+            .iter()
+            .chain(&initial_bits)
+            .filter(|&&fact| fact == AbstractValue::Unknown)
+            .count();
+        assert!(unknown_count < usize::BITS as usize);
+        assert!(fixture.xof_words < usize::BITS as usize);
+
+        let mut snapshots = Vec::with_capacity(fixture.ops.len());
+        for (index, op) in fixture.ops.iter().enumerate() {
+            validate_op_schema(index as u64, op).expect("valid reduced operation");
+            fixture
+                .machine
+                .apply(index as u64, op, origin(index as u32))
+                .expect("abstract transfer");
+            if fixture.require_known_after_every_prefix {
+                let known_count = fixture
+                    .machine
+                    .qubits
+                    .iter()
+                    .chain(&fixture.machine.bits)
+                    .filter(|&&fact| fact != AbstractValue::Unknown)
+                    .count();
+                assert!(
+                    known_count > 0,
+                    "fixture {} became vacuous after prefix {}",
+                    fixture.name,
+                    index + 1
+                );
+            }
+            snapshots.push((fixture.machine.qubits.clone(), fixture.machine.bits.clone()));
+        }
+        fixture.machine.finish().expect("balanced reduced sequence");
+        assert_eq!(
+            fixture.machine.xof_words_consumed, fixture.xof_words as u64,
+            "fixture {} XOF count",
+            fixture.name
+        );
+
+        for assignment in 0..(1usize << unknown_count) {
+            // The concrete domain is deliberately finite: every Unknown input and
+            // every XOF word is independently enumerated as the Boolean values 0/1.
+            for xof_pattern in 0..(1usize << fixture.xof_words) {
+                let words: Vec<u64> = (0..fixture.xof_words)
+                    .map(|word| ((xof_pattern >> word) & 1) as u64)
+                    .collect();
+                for prefix in 1..=fixture.ops.len() {
+                    let mut xof = FiniteXof::from_words(&words);
+                    let mut simulator = crate::sim::Simulator::new(
+                        initial_qubits.len(),
+                        initial_bits.len(),
+                        &mut xof,
+                    );
+                    let mut unknown_index = 0;
+                    initialize_concrete_state(
+                        &initial_qubits,
+                        &mut simulator.qubits,
+                        assignment,
+                        &mut unknown_index,
+                    );
+                    initialize_concrete_state(
+                        &initial_bits,
+                        &mut simulator.bits,
+                        assignment,
+                        &mut unknown_index,
+                    );
+                    assert_eq!(unknown_index, unknown_count);
+
+                    simulator.apply_iter(fixture.ops[..prefix].iter());
+                    let (abstract_qubits, abstract_bits) = &snapshots[prefix - 1];
+                    assert_abstract_snapshot_sound(
+                        &fixture.name,
+                        prefix,
+                        assignment,
+                        xof_pattern,
+                        abstract_qubits,
+                        abstract_bits,
+                        &simulator.qubits,
+                        &simulator.bits,
+                    );
+                }
             }
         }
     }
@@ -1414,57 +1832,24 @@ mod tests {
     #[test]
     fn exhaustive_reduced_sequence_soundness() {
         for width in 1usize..=3 {
-            let input_qubits = 2 * width;
-            let input_bits = 2 * width;
-            let (mut abstract_machine, ops) = reduced_sequence(width);
-            let mut snapshots = Vec::with_capacity(ops.len());
-            for (index, op) in ops.iter().enumerate() {
-                validate_op_schema(index as u64, op).expect("valid reduced operation");
-                abstract_machine
-                    .apply(index as u64, op, origin(index as u32))
-                    .expect("abstract transfer");
-                snapshots.push((
-                    abstract_machine.qubits.clone(),
-                    abstract_machine.bits.clone(),
-                ));
-            }
-            abstract_machine
-                .finish()
-                .expect("balanced reduced sequence");
-            assert_eq!(abstract_machine.xof_words_consumed, 2);
-
-            let assignment_count = 1usize << (input_qubits + input_bits);
-            for assignment in 0..assignment_count {
-                for xof_pattern in 0usize..4 {
-                    for prefix in 1..=ops.len() {
-                        let words = [(xof_pattern & 1) as u64, ((xof_pattern >> 1) & 1) as u64];
-                        let mut xof = FiniteXof::from_words(&words);
-                        let mut simulator = crate::sim::Simulator::new(
-                            abstract_machine.qubits.len(),
-                            abstract_machine.bits.len(),
-                            &mut xof,
-                        );
-                        for id in 0..input_qubits {
-                            simulator.qubits[id] = ((assignment >> id) & 1) as u64;
-                        }
-                        for id in 0..input_bits {
-                            simulator.bits[id] = ((assignment >> (input_qubits + id)) & 1) as u64;
-                        }
-                        simulator.apply_iter(ops[..prefix].iter());
-                        let (abstract_qubits, abstract_bits) = &snapshots[prefix - 1];
-                        assert_abstract_snapshot_sound(
-                            width,
-                            prefix,
-                            assignment,
-                            xof_pattern,
-                            abstract_qubits,
-                            abstract_bits,
-                            &simulator.qubits,
-                            &simulator.bits,
-                        );
-                    }
-                }
-            }
+            let fixture = declared_input_fixture(width);
+            let declared_unknowns = fixture
+                .machine
+                .qubits
+                .iter()
+                .chain(&fixture.machine.bits)
+                .filter(|&&fact| fact == AbstractValue::Unknown)
+                .count();
+            assert_eq!(declared_unknowns, 4 * width);
+            run_soundness_fixture(fixture);
+        }
+        for fixture in [
+            swap_and_classical_fixture(),
+            ccx_fixture(),
+            ccz_fixture(),
+            stochastic_fixture(),
+        ] {
+            run_soundness_fixture(fixture);
         }
     }
 }
