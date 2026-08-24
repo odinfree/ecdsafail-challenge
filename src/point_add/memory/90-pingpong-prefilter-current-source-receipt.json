@@ -1,0 +1,58 @@
+{
+  "schema": "pingpong-prefilter-current-source-gate-v1",
+  "upstream_repository": "https://github.com/somejohnbforya/pingpong-prefilter",
+  "upstream_commit": "da0e5721f14f5d956aa703b38311f4087388a7b1",
+  "integration_commit": "32dc7f6559e3817e62847c34f7021a6ba11780a5",
+  "integration_tree": "6a01fd39db03b66cc770530c10539140af69b45b",
+  "integrated_source_sha256": "2594e42b227192c2287b8cd4731596878b55a6c09fa60f56baf5231ca1bd27f5",
+  "compatibility_profile": {
+    "SUB4_PP_ROUNDS": 696,
+    "SUB4_PP_ROUNDS_MUL": 696,
+    "SUB4_PP_SCHED_LINEAR": 1,
+    "SUB4_PP_WIDTH_RESCALE": 1,
+    "SUB4_PP_SIGNED_FRAME": 0,
+    "SUB4_PP_FUSE_ROUND1": 0,
+    "SUB4_PP_ROUND0_SPARSE_FWD": 0,
+    "emitted_ops": 12886147,
+    "q": 1266
+  },
+  "bounded_diagnostic": {
+    "nonces": 32,
+    "range": [0, 31],
+    "predicted_counts_sha256": "c7f0ba05b25d48526dd510df4a370b6b164584ccc835697dd3642f1c0dfad521",
+    "model_log_sha256": "a40674d8524c921aedcd8c773716e41dddaa5898d7d471e7a79e5ab6438d3d36",
+    "throughput_nonces_per_second": 16.235
+  },
+  "evaluator_crosschecks": [
+    {
+      "nonce": 13,
+      "predicted_classical_mismatches": 5,
+      "evaluated_classical_mismatches": 6,
+      "phase_garbage_batches": 5,
+      "ancilla_garbage_batches": 0,
+      "log_sha256": "e66e1657f337ee68f62f9349a4fe0ee1be8bde80273e059f1b5a6198937258d7"
+    },
+    {
+      "nonce": 14,
+      "predicted_classical_mismatches": 4,
+      "evaluated_classical_mismatches": 5,
+      "phase_garbage_batches": 2,
+      "ancilla_garbage_batches": 0,
+      "log_sha256": "df94832871b31c71fb5b6b7ba312de1b0ac800e224706c7e6c9d65c4dd76112d"
+    }
+  ],
+  "verdict": "E_PREFILTER_CURRENT_SOURCE_UNBOUND",
+  "runtime_guard": "requires exact compatibility profile and PINGPONG_FILTER_DIAGNOSTIC_ONLY=1; otherwise exits 2 before screening",
+  "screening_authorized": false,
+  "push_status": "local commit only; push gate closed",
+  "authority": {
+    "provider": false,
+    "nonce_grind": false,
+    "fleet": false,
+    "queue": false,
+    "push": false,
+    "public_note": false,
+    "promotion": false,
+    "submission": false
+  }
+}
