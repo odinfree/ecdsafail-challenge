@@ -266,6 +266,21 @@ capacity are not `HARD_NACK` evidence.
   ABI, an exact narrow early walk cell, or removal of the affine multiply phase;
   another interleave coordinate does not qualify.
 
+### Phase five settlement — dirty-history arithmetic `HARD_NACK`
+
+- Evidence:
+  `src/point_add/memory/20-dirty-history-arithmetic-verdict.md`.
+- The exact vented prototype borrowed raw history as dirty carry workspace and
+  restored value, phase, and ancillas in the full 64-lane composition.
+- Its best bounded form measured Q1234/T1871482.19, versus a live-score ceiling
+  of T935762 at that width.  The lower-width unrestricted form measured
+  Q1233/T2271655.83.
+- Once clean ladders disappear, terminal replay still owns 694 raw history plus
+  the 512-qubit coefficient/numerator pair.  Carry borrowing cannot reach
+  Q1203 without changing one of those semantic terms.
+- The prototype is preserved at commit `3a00a61` and reverted at `255b9dd`; the
+  source head contains no activated dirty-history implementation.
+
 ## Anti-rot ban list
 
 The following do not advance structural cadence:
