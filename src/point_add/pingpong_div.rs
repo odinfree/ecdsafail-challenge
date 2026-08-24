@@ -2886,7 +2886,7 @@ fn replay_doubling_inverse(b: &mut B, tape: &[QubitId], x: &[QubitId], y: &[Qubi
 /// Full four-register affine point-add candidate using the existing
 /// TrailMix coordinate shell and symmetric in-place square verbatim.  Only
 /// the two division callbacks differ from the baseline construction.
-pub(crate) fn build_pingpong_point_add() -> Vec<Op> {
+pub(crate) fn build_pingpong_point_add_traced() -> TracedOps {
     if mux_round0_correction_enabled() {
         set_default_env("DIALOG_GCD_FOLD_MAJ1", "1");
     }
@@ -2929,10 +2929,10 @@ pub(crate) fn build_pingpong_point_add() -> Vec<Op> {
     circ.declare_bit_register(&ox);
     circ.declare_bit_register(&oy);
     circ.b0_finalize();
-    let ops = circ.take_ops();
+    let stream = circ.take_traced_ops();
     if pp_profile::enabled() {
         pp_profile::report(
-            &ops,
+            &stream[..],
             &circ.phase_transitions,
             circ.peak_qubits,
             circ.peak_ops_idx,
@@ -2940,7 +2940,11 @@ pub(crate) fn build_pingpong_point_add() -> Vec<Op> {
             &circ.active_timeline,
         );
     }
-    ops
+    stream
+}
+
+pub(crate) fn build_pingpong_point_add() -> Vec<Op> {
+    build_pingpong_point_add_traced().into_ops()
 }
 
 /// One bit-parallel batch through the complete affine-add candidate.  This is

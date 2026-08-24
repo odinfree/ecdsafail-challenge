@@ -2593,19 +2593,40 @@ pub fn build() -> Vec<Op> {
             pingpong_div::pingpong_point_add_simulator_selfcheck();
             return Vec::new();
         }
-        let mut ops = pingpong_div::build_pingpong_point_add();
+        let mut stream = pingpong_div::build_pingpong_point_add_traced();
         // Exact-clean nonce for the Q1267/M697 stream, verified by the optimized
         // and reference evaluators over all 9,024 shots.
         let nonce = std::env::var("SUB4_PINGPONG_TAIL_NONCE")
             .unwrap_or_default()
             .parse::<u64>()
             .unwrap_or(8107117281543);
+        let mut targets = [QubitId(0); 96];
+        for b in 0..48 {
+            let target = if (nonce >> b) & 1 == 1 {
+                QubitId(1)
+            } else {
+                QubitId(0)
+            };
+            targets[2 * b] = target;
+            targets[2 * b + 1] = target;
+        }
         let mut x = Op::empty();
         x.kind = OperationType::X;
         x.q_target = QubitId(0);
-        ops.extend(std::iter::repeat_n(x, 96));
-        ops = apply_tail_nonce(ops, nonce);
-        return ops;
+        let tail = stream
+            .append_synthetic_tail(&[x; 96])
+            .unwrap_or_else(|error| panic!("cannot append ping-pong nonce tail: {error}"));
+        stream
+            .rewrite_synthetic_tail_targets(tail, &targets)
+            .unwrap_or_else(|error| panic!("cannot rewrite ping-pong nonce tail: {error}"));
+        if j3_dead_gate_audit_enabled() {
+            let working_directory = std::env::current_dir().unwrap_or_else(|error| {
+                panic!("cannot resolve build-process working directory: {error}")
+            });
+            dead_gate_audit::audit_and_write(&stream, &working_directory)
+                .unwrap_or_else(|error| panic!("J3 dead-gate audit failed: {error}"));
+        }
+        return stream.into_ops();
     }
     let mut ops = trailmix_ludicrous::build_trailmix_ludicrous_ops();
 
