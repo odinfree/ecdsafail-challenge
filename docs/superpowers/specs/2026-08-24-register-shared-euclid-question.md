@@ -1,7 +1,13 @@
 # Register-Shared Euclid Architecture Question
 
-Status: bounded design question following
-`HARD_NACK_LOW_DEGREE_SHEAR`.
+Status: `HARD_NACK_DUPLICATE_LITERAL_ROUTE`; changed-premise variants only.
+
+The anti-rot reconciliation in
+`docs/superpowers/specs/2026-08-24-register-shared-euclid-reconciliation.md`
+found that the literal question had already been answered on promoted ancestors.
+Do not run the two-width experiment below unless a new row transition is first
+specified that differs from both the current ping-pong recurrence and Luo et
+al.'s register-sharing EEA.
 
 ## Question
 
