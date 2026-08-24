@@ -1,0 +1,69 @@
+{
+  "schema": "blockwise-residual-cofactor-compactor-summary-v1",
+  "identity_verdict": "ADMIT_PREFIX_CROSS_DETERMINANT_PRODUCT_IDENTITY_ONLY",
+  "stored_prefix_verdict": "HARD_NACK_STORED_PREFIX_Q_FLOOR",
+  "code_free_verdict": "HARD_NACK_QUOTIENT_FREE_PREFIX_COLLISION",
+  "rank_decoder_verdict": "HARD_NACK_ZERO_EXTENDED_RESIDUAL_RANK_DECODER",
+  "verdict": "HARD_NACK_BLOCKWISE_RESIDUAL_COFACTOR_COMPACTOR_NATURAL_CODECS",
+  "implementation_commit": "e812ca2ccda216f3e60cf0ad06d08a2caf9f2d7c",
+  "implementation_tree": "5be4bc4618cf3ba4529c569769ed8c1b574081fb",
+  "full_gate_receipt_sha256": "65d05c0f4b2df002e7f61fe54c8aab046a6aa0eb2641b322c9d3c4ae318b5b85",
+  "cross_determinant": {
+    "identity": "u*y-v*x = epsilon*(p*h(T)-T*lambda)",
+    "checked_states": 640624,
+    "row_failures": 0,
+    "determinant_failures": 0
+  },
+  "production_prefix_floor": {
+    "sample_count": 10000,
+    "sample_sha256": "c79a3cc246063c5475c1d907da7862945288832dede0400579ee3a93589abb6e",
+    "cut_widths": 255,
+    "minimum_worst_raw_q": 1124,
+    "raw_minimizing_cut_widths": [1, 2, 4, 5],
+    "raw_witness_sample_index": 1973,
+    "raw_excess_over_component_cap_q": 24,
+    "minimum_worst_gamma_q": 1282,
+    "gamma_minimizing_cut_widths": [255],
+    "cut_32_worst_raw_q": 1142,
+    "cut_32_worst_gamma_q": 1315,
+    "free_assumptions": [
+      "raw quotient boundaries",
+      "parser",
+      "quotient arithmetic",
+      "controls and carries",
+      "orientation",
+      "determinant arithmetic",
+      "cleanup"
+    ]
+  },
+  "code_free_cases": [
+    {"modulus": 31, "collisions_by_cut": [118, 22, 6, 0, 0], "deepest_collision_free_shrink_bits": 1},
+    {"modulus": 61, "collisions_by_cut": [538, 52, 24, 6, 0, 0], "deepest_collision_free_shrink_bits": 1},
+    {"modulus": 127, "collisions_by_cut": [3148, 748, 216, 32, 6, 0, 0], "deepest_collision_free_shrink_bits": 1},
+    {"modulus": 251, "collisions_by_cut": [14248, 4742, 964, 116, 34, 6, 0, 0], "deepest_collision_free_shrink_bits": 1}
+  ],
+  "rank_decoder_cases": [
+    {"modulus": 31, "variables": 8, "max_fiber": 7, "rank_bits": 3, "degree": 7, "density": 80, "table_size": 256},
+    {"modulus": 61, "variables": 10, "max_fiber": 7, "rank_bits": 3, "degree": 9, "density": 384, "table_size": 1024},
+    {"modulus": 127, "variables": 11, "max_fiber": 15, "rank_bits": 4, "degree": 11, "density": 672, "table_size": 2048},
+    {"modulus": 251, "variables": 13, "max_fiber": 15, "rank_bits": 4, "degree": 12, "density": 2892, "table_size": 8192},
+    {"modulus": 509, "variables": 14, "max_fiber": 31, "rank_bits": 5, "degree": 14, "density": 6104, "table_size": 16384},
+    {"modulus": 1021, "variables": 16, "max_fiber": 31, "rank_bits": 5, "degree": 15, "density": 23496, "table_size": 65536},
+    {"modulus": 2039, "variables": 17, "max_fiber": 63, "rank_bits": 6, "degree": 16, "density": 48392, "table_size": 131072},
+    {"modulus": 4093, "variables": 19, "max_fiber": 63, "rank_bits": 6, "degree": 19, "density": 193812, "table_size": 524288}
+  ],
+  "scope": "PREFIX_DETERMINANT_AND_NATURAL_HISTORY_OR_RANK_CODECS_ONLY",
+  "universal_lower_bound": false,
+  "full_field_candidate": false,
+  "next_grammar": "CROSS_DETERMINANT_CONTINUANT_RANK_CODEC",
+  "authority": {
+    "provider": false,
+    "nonce_grind": false,
+    "fleet": false,
+    "queue": false,
+    "push": false,
+    "public_note": false,
+    "promotion": false,
+    "submission": false
+  }
+}
