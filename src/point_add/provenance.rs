@@ -24,17 +24,20 @@ pub(crate) struct OriginRef {
 }
 
 impl OriginRef {
+    pub(crate) fn try_validate_transform_chain(self) -> Result<(), &'static str> {
+        if self.flags & !KNOWN_ORIGIN_FLAGS != 0 {
+            return Err("unknown provenance transform flags");
+        }
+        if (self.inverse_depth != 0) != (self.flags & ORIGIN_EMIT_INVERSE != 0) {
+            return Err("inverse provenance depth/flag disagreement");
+        }
+        Ok(())
+    }
+
     fn validate_transform_chain(self) {
-        assert_eq!(
-            self.flags & !KNOWN_ORIGIN_FLAGS,
-            0,
-            "unknown provenance transform flags"
-        );
-        assert_eq!(
-            self.inverse_depth != 0,
-            self.flags & ORIGIN_EMIT_INVERSE != 0,
-            "inverse provenance depth/flag disagreement"
-        );
+        if let Err(message) = self.try_validate_transform_chain() {
+            panic!("{message}");
+        }
     }
 
     fn transform_chain_components(self) -> Vec<&'static str> {
