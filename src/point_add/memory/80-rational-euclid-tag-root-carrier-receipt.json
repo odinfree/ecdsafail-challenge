@@ -1,0 +1,35 @@
+{
+  "schema": "rational-euclid-tag-root-carrier-summary-v1",
+  "verdict": "HARD_NACK_RATIONAL_EUCLID_TAG_ROOT_CARRIER_INTERPOLATION_ONLY",
+  "implementation_commit": "f6ee7fee549a373849165acb6f67f17f5c8bcc60",
+  "implementation_tree": "7f37fb8699d26719898152749a45ee415726faa7",
+  "full_gate_receipt_sha256": "31b4bcc7af2609392f0fefacd351378c3201eac293e983732a1b3072e175d0b2",
+  "polynomial_cases": [
+    {"modulus": 31, "support": 18, "rejected_degree": 4, "rejected_monomials": 15, "rejected_ranks": [15, 16], "admitted_degree": 5, "admitted_monomials": 21, "admitted_ranks": [18, 18]},
+    {"modulus": 61, "support": 58, "rejected_degree": 9, "rejected_monomials": 55, "rejected_ranks": [55, 56], "admitted_degree": 10, "admitted_monomials": 66, "admitted_ranks": [58, 58]},
+    {"modulus": 127, "support": 124, "rejected_degree": 14, "rejected_monomials": 120, "rejected_ranks": [120, 121], "admitted_degree": 15, "admitted_monomials": 136, "admitted_ranks": [124, 124]},
+    {"modulus": 251, "support": 249, "rejected_degree": 20, "rejected_monomials": 231, "rejected_ranks": [231, 232], "admitted_degree": 21, "admitted_monomials": 253, "admitted_ranks": [249, 249]},
+    {"modulus": 509, "support": 507, "rejected_degree": 30, "rejected_monomials": 496, "rejected_ranks": [496, 497], "admitted_degree": 31, "admitted_monomials": 528, "admitted_ranks": [507, 507]}
+  ],
+  "rational_cases": [
+    {"modulus": 31, "support": 18, "rejected_degree": 2, "rejected_columns": 12, "rejected_rank": 12, "possible_degree": 3, "possible_columns": 20, "possible_rank": 18, "possible_nullity": 2},
+    {"modulus": 61, "support": 58, "rejected_degree": 6, "rejected_columns": 56, "rejected_rank": 56, "possible_degree": 7, "possible_columns": 72, "possible_rank": 58, "possible_nullity": 14},
+    {"modulus": 127, "support": 124, "rejected_degree": 9, "rejected_columns": 110, "rejected_rank": 110, "possible_degree": 10, "possible_columns": 132, "possible_rank": 124, "possible_nullity": 8},
+    {"modulus": 251, "support": 249, "rejected_degree": 14, "rejected_columns": 240, "rejected_rank": 240, "possible_degree": 15, "possible_columns": 272, "possible_rank": 249, "possible_nullity": 23},
+    {"modulus": 509, "support": 507, "rejected_degree": 21, "rejected_columns": 506, "rejected_rank": 506, "possible_degree": 22, "possible_columns": 552, "possible_rank": 507, "possible_nullity": 45}
+  ],
+  "rational_nullity_is_decoder_certificate": false,
+  "scope": "SELECTED_CONSTANT_SEED_TOTAL_DEGREE_BIVARIATE_FIELD_MAPS_ONLY",
+  "full_field_candidate": false,
+  "next_grammar": "BOOLEAN_EUCLID_TAG_ROOT_CARRIER",
+  "authority": {
+    "provider": false,
+    "nonce_grind": false,
+    "fleet": false,
+    "queue": false,
+    "push": false,
+    "public_note": false,
+    "promotion": false,
+    "submission": false
+  }
+}
