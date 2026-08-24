@@ -116,8 +116,15 @@ No trusted evaluator replay has run. `submit=CLOSED`, `no_submit_ack=yes`.
 | w1/4 | `[82504359870464,82504368259072)` | 0 | `f8361e4d56a67be4e3a2591d13fc7814572049118472685952efc6eb7a7b9bce` | 806 |
 | w2/7 | `[82504921907200,82504930295808)` | 0 | `14a1327486ff5e0544c04327d8c92a10af3c5f6a8ed6b3237bc59ba2e52408b9` | 808 |
 | w0/9 | `[82503865991168,82503874379776)` | 0 | `b8e60481ed0858b4fff171980fdd8a6372fee71dff6f2525d2533e47065b1690` | 808 |
+| w1/5 | `[82504368259072,82504376647680)` | 0 | `632ced3852f1d7965a64252475bf29782bc05733c3e5c711df63a57d052449de` | 807 |
+| w3/1 | `[82505408446464,82505416835072)` | 0 | `7476a07e4d6f79cf11d1cbdf332bb5f4e5b232f180039b9b0af6e3a70016870a` | 1778 |
+| w2/8 | `[82504930295808,82504938684416)` | 0 | `429afa8f89164af2eacd144554754be1de7b75e6e4ddd75df46e2189232ced06` | 805 |
 
-Cumulative completed production coverage is `168816640` nonces: the
-1,044,480-nonce production canary plus twenty full `2^23` slices. Two GPU
+Cumulative completed production coverage is `193982464` nonces: the
+1,044,480-nonce production canary plus twenty-three full `2^23` slices. Two GPU
 survivors have appeared and both were exact phase-dirty rejections. No trusted
 evaluator replay has run. `submit=CLOSED`, `no_submit_ack=yes`.
+
+The w3/1 archive also contains that worker's complete bootstrap logs. Its exact
+distributed runtime, forbidden-CLI probe, batch-inversion probe, and exhausted
+4,096-nonce canary all passed before the first production range launched.
