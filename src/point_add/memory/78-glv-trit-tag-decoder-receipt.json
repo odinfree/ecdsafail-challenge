@@ -1,0 +1,50 @@
+{
+  "schema": "glv-trit-tag-decoder-summary-v1",
+  "linear_seed_verdict": "HARD_NACK_LINEAR_SEED_AFFINE_POSTDECODER",
+  "linear_fractional_verdict": "HARD_NACK_CONSTANT_SEED_LINEAR_FRACTIONAL_POSTDECODER",
+  "glv_identity_verdict": "ADMIT_GLV_TRIT_INTERPRETATION_ONLY",
+  "verdict": "HARD_NACK_GLV_TRIT_LINEAR_TAG_DECODER",
+  "implementation_commit": "2d65eeadd8c3d3ecd173807ca8a7bbbc625669e0",
+  "implementation_tree": "81427c973cf84ab8bf2a580eba799a832d09fbf7",
+  "full_gate_receipt_sha256": "a916804f99f3c3482fc8ea69bc7a8f618a67fa6c71fc85d098b68428e924c29e",
+  "linear_seed_cases": [
+    {"modulus": 31, "support": 18, "feature_rank": 5, "augmented_rank": 6},
+    {"modulus": 61, "support": 58, "feature_rank": 5, "augmented_rank": 6},
+    {"modulus": 127, "support": 124, "feature_rank": 5, "augmented_rank": 6},
+    {"modulus": 251, "support": 249, "feature_rank": 5, "augmented_rank": 6},
+    {"modulus": 509, "support": 507, "feature_rank": 5, "augmented_rank": 6},
+    {"modulus": 1021, "support": 1033, "feature_rank": 5, "augmented_rank": 6},
+    {"modulus": 2039, "support": 2037, "feature_rank": 5, "augmented_rank": 6},
+    {"modulus": 4093, "support": 4168, "feature_rank": 5, "augmented_rank": 6}
+  ],
+  "linear_fractional_cases": [
+    {"modulus": 31, "selected_seed_signed": 0, "matrix_rank": 6, "nullity": 0},
+    {"modulus": 61, "selected_seed_signed": 5, "matrix_rank": 6, "nullity": 0},
+    {"modulus": 127, "selected_seed_signed": 1, "matrix_rank": 6, "nullity": 0},
+    {"modulus": 251, "selected_seed_signed": 0, "matrix_rank": 6, "nullity": 0},
+    {"modulus": 509, "selected_seed_signed": 0, "matrix_rank": 6, "nullity": 0},
+    {"modulus": 1021, "selected_seed_signed": -2, "matrix_rank": 6, "nullity": 0},
+    {"modulus": 2039, "selected_seed_signed": 0, "matrix_rank": 6, "nullity": 0},
+    {"modulus": 4093, "selected_seed_signed": 1, "matrix_rank": 6, "nullity": 0}
+  ],
+  "glv_orbit_cases": [
+    {"modulus": 31, "beta": 5, "points": 20, "y_fibers": 8, "max_fiber": 3, "failures": 0, "orbit_sha256": "49d16d4b0c40cc554a3c2f0986fa960de59a0dd524e1600339b44034b8a8f13f"},
+    {"modulus": 61, "beta": 13, "points": 60, "y_fibers": 20, "max_fiber": 3, "failures": 0, "orbit_sha256": "343b3f92a89c9369f3544b9f69719ef9e50343cac772956a91aff4a34dae8760"},
+    {"modulus": 127, "beta": 19, "points": 126, "y_fibers": 42, "max_fiber": 3, "failures": 0, "orbit_sha256": "87dc9cbcfca8e139f69f25d497407de1951b74426439654464d958f526874c1b"},
+    {"modulus": 1021, "beta": 368, "points": 1035, "y_fibers": 345, "max_fiber": 3, "failures": 0, "orbit_sha256": "f17960aa2faa75da12823bc70179fb94eb2af43b0078520cc83d9b7d6aed20fc"},
+    {"modulus": 4093, "beta": 902, "points": 4170, "y_fibers": 1390, "max_fiber": 3, "failures": 0, "orbit_sha256": "756aa220f01651607719d932d0c2489332716f36667550e39278f42a0efee862"}
+  ],
+  "scope": "LINEAR_SEEDS_AFFINE_POSTDECODERS_AND_SELECTED_CONSTANT_SEED_MOBIUS_POSTDECODERS",
+  "full_field_candidate": false,
+  "next_grammar": "RATIONAL_EUCLID_TAG_ROOT_CARRIER",
+  "authority": {
+    "provider": false,
+    "nonce_grind": false,
+    "fleet": false,
+    "queue": false,
+    "push": false,
+    "public_note": false,
+    "promotion": false,
+    "submission": false
+  }
+}
