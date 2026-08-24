@@ -1,0 +1,35 @@
+{
+  "schema": "online-transposed-unit-action-summary-v1",
+  "verdict": "HARD_NACK_ONLINE_TRANSPOSED_SEPARABLE_SEED",
+  "implementation_commit": "176791d18650b56e727ce25767e8fe6af3670983",
+  "implementation_tree": "2737bc47fddc250416a56bec52846c6b031f7341",
+  "full_gate_receipt_sha256": "fc4435805a70e06c7c4bae5f54e70b763bba24e5cf65ffead6c8d3cd965d1481",
+  "exact_pairs": 83342,
+  "matrix_failures": 0,
+  "product_failures": 0,
+  "canonical_cases": [
+    {"modulus": 31, "direction_ratios": 22, "largest_parallel_family": 3, "transcript_sha256": "bdcd1cbb72a718844f311d8e36a9e008d2d378a3f990a2c3b2e686e289ee9fdc"},
+    {"modulus": 61, "direction_ratios": 42, "largest_parallel_family": 3, "transcript_sha256": "bb2c831dc510dbeb57e4921663f984712c997bd443c004908c451a276c05a78f"},
+    {"modulus": 127, "direction_ratios": 85, "largest_parallel_family": 3, "transcript_sha256": "88fb1632f35aeb0f2e45d3171931b9e8c569aa01622c2617b293f03a81d552c6"},
+    {"modulus": 251, "direction_ratios": 158, "largest_parallel_family": 8, "transcript_sha256": "121aff4ed2afbd463c028cdb842f23256fcc6654d8c34df7d97897ad2fb42edc"}
+  ],
+  "alternate_final_expansion_direction_ratios": {
+    "31": 22,
+    "61": 42,
+    "127": 85,
+    "251": 158
+  },
+  "universal_collision_proof": "nonparallel affine lines intersect for every intercept choice h(T)",
+  "full_field_candidate": false,
+  "next_grammar": "NONLINEAR_COUPLED_TRANSPOSED_ACTION",
+  "authority": {
+    "provider": false,
+    "nonce_grind": false,
+    "fleet": false,
+    "queue": false,
+    "push": false,
+    "public_note": false,
+    "promotion": false,
+    "submission": false
+  }
+}
