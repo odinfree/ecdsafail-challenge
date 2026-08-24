@@ -13,10 +13,14 @@ class OnlineTransposedUnitActionTests(unittest.TestCase):
         for prime in (31, 61, 127, 251):
             for multiplier in range(1, prime):
                 matrix = action.normalized_matrix(prime, multiplier)
-                self.assertEqual(matrix["reduced_row"], (1, 0))
+                self.assertIn(matrix["orientation"], (-1, 1))
+                self.assertEqual(
+                    matrix["reduced_row"],
+                    (matrix["orientation"], 0),
+                )
                 self.assertEqual(
                     matrix["k"] * multiplier - matrix["r"] * prime,
-                    1,
+                    matrix["orientation"],
                 )
                 self.assertEqual(
                     matrix["rows"],

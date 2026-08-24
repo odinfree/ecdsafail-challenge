@@ -18,11 +18,11 @@ If `B_T = E(q_0)...E(q_(s-1))`, then the row walk satisfies
 (p,T) B_T = (1,0).
 ```
 
-After normalizing the determinant sign, its columns have the exact form
+After normalizing the product-column sign, its columns have the exact form
 
 ```text
 B_T = [[-r_T, T], [k_T, -p]],
-k_T*T - r_T*p = 1.
+k_T*T - r_T*p = epsilon_T,  epsilon_T in {-1,+1}.
 ```
 
 Therefore the coefficient row can consume each live quotient immediately:
@@ -61,7 +61,8 @@ coincident parallel lines must also receive distinct intercepts.
 At primes 31, 61, 127, and 251:
 
 1. reconstruct `B_T` by the literal quotient row recurrence;
-2. prove `(p,T)B_T=(1,0)` and `k_T*T-r_T*p=1` after sign normalization;
+2. prove `(p,T)B_T=(epsilon_T,0)` and
+   `k_T*T-r_T*p=epsilon_T` after product-sign normalization;
 3. check `(lambda,0)B_T` yields the exact product for every `(T,lambda)`;
 4. enumerate the direction ratios and exhibit two nonparallel fixed-`T`
    families;
