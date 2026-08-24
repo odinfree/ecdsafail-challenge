@@ -11,6 +11,10 @@ pub(crate) const ORIGIN_EMIT_INVERSE: u16 = 4;
 const KNOWN_ORIGIN_FLAGS: u16 =
     ORIGIN_SYNTHETIC_TAIL | ORIGIN_TAIL_NONCE_REWRITTEN | ORIGIN_EMIT_INVERSE;
 
+pub(crate) fn j3_dead_gate_audit_value_is_enabled(value: Option<&str>) -> bool {
+    value == Some("1")
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) struct OriginRef {
     pub(crate) site_id: u32,
@@ -33,7 +37,7 @@ impl OriginRef {
         );
     }
 
-    pub(crate) fn transform_chain(self) -> String {
+    fn transform_chain_components(self) -> Vec<&'static str> {
         self.validate_transform_chain();
 
         let mut components = Vec::with_capacity(
@@ -51,11 +55,67 @@ impl OriginRef {
         if self.flags & ORIGIN_TAIL_NONCE_REWRITTEN != 0 {
             components.push("tail_nonce_rewritten");
         }
+        components
+    }
+
+    pub(crate) fn transform_chain(self) -> String {
+        let components = self.transform_chain_components();
         if components.is_empty() {
             "-".to_owned()
         } else {
             components.join(">")
         }
+    }
+
+    /// Streams the canonical binary encoding for the ordered transform-chain
+    /// literals into `update` without rendering or parsing display text.
+    ///
+    /// The encoding is a little-endian `u32` component count followed by,
+    /// for each component, its little-endian `u32` byte length and literal
+    /// UTF-8 bytes. The empty chain is encoded as a zero count, not as the
+    /// display-only `-` sentinel.
+    pub(crate) fn stream_transform_chain_digest_preimage(self, mut update: impl FnMut(&[u8])) {
+        self.validate_transform_chain();
+        let component_count = u32::from(self.inverse_depth)
+            + u32::from(self.flags & ORIGIN_SYNTHETIC_TAIL != 0)
+            + u32::from(self.flags & ORIGIN_TAIL_NONCE_REWRITTEN != 0);
+        update(&component_count.to_le_bytes());
+        let mut update_component = |component: &'static [u8]| {
+            let component_len =
+                u32::try_from(component.len()).expect("transform component length exceeds u32");
+            update(&component_len.to_le_bytes());
+            update(component);
+        };
+        for _ in 0..self.inverse_depth {
+            update_component(b"emit_inverse");
+        }
+        if self.flags & ORIGIN_SYNTHETIC_TAIL != 0 {
+            update_component(b"synthetic_tail");
+        }
+        if self.flags & ORIGIN_TAIL_NONCE_REWRITTEN != 0 {
+            update_component(b"tail_nonce_rewritten");
+        }
+    }
+
+    pub(crate) fn transform_chain_digest_preimage(self) -> Vec<u8> {
+        let encoded_len = 4usize
+            .checked_add(usize::from(self.inverse_depth) * (4 + b"emit_inverse".len()))
+            .and_then(|len| {
+                len.checked_add(
+                    usize::from(self.flags & ORIGIN_SYNTHETIC_TAIL != 0)
+                        * (4 + b"synthetic_tail".len()),
+                )
+            })
+            .and_then(|len| {
+                len.checked_add(
+                    usize::from(self.flags & ORIGIN_TAIL_NONCE_REWRITTEN != 0)
+                        * (4 + b"tail_nonce_rewritten".len()),
+                )
+            })
+            .expect("transform preimage length overflow");
+        let mut preimage = Vec::with_capacity(encoded_len);
+        self.stream_transform_chain_digest_preimage(|bytes| preimage.extend_from_slice(bytes));
+        preimage
     }
 }
 
@@ -72,6 +132,7 @@ pub(crate) struct TracedOps {
     origins: Vec<OriginRef>,
     sites: Vec<SourceSite>,
     site_ids: HashMap<(&'static str, u32, u32), u32>,
+    next_emission_ordinal: u32,
     enabled: bool,
 }
 
@@ -82,6 +143,7 @@ impl TracedOps {
             origins: Vec::new(),
             sites: Vec::new(),
             site_ids: HashMap::new(),
+            next_emission_ordinal: 0,
             enabled,
         }
     }
@@ -145,9 +207,11 @@ impl TracedOps {
         inverse_depth: u16,
         flags: u16,
     ) {
-        let emission_ordinal =
-            u32::try_from(self.ops.len()).expect("provenance emission ordinal exceeds u32");
         if self.enabled {
+            let emission_ordinal = self.next_emission_ordinal;
+            let next_emission_ordinal = emission_ordinal
+                .checked_add(1)
+                .expect("provenance emission ordinal exceeds u32");
             let key = (file, line, trace_context);
             let (site_id, new_site) = if let Some(&site_id) = self.site_ids.get(&key) {
                 (site_id, None)
@@ -174,6 +238,7 @@ impl TracedOps {
                 self.sites.push(site);
                 self.site_ids.insert(key, site_id);
             }
+            self.next_emission_ordinal = next_emission_ordinal;
             self.ops.push(op);
             self.origins.push(origin);
         } else {
@@ -359,24 +424,118 @@ mod tests {
     fn take_returns_empty_buffer_and_complete_stream() {
         let mut traced = TracedOps::new(true);
         traced.push_at(op(OperationType::X), "one.rs", 1, 10, 0, 0);
-        traced.push_at(op(OperationType::Z), "two.rs", 2, 20, 0, 0);
+        traced.push_at(
+            op(OperationType::Z),
+            "two.rs",
+            2,
+            20,
+            1,
+            ORIGIN_EMIT_INVERSE | ORIGIN_SYNTHETIC_TAIL,
+        );
 
         let taken = traced.take();
 
         assert!(traced.is_empty());
         assert!(traced.origins().is_empty());
         assert!(traced.sites().is_empty());
-        assert_eq!(taken.len(), 2);
-        assert_eq!(taken.origins().len(), 2);
-        assert_eq!(taken.sites().len(), 2);
+        assert!(traced.site_ids.is_empty());
+        assert_eq!(traced.next_emission_ordinal, 0);
         assert_eq!(
             taken
-                .origins()
                 .iter()
-                .map(|origin| origin.emission_ordinal)
+                .map(|operation| operation.kind)
                 .collect::<Vec<_>>(),
-            vec![0, 1]
+            vec![OperationType::X, OperationType::Z]
         );
+        assert_eq!(
+            taken.sites(),
+            &[
+                SourceSite {
+                    file: "one.rs",
+                    line: 1,
+                    trace_context: 10,
+                },
+                SourceSite {
+                    file: "two.rs",
+                    line: 2,
+                    trace_context: 20,
+                },
+            ]
+        );
+        assert_eq!(
+            taken.origins(),
+            &[
+                OriginRef {
+                    site_id: 0,
+                    emission_ordinal: 0,
+                    inverse_depth: 0,
+                    flags: 0,
+                },
+                OriginRef {
+                    site_id: 1,
+                    emission_ordinal: 1,
+                    inverse_depth: 1,
+                    flags: ORIGIN_EMIT_INVERSE | ORIGIN_SYNTHETIC_TAIL,
+                },
+            ]
+        );
+        assert_eq!(taken.next_emission_ordinal, 2);
+
+        traced.push_at(op(OperationType::CX), "three.rs", 3, 30, 0, 0);
+        assert_eq!(traced.origins()[0].emission_ordinal, 0);
+    }
+
+    #[test]
+    fn audit_disabled_sidecars_stay_empty_through_push_truncate_and_take() {
+        let mut traced = TracedOps::new(false);
+        traced.push_at(op(OperationType::X), "one.rs", 1, 10, 0, 0);
+        traced.push_at(op(OperationType::Z), "two.rs", 2, 20, 0, 0);
+        assert!(traced.origins().is_empty());
+        assert!(traced.sites().is_empty());
+        assert!(traced.site_ids.is_empty());
+        assert_eq!(traced.next_emission_ordinal, 0);
+
+        traced.truncate(1);
+        assert_eq!(traced.len(), 1);
+        assert!(traced.origins().is_empty());
+        assert!(traced.sites().is_empty());
+        assert!(traced.site_ids.is_empty());
+        assert_eq!(traced.next_emission_ordinal, 0);
+
+        let taken = traced.take();
+        assert!(traced.is_empty());
+        assert!(traced.origins().is_empty());
+        assert!(traced.sites().is_empty());
+        assert_eq!(
+            taken
+                .iter()
+                .map(|operation| operation.kind)
+                .collect::<Vec<_>>(),
+            vec![OperationType::X]
+        );
+        assert!(taken.origins().is_empty());
+        assert!(taken.sites().is_empty());
+        assert!(taken.site_ids.is_empty());
+        assert_eq!(taken.next_emission_ordinal, 0);
+    }
+
+    #[test]
+    fn audit_flag_value_requires_exact_literal_one() {
+        assert!(j3_dead_gate_audit_value_is_enabled(Some("1")));
+        for value in [
+            None,
+            Some(""),
+            Some("0"),
+            Some("01"),
+            Some("true"),
+            Some(" 1"),
+            Some("1 "),
+        ] {
+            assert!(
+                !j3_dead_gate_audit_value_is_enabled(value),
+                "unexpected audit enable for {value:?}"
+            );
+        }
     }
 
     #[test]
@@ -480,6 +639,52 @@ mod tests {
     }
 
     #[test]
+    fn inverse_filtering_never_reuses_emission_ordinals() {
+        let mut builder = audited_builder();
+        emit_inverse(&mut builder, |builder| {
+            builder.push_op(op(OperationType::Register));
+            builder.push_op(op(OperationType::X));
+        });
+        builder.push_op(op(OperationType::Z));
+        builder.push_op(op(OperationType::CX));
+
+        assert_eq!(
+            builder
+                .ops
+                .origins()
+                .iter()
+                .map(|origin| origin.emission_ordinal)
+                .collect::<Vec<_>>(),
+            vec![1, 2, 3]
+        );
+        assert_eq!(builder.ops.next_emission_ordinal, 4);
+    }
+
+    #[test]
+    fn nested_inverse_filtering_never_reuses_emission_ordinals() {
+        let mut builder = audited_builder();
+        emit_inverse(&mut builder, |builder| {
+            emit_inverse(builder, |builder| {
+                builder.push_op(op(OperationType::Register));
+                builder.push_op(op(OperationType::X));
+            });
+        });
+        builder.push_op(op(OperationType::Z));
+
+        assert_eq!(
+            builder
+                .ops
+                .origins()
+                .iter()
+                .map(|origin| origin.emission_ordinal)
+                .collect::<Vec<_>>(),
+            vec![1, 2]
+        );
+        assert_eq!(builder.ops.origins()[0].inverse_depth, 2);
+        assert_eq!(builder.ops.next_emission_ordinal, 3);
+    }
+
+    #[test]
     fn transform_chain_renders_nested_inverse_and_flags_in_canonical_order() {
         let origin = OriginRef {
             site_id: 9,
@@ -509,6 +714,78 @@ mod tests {
             .transform_chain(),
             "-"
         );
+    }
+
+    #[test]
+    fn transform_chain_digest_preimage_empty_fixed_vector() {
+        let origin = OriginRef {
+            site_id: 0,
+            emission_ordinal: 0,
+            inverse_depth: 0,
+            flags: 0,
+        };
+
+        assert_eq!(origin.transform_chain_digest_preimage(), vec![0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn transform_chain_digest_preimage_nested_inverse_fixed_vector() {
+        let origin = OriginRef {
+            site_id: 0,
+            emission_ordinal: 0,
+            inverse_depth: 2,
+            flags: ORIGIN_EMIT_INVERSE,
+        };
+        let mut expected = vec![2, 0, 0, 0];
+        expected.extend_from_slice(&[12, 0, 0, 0]);
+        expected.extend_from_slice(b"emit_inverse");
+        expected.extend_from_slice(&[12, 0, 0, 0]);
+        expected.extend_from_slice(b"emit_inverse");
+
+        assert_eq!(origin.transform_chain_digest_preimage(), expected);
+    }
+
+    #[test]
+    fn transform_chain_digest_preimage_all_flags_fixed_vector() {
+        let origin = OriginRef {
+            site_id: 0,
+            emission_ordinal: 0,
+            inverse_depth: 1,
+            flags: ORIGIN_EMIT_INVERSE | ORIGIN_SYNTHETIC_TAIL | ORIGIN_TAIL_NONCE_REWRITTEN,
+        };
+        let mut expected = vec![3, 0, 0, 0];
+        expected.extend_from_slice(&[12, 0, 0, 0]);
+        expected.extend_from_slice(b"emit_inverse");
+        expected.extend_from_slice(&[14, 0, 0, 0]);
+        expected.extend_from_slice(b"synthetic_tail");
+        expected.extend_from_slice(&[20, 0, 0, 0]);
+        expected.extend_from_slice(b"tail_nonce_rewritten");
+
+        assert_eq!(origin.transform_chain_digest_preimage(), expected);
+    }
+
+    #[test]
+    #[should_panic(expected = "inverse provenance depth/flag disagreement")]
+    fn transform_chain_digest_preimage_rejects_flag_depth_disagreement() {
+        OriginRef {
+            site_id: 0,
+            emission_ordinal: 0,
+            inverse_depth: 1,
+            flags: 0,
+        }
+        .transform_chain_digest_preimage();
+    }
+
+    #[test]
+    #[should_panic(expected = "unknown provenance transform flags")]
+    fn transform_chain_digest_preimage_rejects_unknown_flags() {
+        OriginRef {
+            site_id: 0,
+            emission_ordinal: 0,
+            inverse_depth: 0,
+            flags: 8,
+        }
+        .transform_chain_digest_preimage();
     }
 
     #[test]

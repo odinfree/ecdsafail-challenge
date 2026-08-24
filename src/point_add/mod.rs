@@ -53,7 +53,8 @@ pub(crate) fn op_site_trace_enabled() -> bool {
 }
 
 pub(crate) fn j3_dead_gate_audit_enabled() -> bool {
-    std::env::var("J3_DEAD_GATE_AUDIT").ok().as_deref() == Some("1")
+    let value = std::env::var("J3_DEAD_GATE_AUDIT").ok();
+    j3_dead_gate_audit_value_is_enabled(value.as_deref())
 }
 
 fn reset_op_site_trace() {
