@@ -33,10 +33,13 @@ unrelated files remain untouched.
   windows, round counts, width table/repair, frame, unrelated cells, or the
   mathematical tail semantics.
 - **Correctness** means equality to the exact-source baseline for the complete
-  classical map and every measurement-conditioned phase arm, with all temporary
-  qubits clean after both forward use and inverse cleanup. Equality is required
-  over maximum redundant input ranges admitted by the two cells, not only
-  canonical residues or a chosen nonce.
+  classical map, plus a globally clean phase and every temporary qubit clean
+  after both forward use and inverse cleanup. An exact local HMR cleanup may
+  strengthen the source by removing the known residual
+  `overflow XOR cmp22`; it need not reproduce that intentional truncated phase
+  garbage. It must replace the repair completely and prove zero residual on
+  every measurement arm. Equality is required over maximum redundant input
+  ranges admitted by the two cells, not only a chosen nonce.
 - **Executed Toffoli** means the emitted CCX/CCZ cost weighted by all active
   quantum measurement conditions. In particular, each CCX in the current
   22-bit flag comparator has condition depth one and contributes 1/2 expected
@@ -119,9 +122,11 @@ None of these settle the contract, alone or together:
   a non-injective transformation appear reversible.
 - **Phase-blind prefilter:** classical mismatch counts or K ranking do not test
   HMR phase.
-- **Truncated-vs-ideal confusion:** preserve the exact source's 22-bit HMR
-  repair semantics; do not substitute either no repair or an ideal 256-bit
-  comparator.
+- **Truncated-vs-ideal confusion:** a candidate must either preserve the exact
+  source's 22-bit HMR repair or replace it with a proved exact local HMR
+  uncompute. Merely deleting the repair leaves `overflow` phase and is forbidden;
+  an exact local replacement is an allowed strengthening and must report the
+  removed source residual explicitly.
 - **Economics rounding:** saving two depth-one CCX per 1,383 cells is only
   1,383 average T and misses the target. A uniform route must save at least
   three with sufficiently small added cost.
@@ -174,8 +179,9 @@ commands/results.
 1. A source-binding/inventory layer extracts the two formulas, widths, call
    counts, condition depths, and active-wire intervals from the exact source.
 2. A pure Python miter models baseline and candidate cells as value plus phase
-   transformations. It exhausts widths 5..9 first and emits explicit collision
-   or synthesis certificates.
+   transformations. It exhausts widths 5..9 first, distinguishes the baseline's
+   truncated residual from a candidate's proved zero residual, and emits
+   explicit collision or synthesis certificates.
 3. An exact-width checker reuses the same equations at 54/53 and the exact
    secp256k1 fold constant; exhaustive small width never substitutes for it.
 4. Only a surviving construction is translated to an env-gated Rust diff. A

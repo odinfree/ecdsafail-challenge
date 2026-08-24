@@ -52,9 +52,12 @@ existing operation stream/condition-depth and active-qubit instrumentation.
    dimension and deliberately omit a phase cleanup; require explicit witnesses.
 2. Implement the exact baseline divide and multiply cell equations for widths
    5..9, maximum redundant values, all sign/parity/doubled/carry arms, every HMR
-   bit, and forward plus inverse cleanup.
-3. Preserve the corrected test orientation: the intentionally incomplete
-   candidate must fail and the baseline identity must pass.
+   bit, and forward plus inverse cleanup. Model the baseline's intentional
+   truncated final-carry residual separately from an exact-local candidate's
+   required zero residual.
+3. Preserve the corrected test orientation: deleting phase repair must fail;
+   the baseline value map must pass; and an exact-local replacement passes only
+   when every residual phase coefficient is zero.
 4. Emit deterministic collision tables, truth-table ranks, ANF degrees, and
    route status updates. Run the focused suite through GREEN.
 
@@ -68,7 +71,9 @@ existing operation stream/condition-depth and active-qubit instrumentation.
 1. Enumerate the minimal selector/first-carry publication for divide and
    multiply separately.
 2. Search for collisions with equal permitted visible state and unequal raw
-   carry, required HMR phase, or inverse-cleanup state.
+   carry, baseline residual phase, or inverse-cleanup state. Such a collision
+   kills selector-only publication but does not kill a retained suffix that
+   performs exact local HMR cleanup before releasing the carrier.
 3. For every reduced collision class, construct a source-valid secp256k1
    embedding or reject the collision as non-transferable.
 4. Kill R2 only with a concrete exact-transfer witness for each affected site;
@@ -87,7 +92,9 @@ existing operation stream/condition-depth and active-qubit instrumentation.
    and back for n=5..9. Charge every nonlinear gate; reject dirty-target
    assignments that only work from zero.
 3. Miter forward value, every measurement-conditioned phase arm, and inverse
-   cleanup. Require every temporary to return to zero.
+   cleanup. Require every temporary and every residual phase coefficient to
+   return to zero; removing `overflow XOR cmp22` is allowed only by this exact
+   local proof.
 4. Transfer the construction algebra to divide width 54 and multiply width 53
    with exact `f`, independently proving all sign/parity arms.
 5. Kill R1 on a checked rank/synthesis counterexample, or proceed only if the
