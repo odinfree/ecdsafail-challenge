@@ -300,6 +300,25 @@ capacity are not `HARD_NACK` evidence.
 - No 9,024-shot evaluation, provider, nonce, fleet, queue, push, public note,
   protected-instance, or submission action was taken.
 
+### Phase seven settlement — affine multiply cut `HARD_NACK`
+
+- Evidence: `src/point_add/memory/22-affine-multiply-cut-verdict.md`.
+- Square polarization computes `lambda*d` cheaply only out of place. Swapping
+  the product onto the output leaves the old slope word; its exact phase/value
+  cleanup is `lambda=(Ry+Qy)/(Qx-Rx)`, the division the route claimed to remove.
+- Luo et al.'s July 2026 exact register-sharing construction reaches Q835 but
+  prices modular inversion at leading `195*n^2=12,779,520` Toffoli and point
+  addition at `914*n^2=59,899,904`. Q835 permits only T1,382,911 here.
+- The primary implementation was bound at
+  `b5e4c664de212bdb0981d93d70964a1dca1a0ec9`; it retains a third field word
+  and explicit EEA/multiply/measurement cleanup rather than a destructive
+  two-register affine permutation.
+- Reopen only with an explicit curve-domain `(d,lambda)->(Rx,Ry)` circuit whose
+  complete cleanup costs less than the removed multiply traversal and clears
+  the actual Q1267 score equation.
+- No production edit, provider, nonce, fleet, queue, push, public note,
+  protected-instance, or submission action was taken.
+
 ## Anti-rot ban list
 
 The following do not advance structural cadence:
