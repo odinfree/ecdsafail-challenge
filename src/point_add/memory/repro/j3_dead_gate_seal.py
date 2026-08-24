@@ -1,18 +1,26 @@
 #!/usr/bin/env python3
-"""Seal and verify source-bound J3 dead-gate audit evidence."""
+"""Seal and verify source-bound J3 dead-gate audit evidence.
+
+The sealer independently binds serialized non-Keep witnesses to ``ops.bin``
+records and replays the published decision table.  It does not implement a
+second abstract-state scanner: operand facts and operation provenance remain
+source-bound outputs of the reviewed Rust analyzer and require the separate
+deterministic audit replay specified for Task 7.
+"""
 
 from __future__ import annotations
 
 import argparse
+import ctypes
 import hashlib
 import os
 import re
 import shutil
+import stat
 import struct
 import subprocess
 import sys
 import tempfile
-import uuid
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -199,6 +207,7 @@ FINAL_WITNESS_HEADER = (
     "audit_file",
     "audit_line",
     "trace_context",
+    "site_id",
     "emission_ordinal",
     "inverse_depth",
     "flags",
@@ -214,8 +223,22 @@ FINAL_FAMILY_HEADER = (
     *(f"{name}_count" for name in RULE_NAMES),
     "score_eligible_count",
     "audit_generated_count",
+    "audit_members_hex",
     "source_predicate",
     "admission",
+)
+AUDIT_MEMBER_HEADER = (
+    "audit_path",
+    "audit_line",
+    "trace_context",
+    "kind",
+    "decision_count",
+    *(f"{name}_count" for name in ACTION_NAMES),
+    *(f"{name}_count" for name in RULE_NAMES),
+    "score_eligible_count",
+    "predicate_source_literal_key",
+    "predicate_source_literal_value",
+    "site_classes",
 )
 
 @dataclass(frozen=True)
@@ -238,6 +261,64 @@ class SealError(RuntimeError):
     """A deterministic fail-closed validation error."""
 
 
+def prepare_stderr_capture(path: Path) -> str:
+    """Atomically create a single-link regular stderr file and return its identity."""
+    path = Path(path)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    try:
+        descriptor = os.open(path, flags, 0o600)
+    except OSError as error:
+        raise SealError(f"cannot create stderr capture: {error.strerror}") from error
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+            raise SealError("stderr capture is not a single-link regular file")
+        return f"{metadata.st_dev}:{metadata.st_ino}"
+    except BaseException:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        raise
+    finally:
+        os.close(descriptor)
+
+
+def replay_stderr_capture(path: Path, identity: str, destination_fd: int = 2) -> None:
+    """Replay only the pre-recorded stderr inode without following or blocking."""
+    match = re.fullmatch(r"(0|[1-9][0-9]*):(0|[1-9][0-9]*)", identity)
+    if match is None:
+        raise SealError("stderr capture identity is not canonical")
+    expected = (int(match.group(1)), int(match.group(2)))
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        raise SealError(f"cannot safely open stderr capture: {error.strerror}") from error
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise SealError("stderr capture is not a regular file")
+        if metadata.st_nlink != 1:
+            raise SealError("stderr capture is not a single-link file")
+        if (metadata.st_dev, metadata.st_ino) != expected:
+            raise SealError("stderr capture inode identity changed")
+        while chunk := os.read(descriptor, 1024 * 1024):
+            offset = 0
+            while offset < len(chunk):
+                offset += os.write(destination_fd, chunk[offset:])
+    except SealError:
+        raise
+    except OSError as error:
+        raise SealError(f"cannot replay stderr capture: {error.strerror}") from error
+    finally:
+        os.close(descriptor)
+
+
 @dataclass(frozen=True)
 class DiffHunk:
     old_start: int
@@ -258,6 +339,17 @@ class MappedCoordinate:
 
 
 @dataclass(frozen=True)
+class OpsRecord:
+    kind: int
+    q_control2: int
+    q_control1: int
+    q_target: int
+    c_target: int
+    c_condition: int
+    r_target: int
+
+
+@dataclass(frozen=True)
 class OpsFingerprint:
     compressed_bytes: int
     compressed_sha256: str
@@ -265,6 +357,7 @@ class OpsFingerprint:
     trusted_xof32: str
     operation_count: int
     kind_counts: tuple[int, ...]
+    witness_records: dict[int, OpsRecord]
 
 
 @dataclass(frozen=True)
@@ -353,6 +446,19 @@ class FinalWitness:
         )
 
 
+@dataclass(frozen=True)
+class AuditFamilyMember:
+    raw: RawFamily
+    sites: tuple[RawSite, ...]
+    mapped: MappedCoordinate
+    score_eligible_count: int
+    audit_generated: bool
+
+    @property
+    def key(self) -> tuple[str, int, int, str]:
+        return self.raw.key
+
+
 @dataclass
 class FinalFamily:
     parent_file: str
@@ -366,9 +472,7 @@ class FinalFamily:
     audit_generated_count: int = 0
     source_predicate: str = "-"
     admission: str = "diagnostic"
-    predicate_evidence: set[tuple[int, int] | None] = field(
-        default_factory=set, repr=False
-    )
+    audit_members: list[AuditFamilyMember] = field(default_factory=list, repr=False)
 
     @property
     def key(self) -> tuple[str, int, int, str]:
@@ -400,7 +504,9 @@ def _zstd_executable() -> str:
     return executable
 
 
-def fingerprint_ops(path: Path) -> OpsFingerprint:
+def fingerprint_ops(
+    path: Path, *, witness_indices: Iterable[int] = ()
+) -> OpsFingerprint:
     """Independently validate and fingerprint one QECCOPSZ artifact."""
     if path.is_symlink() or not path.is_file():
         raise SealError(f"ops artifact is not a regular file: {path}")
@@ -418,6 +524,17 @@ def fingerprint_ops(path: Path) -> OpsFingerprint:
         if header[:8] != OPS_MAGIC:
             raise SealError("ops artifact has invalid QECCOPSZ magic")
         operation_count = struct.unpack("<Q", header[8:])[0]
+        requested_values = tuple(witness_indices)
+        if any(
+            isinstance(index, bool) or not isinstance(index, int)
+            for index in requested_values
+        ):
+            raise SealError("requested witness index is outside the ops artifact")
+        requested = sorted(set(requested_values))
+        if any(not 0 <= index < operation_count for index in requested):
+            raise SealError("requested witness index is outside the ops artifact")
+        requested_cursor = 0
+        witness_records: dict[int, OpsRecord] = {}
         canonical = hashlib.sha256()
         trusted = hashlib.shake_256()
         trusted.update(TRUSTED_XOF_DOMAIN)
@@ -441,7 +558,8 @@ def fingerprint_ops(path: Path) -> OpsFingerprint:
                 )
                 canonical_offset = 0
                 for offset in range(0, complete, OPS_RECORD_BYTES):
-                    kind = struct.unpack_from("<I", data, offset)[0]
+                    unpacked = struct.unpack_from("<I4x6Q", data, offset)
+                    kind = unpacked[0]
                     if kind >= OPS_KIND_COUNT:
                         raise SealError(f"unknown operation kind {kind} at op {decoded}")
                     if data[offset + 4 : offset + 8] != b"\0\0\0\0":
@@ -451,6 +569,12 @@ def fingerprint_ops(path: Path) -> OpsFingerprint:
                     canonical_block[
                         canonical_offset + 1 : canonical_offset + OPS_CANONICAL_RECORD_BYTES
                     ] = data[offset + 8 : offset + OPS_RECORD_BYTES]
+                    if (
+                        requested_cursor < len(requested)
+                        and decoded == requested[requested_cursor]
+                    ):
+                        witness_records[decoded] = OpsRecord(*unpacked)
+                        requested_cursor += 1
                     canonical_offset += OPS_CANONICAL_RECORD_BYTES
                     decoded += 1
                 canonical.update(canonical_block)
@@ -482,6 +606,8 @@ def fingerprint_ops(path: Path) -> OpsFingerprint:
         raise SealError(
             f"decoded operation count {decoded} does not match header {operation_count}"
         )
+    if requested_cursor != len(requested):
+        raise SealError("requested witness operation record was not decoded")
     return OpsFingerprint(
         compressed_bytes=compressed_bytes,
         compressed_sha256=compressed_hasher.hexdigest(),
@@ -489,6 +615,7 @@ def fingerprint_ops(path: Path) -> OpsFingerprint:
         trusted_xof32=trusted.hexdigest(32),
         operation_count=operation_count,
         kind_counts=tuple(kind_counts),
+        witness_records=witness_records,
     )
 
 
@@ -733,6 +860,21 @@ def _parse_tsv(
     return rows
 
 
+def _requested_witness_indices(
+    data: bytes,
+    expected_header: Sequence[str],
+    label: str,
+    operation_count: int,
+) -> tuple[int, ...]:
+    indices = tuple(
+        _decimal(row["op_index"], "op_index", maximum=operation_count - 1)
+        for row in _parse_tsv(data, expected_header, label)
+    )
+    if any(right <= left for left, right in zip(indices, indices[1:])):
+        raise SealError(f"{label} op_index keys are duplicate or unsorted")
+    return indices
+
+
 def _decimal(
     value: str,
     field: str,
@@ -767,36 +909,105 @@ def _expected_transform_chain(inverse_depth: int, flags: int) -> str:
     return ">".join(components) if components else "-"
 
 
-def _validate_independent_predicates() -> None:
-    seen = set()
-    for predicate in INDEPENDENT_EXACT_PARENT_PREDICATES:
-        coordinate = (
-            _validate_source_path(predicate.parent_file),
-            predicate.parent_line,
-            predicate.trace_context,
-            predicate.kind,
-            predicate.source_literal_key,
-            predicate.source_literal_value,
+def _expected_witness_decision(
+    kind: str,
+    facts: tuple[str, str, str],
+    effective_condition: str,
+) -> tuple[str, str, int]:
+    """Replay the approved CCX/CCZ decision table from claimed pre-state facts."""
+    if effective_condition == "known0":
+        return "no_cost_identity", "effective_condition_known0", 0
+    if kind == "ccx":
+        if "known0" in facts[:2]:
+            return "drop", "ccx_control_known0", 1
+        known_ones = facts[:2].count("known1")
+        if known_ones == 2:
+            return "lower_to_x", "ccx_both_controls_known1", 1
+        if known_ones == 1:
+            return "lower_to_cx", "ccx_one_control_known1", 1
+        return "keep", "none", 0
+    if kind == "ccz":
+        if "known0" in facts:
+            return "drop", "ccz_operand_known0", 1
+        known_ones = facts.count("known1")
+        if known_ones == 3:
+            return "lower_to_neg", "ccz_three_operands_known1", 1
+        if known_ones == 2:
+            return "lower_to_z", "ccz_two_operands_known1", 1
+        if known_ones == 1:
+            return "lower_to_cz", "ccz_one_operand_known1", 1
+        return "keep", "none", 0
+    raise SealError(f"unsupported witness kind {kind!r}")
+
+
+def _validate_witness_decision(witness: RawWitness) -> None:
+    facts_by_qubit: dict[int, str] = {}
+    for qubit, fact in zip(
+        (witness.q_control2, witness.q_control1, witness.q_target),
+        witness.facts,
+        strict=True,
+    ):
+        existing = facts_by_qubit.setdefault(qubit, fact)
+        if existing != fact:
+            raise SealError(
+                f"witness {witness.op_index} has contradictory aliased operand facts"
+            )
+    expected = _expected_witness_decision(
+        witness.kind, witness.facts, witness.effective_condition
+    )
+    actual = (witness.action, witness.rule, witness.score_eligible)
+    if actual != expected:
+        raise SealError(
+            f"witness {witness.op_index} disagrees with the independent decision table"
         )
-        if not 1 <= predicate.parent_line < (1 << 32):
-            raise SealError("independent predicate parent_line is out of range")
-        if not 0 <= predicate.trace_context < (1 << 32):
-            raise SealError("independent predicate trace_context is out of range")
-        if predicate.kind not in KIND_NAMES:
-            raise SealError("independent predicate kind is invalid")
-        if not 0 <= predicate.source_literal_key < (1 << 32) or not (
-            0 <= predicate.source_literal_value < (1 << 32)
-        ):
-            raise SealError("independent predicate source literal is out of range")
-        if (
-            not predicate.rendered
-            or not predicate.rendered.isascii()
-            or any(character in predicate.rendered for character in "\t\n\r")
-        ):
-            raise SealError("independent predicate rendering is not canonical TSV text")
-        if coordinate in seen:
-            raise SealError("duplicate independent predicate registration")
-        seen.add(coordinate)
+
+
+def _validate_witness_operation(
+    witness: RawWitness, fingerprint: OpsFingerprint
+) -> None:
+    record = fingerprint.witness_records.get(witness.op_index)
+    if record is None:
+        raise SealError(f"witness {witness.op_index} operation record was not captured")
+    missing = (1 << 64) - 1
+    if (
+        missing in (record.q_control2, record.q_control1, record.q_target)
+        or record.c_target != missing
+        or record.r_target != missing
+    ):
+        raise SealError(
+            f"witness {witness.op_index} has invalid CCX/CCZ operation record shape"
+        )
+    if len({record.q_control2, record.q_control1, record.q_target}) != 3:
+        raise SealError(
+            f"witness {witness.op_index} CCX/CCZ record lacks pairwise-distinct operands"
+        )
+    expected_kind = 13 if witness.kind == "ccx" else 14
+    expected = (
+        expected_kind,
+        witness.q_control2,
+        witness.q_control1,
+        witness.q_target,
+        witness.c_condition,
+    )
+    actual = (
+        record.kind,
+        record.q_control2,
+        record.q_control1,
+        record.q_target,
+        record.c_condition,
+    )
+    if actual != expected:
+        raise SealError(
+            f"witness {witness.op_index} does not match its exact operation record"
+        )
+
+
+def _validate_independent_predicates() -> None:
+    # Raw v1 does not attach source-literal metadata to every decision (Keep
+    # decisions have no witness row), so it cannot prove all-and-only predicate
+    # coverage.  A future evidence-format bump may add that proof boundary.
+    if INDEPENDENT_EXACT_PARENT_PREDICATES:
+        raise SealError("raw v1 exact-predicate registry must be empty")
 
 
 def _parse_raw_sites(data: bytes) -> list[RawSite]:
@@ -1033,6 +1244,19 @@ def _rustc_version() -> str:
 
 
 def _require_scoped_clean(repo: Path) -> None:
+    index_entries = _run_git(
+        repo,
+        "ls-files",
+        "-v",
+        "-z",
+        "--",
+        *SCOPED_PATHS,
+    )
+    for entry in index_entries.split(b"\0"):
+        if entry and not entry.startswith(b"H "):
+            raise SealError(
+                "scoped tracked source tree has unsafe index flags or state"
+            )
     for cached in (False, True):
         arguments = ["git", "diff", "--quiet"]
         if cached:
@@ -1052,6 +1276,29 @@ def _require_scoped_clean(repo: Path) -> None:
                 "cannot inspect scoped tracked source tree"
                 + (f": {detail}" if detail else "")
             )
+    untracked = _run_git(
+        repo,
+        "ls-files",
+        "-z",
+        "--others",
+        "--exclude-standard",
+        "--",
+        *SCOPED_PATHS,
+    )
+    if untracked:
+        raise SealError("untracked scoped source tree entry is present")
+    ignored = _run_git(
+        repo,
+        "ls-files",
+        "-z",
+        "--others",
+        "--ignored",
+        "--exclude-standard",
+        "--",
+        *SCOPED_PATHS,
+    )
+    if ignored:
+        raise SealError("ignored scoped source tree entry is present")
 
 
 def _resolve_binding(
@@ -1165,6 +1412,8 @@ def _validate_raw_evidence(
     families = _parse_raw_families(raw_files["families.tsv"])
     site_by_key = {site.key: site for site in sites}
     for witness in witnesses:
+        _validate_witness_operation(witness, fingerprint)
+        _validate_witness_decision(witness)
         site = site_by_key.get(witness.site_key)
         if site is None:
             raise SealError(f"witness {witness.op_index} references a missing site key")
@@ -1199,12 +1448,15 @@ def _validate_raw_evidence(
         ]:
             raise SealError(f"family {kind} census does not match manifest")
 
-    site_coordinates = {site.coordinate for site in sites}
+    sites_by_coordinate: dict[tuple[str, int, int], list[RawSite]] = defaultdict(list)
+    for site in sites:
+        sites_by_coordinate[site.coordinate].append(site)
     witnesses_by_family: dict[tuple[str, int, int, str], list[RawWitness]] = defaultdict(list)
     for witness in witnesses:
         witnesses_by_family[witness.audit_family_key].append(witness)
     for family in families:
-        if family.key[:3] not in site_coordinates:
+        family_sites = sites_by_coordinate.get(family.key[:3], [])
+        if not family_sites:
             raise SealError(f"family {family.key} has no covered site coordinate")
         family_witnesses = witnesses_by_family.get(family.key, [])
         action_census = Counter(witness.action for witness in family_witnesses)
@@ -1214,6 +1466,16 @@ def _validate_raw_evidence(
         ) != 1:
             raise SealError(
                 f"exact-predicate family {family.key} lacks one coherent non-Keep signature"
+            )
+        if family.disposition == "exact_predicate_provisional" and (
+            family.predicate_key,
+            family.predicate_value,
+        ) not in {
+            (site.source_literal_key, site.source_literal_value)
+            for site in family_sites
+        }:
+            raise SealError(
+                f"exact-predicate family {family.key} disagrees with site source literal metadata"
             )
         for index, action in enumerate(ACTION_NAMES):
             expected = family.action_counts[index]
@@ -1277,23 +1539,36 @@ def _map_and_aggregate(
         FinalWitness(witness, mapped_sites[witness.site_key])
         for witness in raw.witnesses
     ]
+    witnesses_by_audit_family: dict[
+        tuple[str, int, int, str], list[RawWitness]
+    ] = defaultdict(list)
+    for witness in raw.witnesses:
+        witnesses_by_audit_family[witness.audit_family_key].append(witness)
     aggregate: dict[tuple[str, int | None, int, str], FinalFamily] = {}
     for family in raw.families:
-        site_classes = coordinate_sites.get(family.key[:3], [])
+        site_classes = tuple(sorted(coordinate_sites.get(family.key[:3], []), key=lambda site: site.key))
         if not site_classes:
             raise SealError(f"family {family.key} lacks a provenance site")
-        any_generated = any(site.flags & ORIGIN_SYNTHETIC_TAIL for site in site_classes)
-        non_generated_mappings = {
-            mapped_sites[site.key]
-            for site in site_classes
-            if not (site.flags & ORIGIN_SYNTHETIC_TAIL)
-        }
-        if len(non_generated_mappings) > 1:
+        family_mappings = {mapped_sites[site.key] for site in site_classes}
+        generated_classes = {mapped.audit_generated for mapped in family_mappings}
+        if len(generated_classes) != 1:
+            raise SealError(
+                f"family {family.key} mixes synthetic and non-synthetic site classes"
+            )
+        if len(family_mappings) != 1:
             raise SealError(f"family {family.key} maps to multiple parent coordinates")
-        if non_generated_mappings:
-            mapped = next(iter(non_generated_mappings))
-        else:
-            mapped = MappedCoordinate("-", None, True)
+        mapped = next(iter(family_mappings))
+        member_score_eligible = sum(
+            witness.score_eligible
+            for witness in witnesses_by_audit_family.get(family.key, [])
+        )
+        member = AuditFamilyMember(
+            raw=family,
+            sites=site_classes,
+            mapped=mapped,
+            score_eligible_count=member_score_eligible,
+            audit_generated=mapped.audit_generated,
+        )
         key = (
             mapped.parent_file,
             mapped.parent_line,
@@ -1317,75 +1592,21 @@ def _map_and_aggregate(
             target.action_counts[index] += count
         for index, count in enumerate(family.rule_counts):
             target.rule_counts[index] += count
-        if any_generated:
+        target.score_eligible_count += member_score_eligible
+        if member.audit_generated:
             target.audit_generated_count += family.decision_count
-        if family.disposition == "exact_predicate_provisional":
-            if family.predicate_key is None or family.predicate_value is None:
-                raise SealError(f"family {family.key} is missing its exact predicate")
-            target.predicate_evidence.add(
-                (family.predicate_key, family.predicate_value)
-            )
-        else:
-            target.predicate_evidence.add(None)
+        target.audit_members.append(member)
 
     for witness in final_witnesses:
         family = aggregate.get(witness.family_key)
         if family is None:
             raise SealError(f"mapped witness {witness.raw.op_index} has no parent family")
-        family.score_eligible_count += witness.raw.score_eligible
 
     for family in aggregate.values():
-        registered = [
-            predicate
-            for predicate in INDEPENDENT_EXACT_PARENT_PREDICATES
-            if (
-                predicate.parent_file,
-                predicate.parent_line,
-                predicate.trace_context,
-                predicate.kind,
-            )
-            == (
-                family.parent_file,
-                family.parent_line,
-                family.trace_context,
-                family.kind,
-            )
-            and family.predicate_evidence
-            == {(predicate.source_literal_key, predicate.source_literal_value)}
-        ]
-        if len(registered) > 1:
-            raise SealError(f"multiple independent predicates registered for {family.key}")
-        if registered:
-            family.source_predicate = registered[0].rendered
-        nonzero_actions = [
-            ACTION_NAMES[index]
-            for index, count in enumerate(family.action_counts)
-            if count
-        ]
-        nonzero_rules = [
-            RULE_NAMES[index] for index, count in enumerate(family.rule_counts) if count
-        ]
-        uniformly_qualifying = (
-            family.audit_generated_count == 0
-            and len(nonzero_actions) == 1
-            and nonzero_actions[0] not in {"keep", "no_cost_identity"}
-            and len(nonzero_rules) == 1
-            and family.action_counts[ACTION_NAMES.index(nonzero_actions[0])]
-            == family.decision_count
-            and family.rule_counts[RULE_NAMES.index(nonzero_rules[0])]
-            == family.decision_count
-            and family.score_eligible_count == family.decision_count
+        family.audit_members.sort(key=lambda member: member.key)
+        family.admission = (
+            "qualifying" if _family_is_qualifying(family) else "diagnostic"
         )
-        predicate_qualifying = (
-            family.audit_generated_count == 0
-            and family.source_predicate != "-"
-            and family.score_eligible_count
-            == family.decision_count
-            - family.action_counts[ACTION_NAMES.index("keep")]
-            > 0
-        )
-        if uniformly_qualifying or predicate_qualifying:
-            family.admission = "qualifying"
     return sorted(final_witnesses, key=lambda witness: witness.raw.op_index), sorted(
         aggregate.values(), key=lambda family: family.key
     )
@@ -1415,10 +1636,53 @@ def _render_final_witnesses(witnesses: Iterable[FinalWitness]) -> bytes:
                     raw.audit_path,
                     str(raw.audit_line),
                     str(raw.trace_context),
+                    str(raw.site_id),
                     str(raw.emission_ordinal),
                     str(raw.inverse_depth),
                     str(raw.flags),
                     raw.transform_chain,
+                )
+            )
+        )
+    return ("\n".join(lines) + "\n").encode("ascii")
+
+
+def _render_audit_members(members: Sequence[AuditFamilyMember]) -> bytes:
+    lines = ["\t".join(AUDIT_MEMBER_HEADER)]
+    for member in members:
+        raw = member.raw
+        predicate_key = "-" if raw.predicate_key is None else str(raw.predicate_key)
+        predicate_value = (
+            "-" if raw.predicate_value is None else str(raw.predicate_value)
+        )
+        site_classes = ",".join(
+            ":".join(
+                str(value)
+                for value in (
+                    site.site_id,
+                    site.inverse_depth,
+                    site.flags,
+                    site.source_literal_key,
+                    site.source_literal_value,
+                    site.occurrence_count,
+                )
+            )
+            for site in member.sites
+        )
+        lines.append(
+            "\t".join(
+                (
+                    raw.audit_path,
+                    str(raw.audit_line),
+                    str(raw.trace_context),
+                    raw.kind,
+                    str(raw.decision_count),
+                    *(str(count) for count in raw.action_counts),
+                    *(str(count) for count in raw.rule_counts),
+                    str(member.score_eligible_count),
+                    predicate_key,
+                    predicate_value,
+                    site_classes,
                 )
             )
         )
@@ -1441,6 +1705,7 @@ def _render_final_families(families: Iterable[FinalFamily]) -> bytes:
                     *(str(count) for count in family.rule_counts),
                     str(family.score_eligible_count),
                     str(family.audit_generated_count),
+                    _render_audit_members(family.audit_members).hex(),
                     family.source_predicate,
                     family.admission,
                 )
@@ -1473,6 +1738,11 @@ def _render_summary(manifest: Mapping[str, str], families: Sequence[FinalFamily]
         f"- Parent families: {manifest['family_count']}",
         f"- Qualifying families: {manifest['qualifying_family_count']}",
         "",
+        "## Evidence boundary",
+        "",
+        "The sealer independently binds witness gate records and replays the decision table.",
+        "Abstract facts and provenance remain source-bound Rust analyzer outputs; this is not a second abstract-state scan.",
+        "",
         "## Action census",
         "",
         "| Action | Count |",
@@ -1490,6 +1760,48 @@ def _fsync_directory(directory: Path) -> None:
         os.close(descriptor)
 
 
+def _exchange_directories(
+    parent_descriptor: int, left_name: str, right_name: str
+) -> None:
+    """Atomically exchange two sibling directory names on Linux or macOS."""
+    if "/" in left_name or "/" in right_name or not left_name or not right_name:
+        raise SealError("atomic exchange requires sibling base names")
+    library = ctypes.CDLL(None, use_errno=True)
+    left = os.fsencode(left_name)
+    right = os.fsencode(right_name)
+    if sys.platform.startswith("linux"):
+        function = getattr(library, "renameat2", None)
+        if function is None:
+            raise SealError("atomic directory exchange is unavailable on Linux")
+        function.argtypes = [
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
+        ]
+        function.restype = ctypes.c_int
+        result = function(parent_descriptor, left, parent_descriptor, right, 2)
+    elif sys.platform == "darwin":
+        function = getattr(library, "renameatx_np", None)
+        if function is None:
+            raise SealError("atomic directory exchange is unavailable on macOS")
+        function.argtypes = [
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
+        ]
+        function.restype = ctypes.c_int
+        result = function(parent_descriptor, left, parent_descriptor, right, 0x2)
+    else:
+        raise SealError("atomic directory exchange is unsupported on this platform")
+    if result != 0:
+        error_number = ctypes.get_errno()
+        raise OSError(error_number, os.strerror(error_number))
+
+
 def _publish_atomically(output: Path, files: Mapping[str, bytes]) -> None:
     if tuple(sorted(files)) != tuple(sorted(FINAL_NAMES)):
         raise SealError("internal final artifact set mismatch")
@@ -1498,8 +1810,10 @@ def _publish_atomically(output: Path, files: Mapping[str, bytes]) -> None:
     if parent.is_symlink() or not parent.is_dir():
         raise SealError(f"final artifact parent is not a regular directory: {parent}")
     temporary = Path(tempfile.mkdtemp(prefix=f".{output.name}.tmp-", dir=parent))
-    backup = parent / f".{output.name}.backup-{os.getpid()}-{uuid.uuid4().hex}"
-    moved_existing = False
+    temporary_metadata = os.stat(temporary, follow_symlinks=False)
+    temporary_identity = (temporary_metadata.st_dev, temporary_metadata.st_ino)
+    committed = False
+    existing = False
     try:
         for name in sorted(files):
             path = temporary / name
@@ -1508,25 +1822,72 @@ def _publish_atomically(output: Path, files: Mapping[str, bytes]) -> None:
                 destination.flush()
                 os.fsync(destination.fileno())
         _fsync_directory(temporary)
-        if output.exists() or output.is_symlink():
+        _fsync_directory(parent)
+        existing = output.exists() or output.is_symlink()
+        if existing:
             _read_exact_directory(output, FINAL_NAMES, "existing final")
-            os.replace(output, backup)
-            moved_existing = True
-        try:
+            parent_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+            parent_flags |= getattr(os, "O_CLOEXEC", 0)
+            parent_flags |= getattr(os, "O_NOFOLLOW", 0)
+            parent_descriptor = os.open(parent, parent_flags)
+            exchanged = False
+            try:
+                _exchange_directories(
+                    parent_descriptor, temporary.name, output.name
+                )
+                exchanged = True
+                committed = True
+            finally:
+                try:
+                    os.close(parent_descriptor)
+                except OSError:
+                    if not exchanged:
+                        raise
+        else:
             os.replace(temporary, output)
+            committed = True
+        try:
             _fsync_directory(parent)
-        except BaseException:
-            if moved_existing and backup.exists() and not output.exists():
-                os.replace(backup, output)
-            raise
-        if moved_existing:
-            shutil.rmtree(backup)
+        except Exception:
+            pass
+        if existing:
+            try:
+                shutil.rmtree(temporary)
+            except Exception:
+                pass
+        try:
             _fsync_directory(parent)
+        except Exception:
+            pass
     except BaseException:
+        published = committed
+        if not published:
+            try:
+                output_metadata = os.stat(output, follow_symlinks=False)
+            except OSError:
+                pass
+            else:
+                published = (
+                    stat.S_ISDIR(output_metadata.st_mode)
+                    and (output_metadata.st_dev, output_metadata.st_ino)
+                    == temporary_identity
+                )
+        if published:
+            if existing and temporary.exists():
+                try:
+                    shutil.rmtree(temporary)
+                except BaseException:
+                    pass
+            try:
+                _fsync_directory(parent)
+            except BaseException:
+                pass
+            return
         if temporary.exists():
-            shutil.rmtree(temporary)
-        if moved_existing and backup.exists() and not output.exists():
-            os.replace(backup, output)
+            try:
+                shutil.rmtree(temporary)
+            except OSError:
+                pass
         raise
 
 
@@ -1541,9 +1902,21 @@ def seal_evidence(
     repo = repo.resolve(strict=True)
     _validate_independent_predicates()
     binding = _resolve_binding(repo, parent, parent_tree)
-    fingerprint = fingerprint_ops(ops)
-    _require_pinned_fingerprint(fingerprint)
     raw_files = _read_exact_directory(raw_dir, RAW_NAMES, "raw")
+    preliminary_manifest = _parse_key_values(
+        raw_files["manifest.raw"], RAW_MANIFEST_KEYS, "manifest.raw"
+    )
+    preliminary_operation_count = _decimal(
+        preliminary_manifest["operation_count"], "operation_count"
+    )
+    witness_indices = _requested_witness_indices(
+        raw_files["witnesses.tsv"],
+        RAW_WITNESS_HEADER,
+        "witnesses.tsv",
+        preliminary_operation_count,
+    )
+    fingerprint = fingerprint_ops(ops, witness_indices=witness_indices)
+    _require_pinned_fingerprint(fingerprint)
     raw = _validate_raw_evidence(raw_files, fingerprint)
     witnesses, families = _map_and_aggregate(repo, binding.parent_commit, raw)
     qualifying_count = sum(family.admission == "qualifying" for family in families)
@@ -1584,7 +1957,10 @@ def seal_evidence(
 
 
 def _parse_final_witnesses(
-    data: bytes, operation_count: int, mapper: SourceMapper
+    data: bytes,
+    operation_count: int,
+    mapper: SourceMapper,
+    fingerprint: OpsFingerprint,
 ) -> list[FinalWitness]:
     parsed = []
     previous_index = -1
@@ -1638,7 +2014,7 @@ def _parse_final_witnesses(
             score_eligible=_decimal(
                 row["score_eligible"], "score_eligible", maximum=1
             ),
-            site_id=0,
+            site_id=_decimal(row["site_id"], "site_id", maximum=(1 << 32) - 1),
             emission_ordinal=_decimal(
                 row["emission_ordinal"], "emission_ordinal", maximum=(1 << 32) - 1
             ),
@@ -1646,6 +2022,8 @@ def _parse_final_witnesses(
             flags=flags,
             transform_chain=row["transform_chain"],
         )
+        _validate_witness_operation(raw, fingerprint)
+        _validate_witness_decision(raw)
         parsed.append(FinalWitness(raw, mapped))
     return parsed
 
@@ -1657,7 +2035,7 @@ def _family_is_qualifying(family: FinalFamily) -> bool:
     nonzero_rules = [
         RULE_NAMES[index] for index, count in enumerate(family.rule_counts) if count
     ]
-    uniformly_qualifying = (
+    return (
         family.audit_generated_count == 0
         and len(nonzero_actions) == 1
         and nonzero_actions[0] not in {"keep", "no_cost_identity"}
@@ -1668,24 +2046,166 @@ def _family_is_qualifying(family: FinalFamily) -> bool:
         == family.decision_count
         and family.score_eligible_count == family.decision_count
     )
-    predicate_qualifying = (
-        family.audit_generated_count == 0
-        and family.source_predicate != "-"
-        and family.score_eligible_count
-        == family.decision_count
-        - family.action_counts[ACTION_NAMES.index("keep")]
-        > 0
-    )
-    return uniformly_qualifying or predicate_qualifying
 
 
-def _parse_final_families(
-    data: bytes, repo: Path, parent_commit: str
-) -> list[FinalFamily]:
-    parsed = []
-    seen = set()
+def _parse_audit_members_hex(
+    value: str, mapper: SourceMapper
+) -> list[AuditFamilyMember]:
+    if not re.fullmatch(r"(?:[0-9a-f]{2})+", value):
+        raise SealError("sealed audit_members_hex is not canonical lowercase hex")
+    member_bytes = bytes.fromhex(value)
+    members: list[AuditFamilyMember] = []
     previous_key: tuple[str, int, int, str] | None = None
-    parent_files: dict[str, list[bytes]] = {}
+    for row in _parse_tsv(
+        member_bytes, AUDIT_MEMBER_HEADER, "sealed audit family members"
+    ):
+        audit_path = _validate_source_path(row["audit_path"])
+        audit_line = _decimal(
+            row["audit_line"], "audit_line", minimum=1, maximum=(1 << 32) - 1
+        )
+        trace_context = _decimal(
+            row["trace_context"], "trace_context", maximum=(1 << 32) - 1
+        )
+        kind = row["kind"]
+        if kind not in KIND_NAMES:
+            raise SealError("sealed audit family member has invalid kind")
+        action_counts = tuple(
+            _decimal(row[f"{name}_count"], f"{name}_count")
+            for name in ACTION_NAMES
+        )
+        rule_counts = tuple(
+            _decimal(row[f"{name}_count"], f"{name}_count")
+            for name in RULE_NAMES
+        )
+        decision_count = _decimal(
+            row["decision_count"], "decision_count", minimum=1
+        )
+        if sum(action_counts) != decision_count or sum(rule_counts) != decision_count:
+            raise SealError("sealed audit family member has incomplete census")
+        predicate_fields = (
+            row["predicate_source_literal_key"],
+            row["predicate_source_literal_value"],
+        )
+        if predicate_fields == ("-", "-"):
+            predicate_key = predicate_value = None
+        elif "-" in predicate_fields:
+            raise SealError("sealed audit family member has incomplete predicate")
+        else:
+            predicate_key = _decimal(
+                predicate_fields[0],
+                "predicate_source_literal_key",
+                maximum=(1 << 32) - 1,
+            )
+            predicate_value = _decimal(
+                predicate_fields[1],
+                "predicate_source_literal_value",
+                maximum=(1 << 32) - 1,
+            )
+        uniform = sum(count != 0 for count in action_counts) == 1 and sum(
+            count != 0 for count in rule_counts
+        ) == 1
+        if uniform and predicate_key is not None:
+            raise SealError("sealed uniform audit family unexpectedly carries a predicate")
+        disposition = (
+            "uniform_provisional"
+            if uniform
+            else "exact_predicate_provisional"
+            if predicate_key is not None
+            else "diagnostic_mixed"
+        )
+        raw = RawFamily(
+            audit_path=audit_path,
+            audit_line=audit_line,
+            trace_context=trace_context,
+            kind=kind,
+            decision_count=decision_count,
+            action_counts=action_counts,
+            rule_counts=rule_counts,
+            disposition=disposition,
+            predicate_key=predicate_key,
+            predicate_value=predicate_value,
+        )
+        if previous_key is not None and raw.key <= previous_key:
+            raise SealError("sealed audit family member keys are duplicate or unsorted")
+        previous_key = raw.key
+        sites: list[RawSite] = []
+        previous_site_key: tuple[int, int, int] | None = None
+        for encoded_site in row["site_classes"].split(","):
+            fields = encoded_site.split(":")
+            if len(fields) != 6:
+                raise SealError("sealed audit family member has malformed site class")
+            site_id, inverse_depth, flags, literal_key, literal_value, occurrences = (
+                _decimal(fields[0], "site_id", maximum=(1 << 32) - 1),
+                _decimal(fields[1], "inverse_depth", maximum=(1 << 16) - 1),
+                _decimal(fields[2], "flags", maximum=(1 << 16) - 1),
+                _decimal(fields[3], "source_literal_key", maximum=(1 << 32) - 1),
+                _decimal(fields[4], "source_literal_value", maximum=(1 << 32) - 1),
+                _decimal(fields[5], "occurrence_count", minimum=1),
+            )
+            site = RawSite(
+                site_id=site_id,
+                audit_path=audit_path,
+                audit_line=audit_line,
+                trace_context=trace_context,
+                source_literal_key=literal_key,
+                source_literal_value=literal_value,
+                inverse_depth=inverse_depth,
+                flags=flags,
+                occurrence_count=occurrences,
+                transform_chain=_expected_transform_chain(inverse_depth, flags),
+            )
+            if previous_site_key is not None and site.key <= previous_site_key:
+                raise SealError("sealed audit family site classes are duplicate or unsorted")
+            previous_site_key = site.key
+            sites.append(site)
+        if not sites:
+            raise SealError("sealed audit family member has no site classes")
+        if disposition == "exact_predicate_provisional" and (
+            predicate_key,
+            predicate_value,
+        ) not in {
+            (site.source_literal_key, site.source_literal_value) for site in sites
+        }:
+            raise SealError("sealed exact predicate disagrees with site literal metadata")
+        mappings = {
+            map_origin_site(mapper, audit_path, audit_line, site.flags)
+            for site in sites
+        }
+        generated = {mapped.audit_generated for mapped in mappings}
+        if len(generated) != 1:
+            raise SealError(
+                "sealed audit family mixes synthetic and non-synthetic site classes"
+            )
+        if len(mappings) != 1:
+            raise SealError("sealed audit family maps to multiple parent coordinates")
+        score_eligible_count = _decimal(
+            row["score_eligible_count"], "score_eligible_count"
+        )
+        non_keep_count = decision_count - action_counts[ACTION_NAMES.index("keep")]
+        if score_eligible_count > non_keep_count:
+            raise SealError("sealed audit family has excessive score eligibility")
+        members.append(
+            AuditFamilyMember(
+                raw=raw,
+                sites=tuple(sites),
+                mapped=next(iter(mappings)),
+                score_eligible_count=score_eligible_count,
+                audit_generated=next(iter(generated)),
+            )
+        )
+    if not members:
+        raise SealError("sealed audit family member table is empty")
+    if _render_audit_members(members) != member_bytes:
+        raise SealError("sealed audit_members_hex is not canonical")
+    return members
+
+
+def _parse_final_families(data: bytes, mapper: SourceMapper) -> list[FinalFamily]:
+    parsed: list[FinalFamily] = []
+    seen: set[tuple[str, int, int, str]] = set()
+    seen_member_keys: set[tuple[str, int, int, str]] = set()
+    site_metadata: dict[int, tuple[object, ...]] = {}
+    previous_key: tuple[str, int, int, str] | None = None
     for row in _parse_tsv(data, FINAL_FAMILY_HEADER, "sealed families.tsv"):
         kind = row["kind"]
         if kind not in KIND_NAMES:
@@ -1700,13 +2220,7 @@ def _parse_final_families(
             parent_line = _decimal(
                 row["parent_line"], "parent_line", minimum=1, maximum=(1 << 32) - 1
             )
-            if parent_file not in parent_files:
-                contents = _run_git(repo, "show", f"{parent_commit}:{parent_file}")
-                parent_files[parent_file] = contents.splitlines(keepends=True)
-            if parent_line > len(parent_files[parent_file]):
-                raise SealError(
-                    f"sealed family parent coordinate is absent: {parent_file}:{parent_line}"
-                )
+        members = _parse_audit_members_hex(row["audit_members_hex"], mapper)
         family = FinalFamily(
             parent_file=parent_file,
             parent_line=parent_line,
@@ -1730,39 +2244,56 @@ def _parse_final_families(
             ),
             source_predicate=row["source_predicate"],
             admission=row["admission"],
+            audit_members=members,
         )
-        if sum(family.action_counts) != family.decision_count or sum(
-            family.rule_counts
-        ) != family.decision_count:
-            raise SealError(f"sealed family {family.key} has incomplete census")
-        if family.score_eligible_count > family.decision_count:
-            raise SealError(f"sealed family {family.key} has excessive score eligibility")
-        if family.audit_generated_count > family.decision_count:
-            raise SealError(f"sealed family {family.key} has excessive audit-generated count")
-        registered_predicates = [
-            predicate.rendered
-            for predicate in INDEPENDENT_EXACT_PARENT_PREDICATES
-            if (
-                predicate.parent_file,
-                predicate.parent_line,
-                predicate.trace_context,
-                predicate.kind,
+        if any(
+            (
+                member.mapped.parent_file,
+                member.mapped.parent_line,
+                member.raw.trace_context,
+                member.raw.kind,
             )
-            == (
-                family.parent_file,
-                family.parent_line,
-                family.trace_context,
-                family.kind,
-            )
-        ]
-        expected_predicate = registered_predicates[0] if len(registered_predicates) == 1 else "-"
-        if len(registered_predicates) > 1 or family.source_predicate != expected_predicate:
-            raise SealError(f"sealed family {family.key} predicate is not independently registered")
+            != (family.parent_file, family.parent_line, family.trace_context, family.kind)
+            for member in members
+        ):
+            raise SealError(f"sealed family {family.key} parent regroup mismatch")
+        if sum(member.raw.decision_count for member in members) != family.decision_count:
+            raise SealError(f"sealed family {family.key} member decision census mismatch")
+        for index in range(len(ACTION_NAMES)):
+            if sum(member.raw.action_counts[index] for member in members) != family.action_counts[index]:
+                raise SealError(f"sealed family {family.key} member action census mismatch")
+        for index in range(len(RULE_NAMES)):
+            if sum(member.raw.rule_counts[index] for member in members) != family.rule_counts[index]:
+                raise SealError(f"sealed family {family.key} member rule census mismatch")
+        if sum(member.score_eligible_count for member in members) != family.score_eligible_count:
+            raise SealError(f"sealed family {family.key} member score census mismatch")
+        expected_generated = sum(
+            member.raw.decision_count for member in members if member.audit_generated
+        )
+        if expected_generated != family.audit_generated_count:
+            raise SealError(f"sealed family {family.key} audit-generated census mismatch")
+        if family.source_predicate != "-":
+            raise SealError("raw v1 sealed family source_predicate must be diagnostic")
         expected_admission = "qualifying" if _family_is_qualifying(family) else "diagnostic"
         if family.admission != expected_admission:
             raise SealError(f"sealed family {family.key} admission mismatch")
         if family.key in seen or (previous_key is not None and family.key <= previous_key):
             raise SealError("sealed family keys are duplicate or unsorted")
+        for member in members:
+            if member.key in seen_member_keys:
+                raise SealError("sealed audit family member key is duplicated")
+            seen_member_keys.add(member.key)
+            for site in member.sites:
+                metadata = (
+                    site.audit_path,
+                    site.audit_line,
+                    site.trace_context,
+                    site.source_literal_key,
+                    site.source_literal_value,
+                )
+                existing = site_metadata.setdefault(site.site_id, metadata)
+                if existing != metadata:
+                    raise SealError("sealed site_id has inconsistent audit metadata")
         seen.add(family.key)
         previous_key = family.key
         parsed.append(family)
@@ -1793,6 +2324,15 @@ def _verify_final_cross_census(
         raise SealError("sealed family_count does not match families.tsv")
     if sum(family.decision_count for family in families) != numeric["decision_count"]:
         raise SealError("sealed family decision census does not match manifest")
+    unique_sites: dict[tuple[int, int, int], RawSite] = {}
+    for family in families:
+        for member in family.audit_members:
+            for site in member.sites:
+                previous = unique_sites.setdefault(site.key, site)
+                if previous != site:
+                    raise SealError(
+                        "sealed provenance site class has inconsistent metadata"
+                    )
     if numeric["decision_count"] != numeric["ccx_count"] + numeric["ccz_count"]:
         raise SealError("sealed decision census is incomplete")
     for kind, field in (("ccx", "ccx_count"), ("ccz", "ccz_count")):
@@ -1804,6 +2344,72 @@ def _verify_final_cross_census(
         (family.parent_file, family.parent_line, family.trace_context, family.kind): family
         for family in families
     }
+    member_by_key: dict[
+        tuple[str, int, int, str], tuple[AuditFamilyMember, FinalFamily]
+    ] = {}
+    for family in families:
+        for member in family.audit_members:
+            if member.key in member_by_key:
+                raise SealError("sealed audit family member key is duplicated")
+            member_by_key[member.key] = (member, family)
+    witness_member_groups: dict[
+        tuple[str, int, int, str], list[FinalWitness]
+    ] = defaultdict(list)
+    for witness in witnesses:
+        member_entry = member_by_key.get(witness.raw.audit_family_key)
+        if member_entry is None:
+            raise SealError("sealed witness references a missing audit family member")
+        member, family = member_entry
+        if witness.family_key != (
+            family.parent_file,
+            family.parent_line,
+            family.trace_context,
+            family.kind,
+        ) or witness.mapped != member.mapped:
+            raise SealError("sealed witness audit member parent mapping mismatch")
+        if not any(site.key == witness.raw.site_key for site in member.sites):
+            raise SealError("sealed witness does not match an audit member site class")
+        witness_member_groups[member.key].append(witness)
+    for member_key, (member, _) in member_by_key.items():
+        group = witness_member_groups.get(member_key, [])
+        if member.raw.disposition == "exact_predicate_provisional" and len(
+            {
+                (
+                    witness.raw.action,
+                    witness.raw.rule,
+                    witness.raw.score_eligible,
+                )
+                for witness in group
+            }
+        ) != 1:
+            raise SealError(
+                f"sealed exact-predicate audit member {member.key} lacks one "
+                "coherent non-Keep signature"
+            )
+        action_counts = Counter(witness.raw.action for witness in group)
+        rule_counts = Counter(witness.raw.rule for witness in group)
+        for index, action in enumerate(ACTION_NAMES):
+            if (
+                action != "keep"
+                and action_counts[action] != member.raw.action_counts[index]
+            ):
+                raise SealError(
+                    f"sealed audit member {member.key} witness action census mismatch"
+                )
+        keep_count = member.raw.action_counts[ACTION_NAMES.index("keep")]
+        for index, rule in enumerate(RULE_NAMES):
+            actual = rule_counts[rule] + (keep_count if rule == "none" else 0)
+            if actual != member.raw.rule_counts[index]:
+                raise SealError(
+                    f"sealed audit member {member.key} witness rule census mismatch"
+                )
+        if (
+            sum(witness.raw.score_eligible for witness in group)
+            != member.score_eligible_count
+        ):
+            raise SealError(
+                f"sealed audit member {member.key} witness score census mismatch"
+            )
     witness_groups: dict[tuple[str, int | None, int, str], list[FinalWitness]] = defaultdict(list)
     for witness in witnesses:
         witness_groups[witness.family_key].append(witness)
@@ -1927,7 +2533,13 @@ def verify_evidence(
         if manifest[field] != expected:
             raise SealError(f"sealed {field} does not match independent source binding")
 
-    fingerprint = fingerprint_ops(ops)
+    witness_indices = _requested_witness_indices(
+        final_files["witnesses.tsv"],
+        FINAL_WITNESS_HEADER,
+        "sealed witnesses.tsv",
+        _decimal(manifest["operation_count"], "operation_count"),
+    )
+    fingerprint = fingerprint_ops(ops, witness_indices=witness_indices)
     _require_pinned_fingerprint(fingerprint)
     expected_fingerprint = {
         "canonical_records_sha256": fingerprint.canonical_records_sha256,
@@ -1944,11 +2556,9 @@ def verify_evidence(
 
     mapper = SourceMapper(repo, binding.parent_commit)
     witnesses = _parse_final_witnesses(
-        final_files["witnesses.tsv"], fingerprint.operation_count, mapper
+        final_files["witnesses.tsv"], fingerprint.operation_count, mapper, fingerprint
     )
-    families = _parse_final_families(
-        final_files["families.tsv"], repo, binding.parent_commit
-    )
+    families = _parse_final_families(final_files["families.tsv"], mapper)
     _verify_final_cross_census(manifest, witnesses, families)
     expected_summary = _render_summary(manifest, families)
     if final_files["summary.md"] != expected_summary:
@@ -1974,13 +2584,22 @@ def _argument_parser() -> argparse.ArgumentParser:
     verify_parser.add_argument("--parent-tree", required=True)
     verify_parser.add_argument("--evidence", type=Path, required=True)
     verify_parser.add_argument("--ops", type=Path, required=True)
+    prepare_parser = subcommands.add_parser("prepare-stderr")
+    prepare_parser.add_argument("--path", type=Path, required=True)
+    replay_parser = subcommands.add_parser("replay-stderr")
+    replay_parser.add_argument("--path", type=Path, required=True)
+    replay_parser.add_argument("--identity", required=True)
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _argument_parser().parse_args(argv)
     try:
-        if arguments.command == "seal":
+        if arguments.command == "prepare-stderr":
+            print(prepare_stderr_capture(arguments.path))
+        elif arguments.command == "replay-stderr":
+            replay_stderr_capture(arguments.path, arguments.identity)
+        elif arguments.command == "seal":
             manifest = seal_evidence(
                 arguments.repo,
                 arguments.parent,

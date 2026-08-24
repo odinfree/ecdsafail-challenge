@@ -122,7 +122,22 @@ build_circuit_bin="$(pwd)/target/release/build_circuit"
 ops_scratch="$(cd "$(mktemp -d)" && pwd -P)"   # resolved real path (the macOS profile needs it)
 chmod 1777 "${ops_scratch}"   # let the sandbox uid write without replacing runner-owned files
 build_stderr="${ops_scratch}/build-stderr.log"
-: > "${build_stderr}"
+stderr_sealer="src/point_add/memory/repro/j3_dead_gate_seal.py"
+set +e
+build_stderr_identity="$(python3 "${stderr_sealer}" prepare-stderr --path "${build_stderr}")"
+stderr_prepare_status=$?
+set -e
+if [[ "${stderr_prepare_status}" -ne 0 ]]; then
+  rm -rf "${ops_scratch}"
+  ops_scratch=""
+  exit "${stderr_prepare_status}"
+fi
+if ! exec 9>>"${build_stderr}"; then
+  echo "!! cannot open prepared build stderr capture" >&2
+  rm -rf "${ops_scratch}"
+  ops_scratch=""
+  exit 1
+fi
 audit_enabled=0
 if [[ "${J3_DEAD_GATE_AUDIT:-0}" == "1" ]]; then
   audit_enabled=1
@@ -174,6 +189,8 @@ elif [[ "$(uname -s)" == "Darwin" ]] && command -v sandbox-exec >/dev/null 2>&1;
   # Read-only everywhere except the scratch dir (and /dev), and no network. TMPDIR
   # points at the scratch dir so any incidental temp writes stay inside it.
   macos_profile="(version 1)(allow default)(deny file-write*)(allow file-write* (subpath \"${ops_scratch}\"))(allow file-write* (subpath \"/dev\"))(deny network*)"
+  # Positional parameters are intentionally expanded by the child shell.
+  # shellcheck disable=SC2016
   run_build=(
     sandbox-exec -p "${macos_profile}"
       /bin/bash -c 'cd "$1" && export TMPDIR="$1" && exec "$2"' _ "${ops_scratch}" "${build_circuit_bin}"
@@ -186,6 +203,8 @@ else
     exit 1
   fi
   echo "!! no sandbox available (bubblewrap/sandbox-exec); running build_circuit UNCONFINED (dev fallback)" >&2
+  # Positional parameters are intentionally expanded by the child shell.
+  # shellcheck disable=SC2016
   run_build=( bash -c 'cd "$1" && exec "$2"' _ "${ops_scratch}" "${build_circuit_bin}" )
 fi
 
@@ -211,7 +230,7 @@ cleanup() {
 trap cleanup EXIT
 
 if command -v setsid >/dev/null 2>&1; then
-  setsid "${run_build[@]}" 2>"${ops_scratch}/build-stderr.log" &
+  setsid "${run_build[@]}" 2>&9 &
   build_pid=$!
   cleanup_pgid="${build_pid}"
   set +e
@@ -223,7 +242,7 @@ if command -v setsid >/dev/null 2>&1; then
 else
   # Fallback: bash job control puts the background pipeline in its own pgid.
   set -m
-  "${run_build[@]}" 2>"${ops_scratch}/build-stderr.log" &
+  "${run_build[@]}" 2>&9 &
   build_pid=$!
   cleanup_pgid="${build_pid}"
   set +e
@@ -234,15 +253,24 @@ else
   cleanup_pgid=""
   set +m
 fi
+exec 9>&-
 
 # General process diagnostics are replayed to the caller but never enter the
 # sealed evidence. Only the audit engine's dedicated diagnostics file can
 # become stderr.log.
-cat "${ops_scratch}/build-stderr.log" >&2
+set +e
+python3 "${stderr_sealer}" replay-stderr \
+  --path "${build_stderr}" --identity "${build_stderr_identity}"
+stderr_replay_status=$?
+set -e
 
 if [[ "${build_status}" -ne 0 ]]; then
   echo "!! build_circuit exited with status ${build_status}" >&2
   exit "${build_status}"
+fi
+if [[ "${stderr_replay_status}" -ne 0 ]]; then
+  echo "!! secure build stderr replay failed" >&2
+  exit "${stderr_replay_status}"
 fi
 
 # The untrusted process may write only into scratch. Validate and seal its raw

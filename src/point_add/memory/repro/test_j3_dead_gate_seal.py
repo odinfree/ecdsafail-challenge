@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
 import shutil
 import struct
 import subprocess
@@ -249,13 +250,19 @@ class SealerCliTests(unittest.TestCase):
         ).stdout
 
     @staticmethod
-    def _write_ops(path: Path, kinds: list[int]) -> None:
+    def _write_ops(
+        path: Path,
+        kinds: list[int],
+        operand_overrides: dict[int, tuple[int, int, int, int, int, int]] | None = None,
+    ) -> None:
         records = bytearray()
         missing = (1 << 64) - 1
         for index, kind in enumerate(kinds):
             operands = [missing] * 6
             if kind in (13, 14):
                 operands[:3] = [index * 3, index * 3 + 1, index * 3 + 2]
+            if operand_overrides is not None and index in operand_overrides:
+                operands = list(operand_overrides[index])
             records.extend(struct.pack("<I4x6Q", kind, *operands))
         compressed = subprocess.run(
             ["zstd", "-q", "-c"],
@@ -320,20 +327,30 @@ class SealerCliTests(unittest.TestCase):
         *,
         flags: int = 0,
     ) -> str:
+        facts_by_rule = {
+            "effective_condition_known0": ("unknown", "unknown", "unknown", "known0"),
+            "ccx_control_known0": ("known0", "unknown", "unknown", "known1"),
+            "ccx_both_controls_known1": ("known1", "known1", "unknown", "known1"),
+            "ccx_one_control_known1": ("known1", "unknown", "unknown", "known1"),
+        }
+        fact_control2, fact_control1, fact_target, effective_condition = facts_by_rule[
+            rule
+        ]
+        operand_base = op_index * 3
         values = [
             str(op_index),
             "src/point_add/sample.rs",
             "1",
             "7",
             "ccx",
-            "0",
-            "1",
-            "2",
+            str(operand_base),
+            str(operand_base + 1),
+            str(operand_base + 2),
             str((1 << 64) - 1),
-            "known0",
-            "unknown",
-            "unknown",
-            "known1",
+            fact_control2,
+            fact_control1,
+            fact_target,
+            effective_condition,
             action,
             rule,
             str(score_eligible),
@@ -452,6 +469,30 @@ class SealerCliTests(unittest.TestCase):
             self.out if out is None else out,
         )
 
+    @staticmethod
+    def _fingerprint_pins(fingerprint: object) -> mock._patch:
+        return mock.patch.multiple(
+            seal,
+            PINNED_OPERATION_COUNT=fingerprint.operation_count,
+            PINNED_COMPRESSED_BYTES=fingerprint.compressed_bytes,
+            PINNED_COMPRESSED_SHA256=fingerprint.compressed_sha256,
+            PINNED_CANONICAL_RECORDS_SHA256=fingerprint.canonical_records_sha256,
+            PINNED_TRUSTED_XOF32=fingerprint.trusted_xof32,
+        )
+
+    def _rewrite_ops_and_raw(
+        self, operand_overrides: dict[int, tuple[int, int, int, int, int, int]]
+    ) -> object:
+        self._write_ops(self.ops, [13, 13, 14], operand_overrides)
+        fingerprint = seal.fingerprint_ops(self.ops)
+        original = self.fingerprint
+        self.fingerprint = fingerprint
+        try:
+            self._write_raw()
+        finally:
+            self.fingerprint = original
+        return fingerprint
+
     def _mark_ccx_family_as_exact_predicate(self, key: int, value: int) -> None:
         families_path = self.raw / "families.tsv"
         lines = families_path.read_text(encoding="ascii").splitlines()
@@ -473,6 +514,29 @@ class SealerCliTests(unittest.TestCase):
             encoding="ascii",
         )
 
+    def _set_ccx_site_literal(self, key: int, value: int) -> None:
+        sites = self.raw / "sites.tsv"
+        self._replace_tsv_field(sites, 1, "source_literal_key", str(key))
+        self._replace_tsv_field(sites, 1, "source_literal_value", str(value))
+
+    @staticmethod
+    def _replace_final_family_field(
+        path: Path, kind: str, field: str, value: str
+    ) -> None:
+        lines = path.read_text(encoding="ascii").splitlines()
+        header = lines[0].split("\t")
+        kind_index = header.index("kind")
+        field_index = header.index(field)
+        for index in range(1, len(lines)):
+            fields = lines[index].split("\t")
+            if fields[kind_index] == kind:
+                fields[field_index] = value
+                lines[index] = "\t".join(fields)
+                break
+        else:
+            raise AssertionError(f"missing final {kind} family")
+        path.write_text("\n".join(lines) + "\n", encoding="ascii")
+
     @staticmethod
     def _replace_key(path: Path, key: str, replacement: str) -> None:
         rows = path.read_text(encoding="ascii").splitlines()
@@ -481,6 +545,15 @@ class SealerCliTests(unittest.TestCase):
             for row in rows
         ]
         path.write_text("\n".join(rewritten) + "\n", encoding="ascii")
+
+    @staticmethod
+    def _replace_tsv_field(path: Path, row_number: int, field: str, value: str) -> None:
+        lines = path.read_text(encoding="ascii").splitlines()
+        header = lines[0].split("\t")
+        fields = lines[row_number].split("\t")
+        fields[header.index(field)] = value
+        lines[row_number] = "\t".join(fields)
+        path.write_text("\n".join(lines) + "\n", encoding="ascii")
 
     def test_fingerprint_validates_padding_and_all_three_digests(self) -> None:
         self.assertEqual(self.fingerprint.operation_count, 3)
@@ -496,6 +569,125 @@ class SealerCliTests(unittest.TestCase):
         bad.write_bytes(b"QECCOPSZ" + struct.pack("<Q", 1) + compressed)
         with self.assertRaisesRegex(seal.SealError, "padding"):
             seal.fingerprint_ops(bad)
+
+    def test_fingerprint_streams_only_requested_witness_records(self) -> None:
+        fingerprint = seal.fingerprint_ops(self.ops, witness_indices={1})
+
+        self.assertEqual(set(fingerprint.witness_records), {1})
+        record = fingerprint.witness_records[1]
+        self.assertEqual(record.kind, 13)
+        self.assertEqual(
+            (record.q_control2, record.q_control1, record.q_target), (3, 4, 5)
+        )
+        self.assertEqual(record.c_condition, (1 << 64) - 1)
+
+    def test_fingerprint_rejects_non_integer_witness_indices_deterministically(self) -> None:
+        with self.assertRaisesRegex(seal.SealError, "requested witness index"):
+            seal.fingerprint_ops(self.ops, witness_indices=(1, "2"))
+
+    def test_raw_witness_operands_and_condition_must_match_ops_record(self) -> None:
+        mutations = {
+            "q_control2": "99",
+            "q_control1": "99",
+            "q_target": "99",
+            "c_condition": "99",
+        }
+        for field, value in mutations.items():
+            with self.subTest(field=field):
+                self._write_raw()
+                self._replace_tsv_field(
+                    self.raw / "witnesses.tsv", 2, field, value
+                )
+                with self.assertRaisesRegex(seal.SealError, "operation record"):
+                    self._seal()
+
+    def test_raw_witness_decision_is_recomputed_from_claimed_facts(self) -> None:
+        self._write_raw(
+            ccx_actions=(
+                ("lower_to_x", "ccx_both_controls_known1", 1),
+                ("lower_to_x", "ccx_both_controls_known1", 1),
+            )
+        )
+        self._replace_tsv_field(
+            self.raw / "witnesses.tsv", 2, "fact_control1", "known0"
+        )
+
+        with self.assertRaisesRegex(seal.SealError, "decision table"):
+            self._seal()
+
+    def test_raw_witness_score_eligibility_is_recomputed(self) -> None:
+        self._write_raw(
+            ccx_actions=(
+                ("drop", "ccx_control_known0", 0),
+                ("drop", "ccx_control_known0", 0),
+            )
+        )
+
+        with self.assertRaisesRegex(seal.SealError, "decision table"):
+            self._seal()
+
+    def test_raw_witness_rejects_contradictory_facts_for_aliased_ids(self) -> None:
+        missing = (1 << 64) - 1
+        fingerprint = self._rewrite_ops_and_raw(
+            {0: (0, 0, 2, missing, missing, missing)}
+        )
+        self._replace_tsv_field(
+            self.raw / "witnesses.tsv", 1, "q_control1", "0"
+        )
+
+        with self._fingerprint_pins(fingerprint):
+            with self.assertRaisesRegex(seal.SealError, "pairwise-distinct operands"):
+                self._seal()
+
+    def test_raw_witness_rejects_every_aliased_operation_shape(self) -> None:
+        missing = (1 << 64) - 1
+        mutations = {
+            "control_control": (
+                (0, 0, 2, missing, missing, missing),
+                {"q_control1": "0", "fact_control1": "known0"},
+            ),
+            "control2_target": (
+                (0, 1, 0, missing, missing, missing),
+                {"q_target": "0", "fact_target": "known0"},
+            ),
+            "control1_target": (
+                (0, 1, 1, missing, missing, missing),
+                {"q_target": "1"},
+            ),
+        }
+        for name, (operands, raw_fields) in mutations.items():
+            with self.subTest(name=name):
+                fingerprint = self._rewrite_ops_and_raw({0: operands})
+                for field, value in raw_fields.items():
+                    self._replace_tsv_field(
+                        self.raw / "witnesses.tsv", 1, field, value
+                    )
+                with self._fingerprint_pins(fingerprint):
+                    with self.assertRaisesRegex(
+                        seal.SealError, "pairwise-distinct operands"
+                    ):
+                        self._seal()
+
+    def test_raw_witness_requires_valid_ccx_ccz_record_shape(self) -> None:
+        missing = (1 << 64) - 1
+        mutations = {
+            "missing_q_control2": (missing, 1, 2, missing, missing, missing),
+            "live_c_target": (0, 1, 2, 7, missing, missing),
+            "live_r_target": (0, 1, 2, missing, missing, 7),
+        }
+        for name, operands in mutations.items():
+            with self.subTest(name=name):
+                fingerprint = self._rewrite_ops_and_raw({0: operands})
+                if name == "missing_q_control2":
+                    self._replace_tsv_field(
+                        self.raw / "witnesses.tsv",
+                        1,
+                        "q_control2",
+                        str(missing),
+                    )
+                with self._fingerprint_pins(fingerprint):
+                    with self.assertRaisesRegex(seal.SealError, "operation record shape"):
+                        self._seal()
 
     def test_raw_directory_requires_exact_file_names(self) -> None:
         (self.raw / "extra.log").write_bytes(b"")
@@ -576,26 +768,14 @@ class SealerCliTests(unittest.TestCase):
             )
         )
         self._mark_ccx_family_as_exact_predicate(2, 2)
-        predicate = seal.IndependentPredicate(
-            "src/point_add/sample.rs",
-            1,
-            7,
-            "ccx",
-            1,
-            1,
-            "source_literal_key=1,value=1",
-        )
-        with mock.patch.object(
-            seal, "INDEPENDENT_EXACT_PARENT_PREDICATES", (predicate,)
-        ):
-            manifest = self._seal()
-        self.assertEqual(manifest["verdict"], "HARD_NACK")
+        with self.assertRaisesRegex(seal.SealError, "site.*literal"):
+            self._seal()
 
     @unittest.skipUnless(
         seal is not None and hasattr(seal, "IndependentPredicate"),
         "independent predicate implementation is not present yet",
     )
-    def test_matching_independent_exact_predicate_is_admitted(self) -> None:
+    def test_matching_raw_exact_predicate_stays_diagnostic_in_v1(self) -> None:
         self._write_raw(
             ccx_actions=(
                 ("drop", "ccx_control_known0", 1),
@@ -603,6 +783,27 @@ class SealerCliTests(unittest.TestCase):
             )
         )
         self._mark_ccx_family_as_exact_predicate(1, 1)
+        self._set_ccx_site_literal(1, 1)
+        manifest = self._seal()
+        seal.verify_evidence(
+            self.repo,
+            self.parent,
+            self.parent_tree,
+            self.out,
+            self.ops,
+        )
+        self.assertEqual(manifest["qualifying_family_count"], "0")
+        self.assertEqual(manifest["verdict"], "HARD_NACK")
+
+    def test_v1_exact_predicate_registry_must_remain_empty(self) -> None:
+        self._write_raw(
+            ccx_actions=(
+                ("drop", "ccx_control_known0", 1),
+                ("keep", "none", 0),
+            )
+        )
+        self._mark_ccx_family_as_exact_predicate(1, 1)
+        self._set_ccx_site_literal(1, 1)
         predicate = seal.IndependentPredicate(
             "src/point_add/sample.rs",
             1,
@@ -615,16 +816,8 @@ class SealerCliTests(unittest.TestCase):
         with mock.patch.object(
             seal, "INDEPENDENT_EXACT_PARENT_PREDICATES", (predicate,)
         ):
-            manifest = self._seal()
-            seal.verify_evidence(
-                self.repo,
-                self.parent,
-                self.parent_tree,
-                self.out,
-                self.ops,
-            )
-        self.assertEqual(manifest["qualifying_family_count"], "1")
-        self.assertEqual(manifest["verdict"], "ADMIT")
+            with self.assertRaisesRegex(seal.SealError, "registry must be empty"):
+                self._seal()
 
     def test_uniform_score_eligible_family_is_admitted(self) -> None:
         manifest = self._seal()
@@ -738,6 +931,200 @@ class SealerCliTests(unittest.TestCase):
                 self.ops,
             )
 
+    def test_final_families_embed_canonical_raw_audit_members(self) -> None:
+        self._seal()
+        lines = (self.out / "families.tsv").read_text(encoding="ascii").splitlines()
+        header = lines[0].split("\t")
+
+        self.assertIn("audit_members_hex", header)
+        member_index = header.index("audit_members_hex")
+        for line in lines[1:]:
+            member_bytes = bytes.fromhex(line.split("\t")[member_index])
+            self.assertTrue(member_bytes.endswith(b"\n"))
+            self.assertIn(b"audit_path\taudit_line\ttrace_context\tkind", member_bytes)
+
+    def test_verify_remaps_keep_only_family_audit_member(self) -> None:
+        self._seal()
+        families = self.out / "families.tsv"
+        lines = families.read_text(encoding="ascii").splitlines()
+        header = lines[0].split("\t")
+        kind_index = header.index("kind")
+        members_index = header.index("audit_members_hex")
+        for index in range(1, len(lines)):
+            fields = lines[index].split("\t")
+            if fields[kind_index] != "ccz":
+                continue
+            member_lines = bytes.fromhex(fields[members_index]).decode("ascii").splitlines()
+            member_header = member_lines[0].split("\t")
+            member_fields = member_lines[1].split("\t")
+            member_fields[member_header.index("audit_line")] = "1"
+            member_lines[1] = "\t".join(member_fields)
+            fields[members_index] = ("\n".join(member_lines) + "\n").encode("ascii").hex()
+            lines[index] = "\t".join(fields)
+            break
+        families.write_text("\n".join(lines) + "\n", encoding="ascii")
+
+        with self.assertRaisesRegex(seal.SealError, "parent regroup"):
+            seal.verify_evidence(
+                self.repo, self.parent, self.parent_tree, self.out, self.ops
+            )
+
+    def test_verify_recomputes_keep_only_parent_trace_and_generated_census(self) -> None:
+        mutations = {
+            "parent_line": "1",
+            "trace_context": "8",
+            "audit_generated_count": "1",
+        }
+        for field, value in mutations.items():
+            with self.subTest(field=field):
+                if self.out.exists():
+                    shutil.rmtree(self.out)
+                self._seal()
+                self._replace_final_family_field(
+                    self.out / "families.tsv", "ccz", field, value
+                )
+                with self.assertRaises(seal.SealError):
+                    seal.verify_evidence(
+                        self.repo, self.parent, self.parent_tree, self.out, self.ops
+                    )
+
+    def test_verify_rejects_uniform_audit_member_predicate_metadata(self) -> None:
+        self._seal()
+        families = self.out / "families.tsv"
+        lines = families.read_text(encoding="ascii").splitlines()
+        outer_header = lines[0].split("\t")
+        kind_index = outer_header.index("kind")
+        members_index = outer_header.index("audit_members_hex")
+        for index in range(1, len(lines)):
+            fields = lines[index].split("\t")
+            if fields[kind_index] != "ccz":
+                continue
+            member_lines = bytes.fromhex(fields[members_index]).decode("ascii").splitlines()
+            member_header = member_lines[0].split("\t")
+            member_fields = member_lines[1].split("\t")
+            member_fields[
+                member_header.index("predicate_source_literal_key")
+            ] = str((1 << 32) - 1)
+            member_fields[
+                member_header.index("predicate_source_literal_value")
+            ] = str((1 << 32) - 1)
+            member_lines[1] = "\t".join(member_fields)
+            fields[members_index] = (
+                ("\n".join(member_lines) + "\n").encode("ascii").hex()
+            )
+            lines[index] = "\t".join(fields)
+            break
+        else:
+            self.fail("missing sealed ccz family")
+        families.write_text("\n".join(lines) + "\n", encoding="ascii")
+
+        with self.assertRaisesRegex(seal.SealError, "uniform.*predicate"):
+            seal.verify_evidence(
+                self.repo, self.parent, self.parent_tree, self.out, self.ops
+            )
+
+    def test_verify_rechecks_exact_predicate_member_signature(self) -> None:
+        self._write_raw(
+            ccx_actions=(
+                ("drop", "ccx_control_known0", 1),
+                ("lower_to_x", "ccx_both_controls_known1", 1),
+            )
+        )
+        self._seal()
+        families = self.out / "families.tsv"
+        lines = families.read_text(encoding="ascii").splitlines()
+        outer_header = lines[0].split("\t")
+        kind_index = outer_header.index("kind")
+        members_index = outer_header.index("audit_members_hex")
+        for index in range(1, len(lines)):
+            fields = lines[index].split("\t")
+            if fields[kind_index] != "ccx":
+                continue
+            member_lines = bytes.fromhex(fields[members_index]).decode("ascii").splitlines()
+            member_header = member_lines[0].split("\t")
+            member_fields = member_lines[1].split("\t")
+            member_fields[
+                member_header.index("predicate_source_literal_key")
+            ] = str((1 << 32) - 1)
+            member_fields[
+                member_header.index("predicate_source_literal_value")
+            ] = str((1 << 32) - 1)
+            member_lines[1] = "\t".join(member_fields)
+            fields[members_index] = (
+                ("\n".join(member_lines) + "\n").encode("ascii").hex()
+            )
+            lines[index] = "\t".join(fields)
+            break
+        else:
+            self.fail("missing sealed ccx family")
+        families.write_text("\n".join(lines) + "\n", encoding="ascii")
+
+        with self.assertRaisesRegex(seal.SealError, "coherent non-Keep signature"):
+            seal.verify_evidence(
+                self.repo, self.parent, self.parent_tree, self.out, self.ops
+            )
+
+    def test_verify_binds_witness_transform_to_audit_member_site_class(self) -> None:
+        self._seal()
+        witnesses = self.out / "witnesses.tsv"
+        self._replace_tsv_field(witnesses, 1, "inverse_depth", "1")
+        self._replace_tsv_field(
+            witnesses, 1, "flags", str(seal.ORIGIN_EMIT_INVERSE)
+        )
+        self._replace_tsv_field(witnesses, 1, "transform_chain", "emit_inverse")
+
+        with self.assertRaisesRegex(seal.SealError, "site class"):
+            seal.verify_evidence(
+                self.repo, self.parent, self.parent_tree, self.out, self.ops
+            )
+
+    def test_verify_binds_witness_site_id_to_audit_member_site_class(self) -> None:
+        self._seal()
+        witnesses = self.out / "witnesses.tsv"
+        self._replace_tsv_field(witnesses, 1, "site_id", "99")
+
+        with self.assertRaisesRegex(seal.SealError, "site class"):
+            seal.verify_evidence(
+                self.repo, self.parent, self.parent_tree, self.out, self.ops
+            )
+
+    def test_seal_rejects_untracked_scoped_source_entry(self) -> None:
+        (self.repo / "src/point_add/untracked.rs").write_text(
+            "untrusted source\n", encoding="ascii"
+        )
+
+        with self.assertRaisesRegex(seal.SealError, "untracked scoped"):
+            self._seal()
+
+    def test_seal_rejects_ignored_scoped_source_entry(self) -> None:
+        exclude = self.repo / ".git/info/exclude"
+        with exclude.open("a", encoding="ascii") as destination:
+            destination.write("src/point_add/ignored.rs\n")
+        (self.repo / "src/point_add/ignored.rs").write_text(
+            "ignored untrusted source\n", encoding="ascii"
+        )
+
+        with self.assertRaisesRegex(seal.SealError, "ignored scoped"):
+            self._seal()
+
+    def test_seal_rejects_assume_unchanged_scoped_source_entry(self) -> None:
+        self._git("update-index", "--assume-unchanged", "benchmark.sh")
+        (self.repo / "benchmark.sh").write_text(
+            "#!/bin/sh\n# hidden worktree mutation\n", encoding="ascii"
+        )
+
+        with self.assertRaisesRegex(seal.SealError, "index flags"):
+            self._seal()
+
+    def test_seal_rejects_skip_worktree_scoped_source_entry(self) -> None:
+        self._git("update-index", "--skip-worktree", "benchmark.sh")
+        (self.repo / "benchmark.sh").write_text(
+            "#!/bin/sh\n# hidden worktree mutation\n", encoding="ascii"
+        )
+
+        with self.assertRaisesRegex(seal.SealError, "index flags"):
+            self._seal()
+
     def test_verify_rejects_mutation_of_every_final_file(self) -> None:
         for name in seal.FINAL_NAMES:
             with self.subTest(name=name):
@@ -833,16 +1220,330 @@ class SealerCliTests(unittest.TestCase):
                     )
 
 
+@unittest.skipUnless(seal is not None, "sealer implementation is not present yet")
+class FinalCrossCensusTests(unittest.TestCase):
+    @staticmethod
+    def _counts(names: tuple[str, ...], selected: str) -> tuple[int, ...]:
+        return tuple(int(name == selected) for name in names)
+
+    def test_witness_census_is_bound_to_each_raw_audit_member(self) -> None:
+        missing = (1 << 64) - 1
+        mapped = seal.MappedCoordinate("-", None, True)
+
+        def site(line: int, site_id: int) -> object:
+            return seal.RawSite(
+                site_id=site_id,
+                audit_path="src/point_add/sample.rs",
+                audit_line=line,
+                trace_context=7,
+                source_literal_key=(1 << 32) - 1,
+                source_literal_value=(1 << 32) - 1,
+                inverse_depth=0,
+                flags=seal.ORIGIN_SYNTHETIC_TAIL,
+                occurrence_count=1,
+                transform_chain="synthetic_tail",
+            )
+
+        def member(
+            line: int, site_id: int, action: str, rule: str
+        ) -> object:
+            raw = seal.RawFamily(
+                audit_path="src/point_add/sample.rs",
+                audit_line=line,
+                trace_context=7,
+                kind="ccx",
+                decision_count=1,
+                action_counts=self._counts(seal.ACTION_NAMES, action),
+                rule_counts=self._counts(seal.RULE_NAMES, rule),
+                disposition="uniform_provisional",
+                predicate_key=None,
+                predicate_value=None,
+            )
+            return seal.AuditFamilyMember(
+                raw=raw,
+                sites=(site(line, site_id),),
+                mapped=mapped,
+                score_eligible_count=1,
+                audit_generated=True,
+            )
+
+        def witness(
+            op_index: int,
+            line: int,
+            site_id: int,
+            action: str,
+            rule: str,
+            facts: tuple[str, str, str],
+        ) -> object:
+            raw = seal.RawWitness(
+                op_index=op_index,
+                audit_path="src/point_add/sample.rs",
+                audit_line=line,
+                trace_context=7,
+                kind="ccx",
+                q_control2=op_index * 3,
+                q_control1=op_index * 3 + 1,
+                q_target=op_index * 3 + 2,
+                c_condition=missing,
+                facts=facts,
+                effective_condition="known1",
+                action=action,
+                rule=rule,
+                score_eligible=1,
+                site_id=site_id,
+                emission_ordinal=op_index,
+                inverse_depth=0,
+                flags=seal.ORIGIN_SYNTHETIC_TAIL,
+                transform_chain="synthetic_tail",
+            )
+            return seal.FinalWitness(raw=raw, mapped=mapped)
+
+        # The parent aggregate is coherent, but the member rows deliberately
+        # swap which raw audit coordinate owns each decision signature.
+        members = [
+            member(1, 1, "lower_to_x", "ccx_both_controls_known1"),
+            member(2, 2, "drop", "ccx_control_known0"),
+        ]
+        witnesses = [
+            witness(
+                0,
+                1,
+                1,
+                "drop",
+                "ccx_control_known0",
+                ("known0", "unknown", "unknown"),
+            ),
+            witness(
+                1,
+                2,
+                2,
+                "lower_to_x",
+                "ccx_both_controls_known1",
+                ("known1", "known1", "unknown"),
+            ),
+        ]
+        family = seal.FinalFamily(
+            parent_file="-",
+            parent_line=None,
+            trace_context=7,
+            kind="ccx",
+            decision_count=2,
+            action_counts=[
+                int(name in {"drop", "lower_to_x"}) for name in seal.ACTION_NAMES
+            ],
+            rule_counts=[
+                int(name in {"ccx_control_known0", "ccx_both_controls_known1"})
+                for name in seal.RULE_NAMES
+            ],
+            score_eligible_count=2,
+            audit_generated_count=2,
+            admission="diagnostic",
+            audit_members=members,
+        )
+        manifest = {
+            "ccx_count": "2",
+            "ccz_count": "0",
+            "decision_count": "2",
+            "family_count": "1",
+            "operation_count": "2",
+            "provenance_count": "2",
+            "qualifying_family_count": "0",
+            "verdict": "HARD_NACK",
+            "witness_count": "2",
+        }
+
+        with self.assertRaisesRegex(seal.SealError, "member.*witness action"):
+            seal._verify_final_cross_census(manifest, witnesses, [family])
+
+
 class BenchmarkWrapperTests(unittest.TestCase):
     def test_wrapper_separates_stderr_and_seals_only_exact_audit_raw_files(self) -> None:
         benchmark = Path(__file__).resolve().parents[4] / "benchmark.sh"
         source = benchmark.read_text(encoding="utf-8")
         self.assertIn('${ops_scratch}/build-stderr.log', source)
-        self.assertIn('cat "${ops_scratch}/build-stderr.log" >&2', source)
+        self.assertIn('prepare-stderr', source)
+        self.assertIn('replay-stderr', source)
+        self.assertIn('2>&9', source)
+        self.assertNotIn('cat "${ops_scratch}/build-stderr.log" >&2', source)
         self.assertIn('J3_DEAD_GATE_AUDIT:-0', source)
         self.assertIn('j3_dead_gate_seal.py', source)
         self.assertIn('--raw-dir "${raw_audit_dir}"', source)
         self.assertNotIn('--raw-dir "${ops_scratch}"', source)
+
+    def test_wrapper_rejects_stderr_symlink_and_preserves_child_status(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="j3-wrapper-behavior-") as temporary:
+            root = Path(temporary)
+            source_root = Path(__file__).resolve().parents[4]
+            shutil.copy2(source_root / "benchmark.sh", root / "benchmark.sh")
+            module = root / "src/point_add/memory/repro/j3_dead_gate_seal.py"
+            module.parent.mkdir(parents=True)
+            shutil.copy2(source_root / "src/point_add/memory/repro/j3_dead_gate_seal.py", module)
+            fake_bin = root / "fake-bin"
+            fake_bin.mkdir()
+            (fake_bin / "cargo").write_text("#!/bin/sh\nexit 0\n", encoding="ascii")
+            (fake_bin / "sandbox-exec").write_text(
+                "#!/bin/sh\nshift 2\nexec \"$@\"\n", encoding="ascii"
+            )
+            target = root / "target/release"
+            target.mkdir(parents=True)
+            (target / "build_circuit").write_text(
+                "#!/bin/sh\n"
+                "printf 'real child diagnostic\\n' >&2\n"
+                "rm -f build-stderr.log\n"
+                "printf 'ATTACKER REPLACEMENT\\n' > attacker.log\n"
+                "ln -s attacker.log build-stderr.log\n"
+                "exit 23\n",
+                encoding="ascii",
+            )
+            (target / "eval_circuit").write_text("#!/bin/sh\nexit 0\n", encoding="ascii")
+            for executable in (
+                fake_bin / "cargo",
+                fake_bin / "sandbox-exec",
+                target / "build_circuit",
+                target / "eval_circuit",
+                root / "benchmark.sh",
+            ):
+                executable.chmod(0o755)
+            home = root / "home"
+            (home / ".cargo").mkdir(parents=True)
+            (home / ".cargo/env").write_text("", encoding="ascii")
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "CC": "/usr/bin/true",
+                    "HOME": str(home),
+                    "PATH": f"{fake_bin}:/usr/bin:/bin:/usr/sbin:/sbin",
+                    "RUSTUP_TOOLCHAIN": "1.93.0",
+                }
+            )
+
+            completed = subprocess.run(
+                ["/bin/bash", "./benchmark.sh"],
+                cwd=root,
+                env=environment,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=15,
+            )
+
+        self.assertEqual(completed.returncode, 23, completed.stderr)
+        self.assertNotIn("ATTACKER REPLACEMENT", completed.stderr)
+        self.assertIn("stderr capture", completed.stderr)
+        self.assertIn("build_circuit exited with status 23", completed.stderr)
+
+
+@unittest.skipUnless(seal is not None, "sealer implementation is not present yet")
+class StderrCaptureTests(unittest.TestCase):
+    def test_replay_accepts_only_original_single_link_regular_inode(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="j3-stderr-inode-") as temporary:
+            root = Path(temporary)
+            capture = root / "build-stderr.log"
+            identity = seal.prepare_stderr_capture(capture)
+            capture.write_bytes(b"diagnostic\n")
+            replay = root / "replay.log"
+            descriptor = os.open(replay, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            try:
+                seal.replay_stderr_capture(capture, identity, descriptor)
+            finally:
+                os.close(descriptor)
+            self.assertEqual(replay.read_bytes(), b"diagnostic\n")
+
+            for replacement in ("symlink", "fifo", "hardlink"):
+                with self.subTest(replacement=replacement):
+                    capture.unlink(missing_ok=True)
+                    identity = seal.prepare_stderr_capture(capture)
+                    original = root / f"original-{replacement}"
+                    capture.rename(original)
+                    if replacement == "symlink":
+                        capture.symlink_to(original)
+                    elif replacement == "fifo":
+                        os.mkfifo(capture)
+                    else:
+                        os.link(original, capture)
+                    with self.assertRaisesRegex(seal.SealError, "stderr capture"):
+                        seal.replay_stderr_capture(capture, identity, 2)
+                    capture.unlink(missing_ok=True)
+
+
+@unittest.skipUnless(seal is not None, "sealer implementation is not present yet")
+class AtomicPublicationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._temporary = tempfile.TemporaryDirectory(prefix="j3-publish-")
+        self.root = Path(self._temporary.name)
+        self.output = self.root / "evidence"
+        self.old_files = {name: f"old-{name}\n".encode("ascii") for name in seal.FINAL_NAMES}
+        self.new_files = {name: f"new-{name}\n".encode("ascii") for name in seal.FINAL_NAMES}
+        self.output.mkdir()
+        for name, data in self.old_files.items():
+            (self.output / name).write_bytes(data)
+
+    def tearDown(self) -> None:
+        self._temporary.cleanup()
+
+    def _contents(self) -> dict[str, bytes]:
+        return {name: (self.output / name).read_bytes() for name in seal.FINAL_NAMES}
+
+    def test_exchange_failure_leaves_existing_evidence_untouched(self) -> None:
+        with mock.patch.object(
+            seal,
+            "_exchange_directories",
+            side_effect=OSError("injected exchange failure"),
+            create=True,
+        ):
+            with self.assertRaisesRegex(OSError, "exchange failure"):
+                seal._publish_atomically(self.output, self.new_files)
+        self.assertEqual(self._contents(), self.old_files)
+
+    def test_exception_after_exchange_commit_cannot_report_failure(self) -> None:
+        class InjectedCommitFault(BaseException):
+            pass
+
+        original = seal._exchange_directories
+
+        def exchange_then_raise(
+            parent_descriptor: int, left_name: str, right_name: str
+        ) -> None:
+            original(parent_descriptor, left_name, right_name)
+            raise InjectedCommitFault("injected after committed exchange")
+
+        with mock.patch.object(
+            seal, "_exchange_directories", side_effect=exchange_then_raise
+        ):
+            seal._publish_atomically(self.output, self.new_files)
+        self.assertEqual(self._contents(), self.new_files)
+
+    def test_precommit_parent_fsync_failure_leaves_existing_evidence_untouched(self) -> None:
+        with mock.patch.object(
+            seal,
+            "_fsync_directory",
+            side_effect=[None, OSError("injected parent fsync failure")],
+        ):
+            with self.assertRaisesRegex(OSError, "parent fsync failure"):
+                seal._publish_atomically(self.output, self.new_files)
+        self.assertEqual(self._contents(), self.old_files)
+
+    def test_postcommit_cleanup_failure_does_not_report_failure(self) -> None:
+        with mock.patch.object(
+            seal.shutil, "rmtree", side_effect=OSError("injected cleanup failure")
+        ):
+            seal._publish_atomically(self.output, self.new_files)
+        self.assertEqual(self._contents(), self.new_files)
+
+    def test_postcommit_parent_fsync_failure_does_not_report_failure(self) -> None:
+        calls = 0
+        original = seal._fsync_directory
+
+        def injected(path: Path) -> None:
+            nonlocal calls
+            calls += 1
+            if calls >= 3:
+                raise OSError("injected postcommit fsync failure")
+            original(path)
+
+        with mock.patch.object(seal, "_fsync_directory", side_effect=injected):
+            seal._publish_atomically(self.output, self.new_files)
+        self.assertEqual(self._contents(), self.new_files)
 
 
 if __name__ == "__main__":
