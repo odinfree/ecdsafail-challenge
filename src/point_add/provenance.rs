@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::ops::{Deref, Index};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::circuit::{Op, OperationType, QubitId, NO_BIT, NO_QUBIT, NO_REG};
 
@@ -108,10 +109,31 @@ pub(crate) struct SourceSite {
     pub(crate) source_literal: SourceLiteralMetadata,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct SyntheticTailSuffix {
+    owner_generation: u64,
+    ticket: u64,
     start: usize,
     len: usize,
+}
+
+struct PendingSyntheticTail {
+    ticket: u64,
+    start: usize,
+    len: usize,
+}
+
+static NEXT_OWNER_GENERATION: AtomicU64 = AtomicU64::new(1);
+
+fn next_owner_generation_from(generation: &AtomicU64) -> u64 {
+    generation
+        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+            current.checked_add(1)
+        })
+        .expect("TracedOps owner generation exhausted")
+}
+
+fn next_owner_generation() -> u64 {
+    next_owner_generation_from(&NEXT_OWNER_GENERATION)
 }
 
 fn is_canonical_synthetic_tail_x(op: &Op) -> bool {
@@ -124,7 +146,6 @@ fn is_canonical_synthetic_tail_x(op: &Op) -> bool {
         && op.r_target == NO_REG
 }
 
-#[derive(Clone)]
 pub(crate) struct TracedOps {
     ops: Vec<Op>,
     origins: Vec<OriginRef>,
@@ -132,6 +153,25 @@ pub(crate) struct TracedOps {
     site_ids: HashMap<(&'static str, u32, u32, SourceLiteralMetadata), u32>,
     next_emission_ordinal: u32,
     enabled: bool,
+    owner_generation: u64,
+    next_synthetic_tail_ticket: u64,
+    pending_synthetic_tail: Option<PendingSyntheticTail>,
+}
+
+impl Clone for TracedOps {
+    fn clone(&self) -> Self {
+        Self {
+            ops: self.ops.clone(),
+            origins: self.origins.clone(),
+            sites: self.sites.clone(),
+            site_ids: self.site_ids.clone(),
+            next_emission_ordinal: self.next_emission_ordinal,
+            enabled: self.enabled,
+            owner_generation: next_owner_generation(),
+            next_synthetic_tail_ticket: 1,
+            pending_synthetic_tail: None,
+        }
+    }
 }
 
 impl TracedOps {
@@ -143,6 +183,9 @@ impl TracedOps {
             site_ids: HashMap::new(),
             next_emission_ordinal: 0,
             enabled,
+            owner_generation: next_owner_generation(),
+            next_synthetic_tail_ticket: 1,
+            pending_synthetic_tail: None,
         }
     }
 
@@ -299,6 +342,9 @@ impl TracedOps {
         line: u32,
         trace_context: u32,
     ) -> Result<SyntheticTailSuffix, String> {
+        if self.pending_synthetic_tail.is_some() {
+            return Err("a synthetic tail rewrite is already pending".to_owned());
+        }
         if ops.is_empty() {
             return Err("synthetic tail is empty".to_owned());
         }
@@ -309,6 +355,10 @@ impl TracedOps {
         start
             .checked_add(ops.len())
             .ok_or_else(|| "synthetic tail length overflows usize".to_owned())?;
+        let ticket = self.next_synthetic_tail_ticket;
+        let next_ticket = ticket
+            .checked_add(1)
+            .ok_or_else(|| "synthetic tail capability tickets exhausted".to_owned())?;
         if self.enabled {
             let append_count = u32::try_from(ops.len())
                 .map_err(|_| "synthetic tail length exceeds u32".to_owned())?;
@@ -337,7 +387,15 @@ impl TracedOps {
         for op in ops.iter().copied() {
             self.push_at(op, file, line, trace_context, 0, ORIGIN_SYNTHETIC_TAIL);
         }
+        self.next_synthetic_tail_ticket = next_ticket;
+        self.pending_synthetic_tail = Some(PendingSyntheticTail {
+            ticket,
+            start,
+            len: ops.len(),
+        });
         Ok(SyntheticTailSuffix {
+            owner_generation: self.owner_generation,
+            ticket,
             start,
             len: ops.len(),
         })
@@ -348,6 +406,19 @@ impl TracedOps {
         tail: SyntheticTailSuffix,
         targets: &[QubitId],
     ) -> Result<(), String> {
+        if tail.owner_generation != self.owner_generation {
+            return Err(
+                "synthetic tail capability belongs to a different operation stream".to_owned(),
+            );
+        }
+        let Some(pending) = self.pending_synthetic_tail.as_ref() else {
+            return Err("synthetic tail capability is not pending".to_owned());
+        };
+        if pending.ticket != tail.ticket || pending.start != tail.start || pending.len != tail.len {
+            return Err("synthetic tail capability does not match the pending suffix".to_owned());
+        }
+        self.pending_synthetic_tail = None;
+
         if targets.len() != tail.len {
             return Err(format!(
                 "synthetic tail target count mismatch: {} targets, {} operations",
@@ -471,6 +542,7 @@ mod tests {
     use super::*;
     use crate::circuit::{Op, OperationType};
     use crate::point_add::{emit_inverse, B};
+    use std::sync::atomic::AtomicU64;
 
     fn op(kind: OperationType) -> Op {
         let mut op = Op::empty();
@@ -484,9 +556,47 @@ mod tests {
         builder
     }
 
+    fn canonical_tail(target: QubitId) -> [Op; 2] {
+        let mut tail = [op(OperationType::X), op(OperationType::X)];
+        tail[0].q_target = target;
+        tail[1].q_target = target;
+        tail
+    }
+
+    fn forge_synthetic_tail(tail: &SyntheticTailSuffix) -> SyntheticTailSuffix {
+        SyntheticTailSuffix {
+            owner_generation: tail.owner_generation,
+            ticket: tail.ticket,
+            start: tail.start,
+            len: tail.len,
+        }
+    }
+
+    fn snapshot(traced: &TracedOps) -> (Vec<Op>, Vec<OriginRef>, Vec<SourceSite>) {
+        (
+            traced.to_vec(),
+            traced.origins().to_vec(),
+            traced.sites().to_vec(),
+        )
+    }
+
     #[test]
     fn origin_ref_is_twelve_bytes() {
         assert_eq!(std::mem::size_of::<OriginRef>(), 12);
+    }
+
+    #[test]
+    fn stream_owner_generations_are_unique_and_overflow_fails_closed() {
+        let first = TracedOps::new(false);
+        let second = TracedOps::new(false);
+        assert_ne!(first.owner_generation, second.owner_generation);
+
+        let exhausted = AtomicU64::new(u64::MAX);
+        assert!(std::panic::catch_unwind(|| next_owner_generation_from(&exhausted)).is_err());
+        assert_eq!(
+            exhausted.load(std::sync::atomic::Ordering::Relaxed),
+            u64::MAX
+        );
     }
 
     #[test]
@@ -870,21 +980,10 @@ mod tests {
             before_invalid
         );
 
-        let mut tail_ops = [op(OperationType::X), op(OperationType::X)];
-        tail_ops[0].q_target = QubitId(4);
-        tail_ops[1].q_target = QubitId(4);
+        let tail_ops = canonical_tail(QubitId(4));
         let tail = traced
             .append_synthetic_tail_at(&tail_ops, "src/point_add/tail.rs", 2, 3)
             .expect("append tail");
-        let before_bad_rewrite = (traced.to_vec(), traced.origins().to_vec());
-        assert!(traced
-            .rewrite_synthetic_tail_targets(tail, &[QubitId(7)])
-            .is_err());
-        assert_eq!(
-            (traced.to_vec(), traced.origins().to_vec()),
-            before_bad_rewrite
-        );
-
         traced
             .rewrite_synthetic_tail_targets(tail, &[QubitId(7), QubitId(7)])
             .expect("rewrite tail");
@@ -912,18 +1011,254 @@ mod tests {
     #[test]
     fn synthetic_tail_rewrite_rejects_a_stale_non_suffix_handle_atomically() {
         let mut traced = TracedOps::new(true);
-        let mut tail_ops = [op(OperationType::X), op(OperationType::X)];
-        tail_ops[0].q_target = QubitId(0);
-        tail_ops[1].q_target = QubitId(0);
+        let tail_ops = canonical_tail(QubitId(0));
         let tail = traced
             .append_synthetic_tail_at(&tail_ops, "src/point_add/tail.rs", 2, 3)
             .expect("append tail");
         traced.push_at(op(OperationType::X), "src/point_add/later.rs", 3, 4, 0, 0);
-        let before = (traced.to_vec(), traced.origins().to_vec());
+        let before = snapshot(&traced);
         assert!(traced
             .rewrite_synthetic_tail_targets(tail, &[QubitId(1), QubitId(1)])
             .is_err());
-        assert_eq!((traced.to_vec(), traced.origins().to_vec()), before);
+        assert_eq!(snapshot(&traced), before);
+    }
+
+    #[test]
+    fn synthetic_tail_replay_is_rejected_in_both_audit_modes_without_mutation() {
+        for enabled in [false, true] {
+            let mut traced = TracedOps::new(enabled);
+            let tail = traced
+                .append_synthetic_tail_at(
+                    &canonical_tail(QubitId(2)),
+                    "src/point_add/tail.rs",
+                    2,
+                    3,
+                )
+                .expect("append tail");
+            let replay = forge_synthetic_tail(&tail);
+            traced
+                .rewrite_synthetic_tail_targets(tail, &[QubitId(5), QubitId(5)])
+                .expect("first rewrite");
+
+            let before_replay = snapshot(&traced);
+            assert!(traced
+                .rewrite_synthetic_tail_targets(replay, &[QubitId(7), QubitId(7)])
+                .is_err());
+            assert_eq!(snapshot(&traced), before_replay, "audit={enabled}");
+        }
+    }
+
+    #[test]
+    fn synthetic_tail_cross_stream_handle_does_not_clear_legitimate_pending_capability() {
+        for enabled in [false, true] {
+            let mut source = TracedOps::new(enabled);
+            let source_tail = source
+                .append_synthetic_tail_at(
+                    &canonical_tail(QubitId(1)),
+                    "src/point_add/source_tail.rs",
+                    2,
+                    3,
+                )
+                .expect("append source tail");
+            let source_rewrite = forge_synthetic_tail(&source_tail);
+
+            let mut receiver = TracedOps::new(enabled);
+            let receiver_tail = receiver
+                .append_synthetic_tail_at(
+                    &canonical_tail(QubitId(2)),
+                    "src/point_add/receiver_tail.rs",
+                    4,
+                    5,
+                )
+                .expect("append receiver tail");
+            let receiver_before = snapshot(&receiver);
+
+            assert!(receiver
+                .rewrite_synthetic_tail_targets(source_tail, &[QubitId(8), QubitId(8)])
+                .is_err());
+            assert_eq!(snapshot(&receiver), receiver_before, "audit={enabled}");
+            receiver
+                .rewrite_synthetic_tail_targets(receiver_tail, &[QubitId(9), QubitId(9)])
+                .expect("receiver capability remains live");
+            source
+                .rewrite_synthetic_tail_targets(source_rewrite, &[QubitId(7), QubitId(7)])
+                .expect("source capability remains live");
+        }
+    }
+
+    #[test]
+    fn synthetic_tail_ticket_and_range_must_match_without_consuming_pending_state() {
+        for enabled in [false, true] {
+            for corrupt_ticket in [false, true] {
+                let mut traced = TracedOps::new(enabled);
+                let tail = traced
+                    .append_synthetic_tail_at(
+                        &canonical_tail(QubitId(1)),
+                        "src/point_add/tail.rs",
+                        2,
+                        3,
+                    )
+                    .expect("append tail");
+                let mut forged = forge_synthetic_tail(&tail);
+                if corrupt_ticket {
+                    forged.ticket = forged.ticket.wrapping_add(1);
+                } else {
+                    forged.start += 1;
+                }
+                let before_forgery = snapshot(&traced);
+
+                assert!(traced
+                    .rewrite_synthetic_tail_targets(forged, &[QubitId(8), QubitId(8)])
+                    .is_err());
+                assert_eq!(snapshot(&traced), before_forgery, "audit={enabled}");
+                traced
+                    .rewrite_synthetic_tail_targets(tail, &[QubitId(9), QubitId(9)])
+                    .expect("legitimate pending capability remains live");
+            }
+        }
+    }
+
+    #[test]
+    fn clone_gets_a_fresh_owner_and_does_not_invalidate_the_original_capability() {
+        for enabled in [false, true] {
+            let mut original = TracedOps::new(enabled);
+            let tail = original
+                .append_synthetic_tail_at(
+                    &canonical_tail(QubitId(3)),
+                    "src/point_add/tail.rs",
+                    2,
+                    3,
+                )
+                .expect("append tail");
+            let cloned_handle = forge_synthetic_tail(&tail);
+            let original_owner = original.owner_generation;
+            let mut cloned = original.clone();
+            let cloned_before = snapshot(&cloned);
+
+            assert_ne!(cloned.owner_generation, original_owner);
+            assert!(cloned
+                .rewrite_synthetic_tail_targets(cloned_handle, &[QubitId(6), QubitId(6)])
+                .is_err());
+            assert_eq!(snapshot(&cloned), cloned_before, "audit={enabled}");
+            original
+                .rewrite_synthetic_tail_targets(tail, &[QubitId(7), QubitId(7)])
+                .expect("original capability remains live");
+        }
+    }
+
+    #[test]
+    fn take_moves_tail_ownership_and_replaces_it_with_a_fresh_owner() {
+        for enabled in [false, true] {
+            let mut original = TracedOps::new(enabled);
+            let tail = original
+                .append_synthetic_tail_at(
+                    &canonical_tail(QubitId(3)),
+                    "src/point_add/tail.rs",
+                    2,
+                    3,
+                )
+                .expect("append tail");
+            let replacement_handle = forge_synthetic_tail(&tail);
+            let original_owner = original.owner_generation;
+            let mut taken = original.take();
+
+            assert_eq!(taken.owner_generation, original_owner);
+            assert_ne!(original.owner_generation, original_owner);
+            let replacement_before = snapshot(&original);
+            assert!(original
+                .rewrite_synthetic_tail_targets(replacement_handle, &[QubitId(6), QubitId(6)],)
+                .is_err());
+            assert_eq!(snapshot(&original), replacement_before, "audit={enabled}");
+            taken
+                .rewrite_synthetic_tail_targets(tail, &[QubitId(7), QubitId(7)])
+                .expect("taken stream preserves capability ownership");
+        }
+    }
+
+    #[test]
+    fn pending_tail_blocks_append_and_survives_the_rejected_append() {
+        for enabled in [false, true] {
+            let mut traced = TracedOps::new(enabled);
+            let tail = traced
+                .append_synthetic_tail_at(
+                    &canonical_tail(QubitId(1)),
+                    "src/point_add/first_tail.rs",
+                    2,
+                    3,
+                )
+                .expect("append first tail");
+            let before_second_append = snapshot(&traced);
+            assert!(traced
+                .append_synthetic_tail_at(
+                    &canonical_tail(QubitId(2)),
+                    "src/point_add/second_tail.rs",
+                    4,
+                    5,
+                )
+                .is_err());
+            assert_eq!(snapshot(&traced), before_second_append, "audit={enabled}");
+            traced
+                .rewrite_synthetic_tail_targets(tail, &[QubitId(8), QubitId(8)])
+                .expect("pending capability survives rejected append");
+        }
+    }
+
+    #[test]
+    fn matching_tail_attempt_is_consumed_before_target_validation() {
+        for enabled in [false, true] {
+            let mut traced = TracedOps::new(enabled);
+            let tail = traced
+                .append_synthetic_tail_at(
+                    &canonical_tail(QubitId(1)),
+                    "src/point_add/tail.rs",
+                    2,
+                    3,
+                )
+                .expect("append tail");
+            let replay = forge_synthetic_tail(&tail);
+            let before_failure = snapshot(&traced);
+
+            assert!(traced
+                .rewrite_synthetic_tail_targets(tail, &[QubitId(8)])
+                .is_err());
+            assert_eq!(snapshot(&traced), before_failure, "audit={enabled}");
+            assert!(traced
+                .rewrite_synthetic_tail_targets(replay, &[QubitId(8), QubitId(8)])
+                .is_err());
+            assert_eq!(snapshot(&traced), before_failure, "audit={enabled}");
+            assert!(traced
+                .append_synthetic_tail_at(
+                    &canonical_tail(QubitId(2)),
+                    "src/point_add/recovery_tail.rs",
+                    4,
+                    5,
+                )
+                .is_ok());
+        }
+    }
+
+    #[test]
+    fn synthetic_tail_rewrite_has_audit_off_on_operation_identity() {
+        let mut plain = TracedOps::new(false);
+        let plain_tail = plain
+            .append_synthetic_tail_at(&canonical_tail(QubitId(1)), "src/point_add/tail.rs", 2, 3)
+            .expect("append plain tail");
+        plain
+            .rewrite_synthetic_tail_targets(plain_tail, &[QubitId(8), QubitId(8)])
+            .expect("rewrite plain tail");
+
+        let mut audited = TracedOps::new(true);
+        let audited_tail = audited
+            .append_synthetic_tail_at(&canonical_tail(QubitId(1)), "src/point_add/tail.rs", 2, 3)
+            .expect("append audited tail");
+        audited
+            .rewrite_synthetic_tail_targets(audited_tail, &[QubitId(8), QubitId(8)])
+            .expect("rewrite audited tail");
+
+        assert_eq!(plain.to_vec(), audited.to_vec());
+        assert!(plain.origins().is_empty());
+        assert!(plain.sites().is_empty());
+        assert_eq!(audited.origins().len(), audited.len());
     }
 
     #[test]
