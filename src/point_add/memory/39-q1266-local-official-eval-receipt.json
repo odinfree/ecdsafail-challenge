@@ -1,0 +1,53 @@
+{
+  "schema": "ecdsafail.q1266.local_official_eval.v1",
+  "decision": "PASS_LOCAL_FULL_OFFICIAL_REPLAY_HOLD_SUBMISSION",
+  "completed_utc": "2026-08-24T16:38:53Z",
+  "controller": "codex-structural-cut",
+  "isolation": {
+    "kind": "standalone_local_clone",
+    "candidate_source_present": false,
+    "shared_eval_artifacts": false,
+    "official_commit": "67524171baaf568dc3dc606f38515745f70804ff",
+    "official_tree": "8202910d176fa1f3332ff961e6f3f789ca6a7ac2",
+    "worktree_state_after_eval": "only evaluator-owned results.tsv modified"
+  },
+  "toolchain": {
+    "rust_toolchain_sha256": "92b454c1ccf330de9b94242f73bc3214370fb420d5152baeec12dc82ceef9dcc",
+    "cargo_lock_sha256": "42ff16919e551891ad1b21821329b116d133194245a0e0734a33573dfe598e07",
+    "evaluator_source_sha256": "b35314bc47a5f8eecbf60459e6c76c9b43aa034eeb9b7ec3421655d74f9e890b",
+    "local_evaluator_binary_sha256": "a24043b5dfb13239d94038231a287004dea527ae51d9f67476a87b1b4491e9df"
+  },
+  "artifact": {
+    "ops": 12596439,
+    "ops_bytes": 45924054,
+    "ops_sha256": "715257aeabdacc03c5a121bc4e1c9bbd563875198728211abbb1a40caeec3184",
+    "source": "byte-identical no-environment build from shipping commit cbf229dbd46a7c677fe2e28da882b4f8a02bac7f"
+  },
+  "official_eval": {
+    "shots": 9024,
+    "qubits": 1266,
+    "bits": 952914,
+    "classical_mismatches": 0,
+    "phase_garbage_batches": 0,
+    "ancilla_garbage_batches": 0,
+    "total_toffoli": 8224495739,
+    "average_toffoli": 911402.453,
+    "rounded_toffoli": 911402,
+    "total_clifford": 93481768174,
+    "average_clifford": 10359238.494,
+    "score": 1153834932,
+    "score_json_sha256": "80d5646fb449b19d12162e76f13f93ba97c6edf58a061d075d3837460829d6d6",
+    "results_tsv_sha256": "c0fbc3475dcc3bacb4f507b078c0bc4573835f3c0dbe3e8231c2fcfa17aa7a36",
+    "results_row": "1787589506\t6752417\t911402.453\t10359238.494\t1266\t12596439\tOK\tlocal-submit-gate-q1266-82505456522172",
+    "exit": 0
+  },
+  "cross_replay_identity": {
+    "remote_score_json_sha256": "80d5646fb449b19d12162e76f13f93ba97c6edf58a061d075d3837460829d6d6",
+    "local_score_json_sha256": "80d5646fb449b19d12162e76f13f93ba97c6edf58a061d075d3837460829d6d6",
+    "result": "PASS"
+  },
+  "authority": {
+    "no_submit_ack": "yes",
+    "submission": "CLOSED_PENDING_FRESH_FRONTIER_AND_EXPLICIT_DECISION"
+  }
+}

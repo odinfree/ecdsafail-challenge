@@ -45,6 +45,14 @@
     "ancilla_garbage_batches": 0,
     "bundle_sha256": "116fdedba7e40386efe3dcb5bbe757030b8269bf64c699903e8aeb39a602f4ae"
   },
+  "independent_local_replay": {
+    "result": "PASS",
+    "official_commit": "67524171baaf568dc3dc606f38515745f70804ff",
+    "official_tree": "8202910d176fa1f3332ff961e6f3f789ca6a7ac2",
+    "ops_sha256": "715257aeabdacc03c5a121bc4e1c9bbd563875198728211abbb1a40caeec3184",
+    "score_json_sha256": "80d5646fb449b19d12162e76f13f93ba97c6edf58a061d075d3837460829d6d6",
+    "receipt": "src/point_add/memory/39-q1266-local-official-eval-receipt.json"
+  },
   "public_note": {
     "state": "DRAFT_ONLY",
     "sha256": "3fff7d0966a2bb25cbc866aca347852b99ac69d1086b02d7d76e1e8d1d5af07b"
