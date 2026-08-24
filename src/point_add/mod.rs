@@ -14,6 +14,9 @@ pub mod venting;
 mod emit;
 pub(crate) use emit::*;
 
+mod provenance;
+pub(crate) use provenance::*;
+
 mod arith;
 pub(crate) use arith::*;
 
@@ -49,6 +52,10 @@ pub(crate) fn op_site_trace_enabled() -> bool {
     *ENABLED.get_or_init(|| std::env::var_os("TRACE_OP_SITES").is_some())
 }
 
+pub(crate) fn j3_dead_gate_audit_enabled() -> bool {
+    std::env::var("J3_DEAD_GATE_AUDIT").ok().as_deref() == Some("1")
+}
+
 fn reset_op_site_trace() {
     if op_site_trace_enabled() {
         OP_SITE_TRACE.with(|sites| sites.borrow_mut().clear());
@@ -66,7 +73,7 @@ pub(crate) fn cur_divstep() -> u32 { CUR_DIVSTEP.with(|c| c.get()) }
 pub(crate) fn trace_calls_enabled() -> bool { std::env::var_os("TLM_TRACE_CALLS").is_some() }
 
 pub(crate) fn set_op_trace_context(context: u32) -> u32 {
-    if !op_site_trace_enabled() {
+    if !op_site_trace_enabled() && !j3_dead_gate_audit_enabled() {
         return 0;
     }
     OP_TRACE_CONTEXT.with(|slot| {
@@ -77,9 +84,13 @@ pub(crate) fn set_op_trace_context(context: u32) -> u32 {
 }
 
 pub(crate) fn restore_op_trace_context(context: u32) {
-    if op_site_trace_enabled() {
+    if op_site_trace_enabled() || j3_dead_gate_audit_enabled() {
         OP_TRACE_CONTEXT.with(|slot| slot.set(context));
     }
+}
+
+pub(crate) fn current_trace_context() -> u32 {
+    OP_TRACE_CONTEXT.with(|slot| slot.get())
 }
 
 pub(crate) fn take_op_site_trace_for_constprop(expected_len: usize) -> Option<Vec<OpSite>> {
@@ -108,7 +119,7 @@ pub fn take_last_op_sites() -> Vec<OpSite> {
 }
 
 pub struct B {
-    pub ops: Vec<Op>,
+    pub(crate) ops: TracedOps,
     pub count_only: bool,
     pub counted_ops: usize,
     pub counted_kind_ops: [usize; 18],
@@ -183,7 +194,7 @@ impl B {
     fn new() -> Self {
         reset_op_site_trace();
         Self {
-            ops: Vec::new(),
+            ops: TracedOps::new(j3_dead_gate_audit_enabled()),
             count_only: false,
             counted_ops: 0,
             counted_kind_ops: [0; 18],
@@ -236,8 +247,11 @@ impl B {
     pub fn new_for_test() -> Self {
         Self::new()
     }
+    pub(crate) fn take_traced_ops(&mut self) -> TracedOps {
+        self.ops.take()
+    }
     pub fn take_ops(&mut self) -> Vec<Op> {
-        std::mem::take(&mut self.ops)
+        self.take_traced_ops().into_ops()
     }
     #[track_caller]
     fn push_op(&mut self, op: Op) {
@@ -246,9 +260,10 @@ impl B {
         self.counted_phase_kind_ops[op.kind as usize] += 1;
         if !self.count_only {
             let loc = std::panic::Location::caller();
-            let context = OP_TRACE_CONTEXT.with(|slot| slot.get());
+            let context = current_trace_context();
             record_op_site((loc.file(), loc.line(), context));
-            self.ops.push(op);
+            self.ops
+                .push_at(op, loc.file(), loc.line(), context, 0, 0);
         }
     }
     fn count_snapshot(&self) -> CountSnapshot {
@@ -1036,7 +1051,7 @@ mod d1_inplace_lowerer_tests {
         let n = b.alloc_qubits(N);
         b.declare_qubit_register(&n);
         d1_inplace_product_lowerer_with_kaliski_clean(&mut b, &h, &n, SECP256K1_P, 400);
-        b.ops
+        b.ops.into_ops()
     }
 
     fn build_quotient_ops() -> Vec<Op> {
@@ -1046,7 +1061,7 @@ mod d1_inplace_lowerer_tests {
         let n = b.alloc_qubits(N);
         b.declare_qubit_register(&n);
         d1_inplace_quotient_lowerer_with_kaliski_clean(&mut b, &h, &n, SECP256K1_P, 400);
-        b.ops
+        b.ops.into_ops()
     }
 
     fn toffoli_count(ops: &[Op]) -> usize {
@@ -2765,7 +2780,7 @@ pub fn square_window_selftest() -> Result<(), String> {
         }
         let nq = b.next_qubit as usize;
         let nb = b.next_bit as usize;
-        (b.ops, x, tmp, nq, nb)
+        (b.ops.into_ops(), x, tmp, nq, nb)
     };
 
     let run = |ops: &[Op],
@@ -2964,7 +2979,7 @@ pub fn fold_freed_tail_selftest() -> Result<(), String> {
                     b.x(s2);
                     let nq = b.next_qubit as usize;
                     let nb = b.next_bit as usize;
-                    (b.ops, y, nq, nb)
+                    (b.ops.into_ops(), y, nq, nb)
                 };
                 let (ops_base, y_b, nq_b, nb_b) = build_one(false);
                 let (ops_freed, y_f, nq_f, nb_f) = build_one(true);

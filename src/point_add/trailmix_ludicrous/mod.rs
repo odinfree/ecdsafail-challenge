@@ -666,7 +666,7 @@ pub fn build_trailmix_ludicrous_ops() -> Vec<Op> {
         eprintln!("TLM_TOF_TOTAL emitted={ge} expected={gx:.1} discount={:.4}", 1.0 - gx / ge as f64);
     }
 
-    let ops = std::mem::take(&mut circ.ops);
+    let ops = circ.take_ops();
 
     if std::env::var_os("TLM_DIRTY_SCAN").is_some() {
         crate::point_add::dirtyscan::scan(&ops, &circ.phase_transitions);

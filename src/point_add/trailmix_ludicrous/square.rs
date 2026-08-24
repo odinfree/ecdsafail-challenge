@@ -579,7 +579,7 @@ pub fn shifted128_low_miter() -> Result<usize, String> {
             free_zeroes(&mut circ, low_pads);
         }
         HelperCircuit {
-            ops: circ.ops,
+            ops: circ.ops.into_ops(),
             source,
             accumulator,
             qubits: circ.next_qubit as usize,
