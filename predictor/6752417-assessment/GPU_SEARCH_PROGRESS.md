@@ -107,3 +107,17 @@ production coverage, two GPU survivors have appeared and both were exact
 phase-dirty rejections. Cumulative coverage including this slice is
 `135262208` nonces: the production canary plus sixteen full `2^23` slices.
 No trusted evaluator replay has run. `submit=CLOSED`, `no_submit_ack=yes`.
+
+## Further zero-survivor slices
+
+| worker/slice | exact half-open range | survivors | archive SHA-256 | bytes |
+| --- | --- | ---: | --- | ---: |
+| w0/8 | `[82503857602560,82503865991168)` | 0 | `416b0c517ae841e6063d924a6daea00e978e651aae344921f1849efde6f41d48` | 809 |
+| w1/4 | `[82504359870464,82504368259072)` | 0 | `f8361e4d56a67be4e3a2591d13fc7814572049118472685952efc6eb7a7b9bce` | 806 |
+| w2/7 | `[82504921907200,82504930295808)` | 0 | `14a1327486ff5e0544c04327d8c92a10af3c5f6a8ed6b3237bc59ba2e52408b9` | 808 |
+| w0/9 | `[82503865991168,82503874379776)` | 0 | `b8e60481ed0858b4fff171980fdd8a6372fee71dff6f2525d2533e47065b1690` | 808 |
+
+Cumulative completed production coverage is `168816640` nonces: the
+1,044,480-nonce production canary plus twenty full `2^23` slices. Two GPU
+survivors have appeared and both were exact phase-dirty rejections. No trusted
+evaluator replay has run. `submit=CLOSED`, `no_submit_ack=yes`.
