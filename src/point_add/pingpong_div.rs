@@ -3323,6 +3323,85 @@ pub(crate) fn dump_width_schedule() {
     }
 }
 
+/// Default-off gate-level extraction of the forward division sign tape.
+///
+/// This deliberately builds the real `value_walk` and reads its still-live
+/// tape wires through the 64-lane target simulator.  It is a research oracle
+/// for the classical recurrence/support probe, not part of the emitted stream.
+pub(crate) fn dump_sign_tape() {
+    use crate::circuit::QubitOrBit;
+    use sha3::{
+        digest::{ExtendableOutput, Update},
+        Shake256,
+    };
+
+    let walk_rounds = rounds();
+    let mut b = B::new();
+    let mut u = b.alloc_qubits(VALUE_WIDTH);
+    let mut v = b.alloc_qubits(VALUE_WIDTH);
+    let input_u = u.clone();
+    let input_v = v.clone();
+    let tape = value_walk(&mut b, &mut u, &mut v, walk_rounds);
+    let nq = b.next_qubit as usize;
+    let nb = b.next_bit as usize;
+    let ops = b.take_ops();
+
+    let input_u_reg: Vec<QubitOrBit> = input_u[..N]
+        .iter()
+        .copied()
+        .map(QubitOrBit::Qubit)
+        .collect();
+    let input_v_reg: Vec<QubitOrBit> = input_v[..N]
+        .iter()
+        .copied()
+        .map(QubitOrBit::Qubit)
+        .collect();
+
+    let mut state = 0x51a9_d7e3_c246_8b0fu64;
+    let mut denominators = Vec::with_capacity(64);
+    for lane in 0..64 {
+        let mut limbs = [0u64; 4];
+        for limb in &mut limbs {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            *limb = state;
+        }
+        let mut value = U256::from_limbs(limbs) % SECP256K1_P;
+        if value.is_zero() {
+            value = U256::from(1);
+        }
+        let want_odd = lane % 2 == 0;
+        if value.bit(0) != want_odd {
+            value = if want_odd {
+                value.wrapping_add(U256::from(1))
+            } else {
+                value.wrapping_sub(U256::from(1))
+            };
+        }
+        denominators.push(value);
+    }
+
+    let mut shake = Shake256::default();
+    shake.update(b"pingpong sign tape dump simulator randomness");
+    let mut reader = shake.finalize_xof();
+    let mut sim = Simulator::new(nq, nb, &mut reader);
+    for (lane, &value) in denominators.iter().enumerate() {
+        sim.set_register(&input_u_reg, SECP256K1_P, lane);
+        sim.set_register(&input_v_reg, value, lane);
+    }
+    sim.apply_iter(ops.iter());
+
+    println!("PINGPONG_TAPE_V1 rounds={walk_rounds} lanes=64");
+    for (lane, value) in denominators.iter().enumerate() {
+        let raw: String = tape
+            .iter()
+            .map(|&wire| char::from(b'0' + (((sim.qubit(wire) >> lane) & 1) as u8)))
+            .collect();
+        println!("lane={lane} denominator={value:#x} tape={raw}");
+    }
+}
+
 #[cfg(test)]
 #[test]
 fn sigma_split_low_two_compare_reduction_is_exact() {

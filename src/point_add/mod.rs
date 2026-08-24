@@ -2292,6 +2292,13 @@ pub fn build() -> Vec<Op> {
         }
     }
 
+    if std::env::var_os("PINGPONG_TAPE_DUMP").is_some() {
+        pingpong_div::dump_sign_tape();
+        if std::env::var_os("PINGPONG_TAPE_DUMP_ONLY").is_some() {
+            return Vec::new();
+        }
+    }
+
     if std::env::var("TLM_SQ_SELFTEST").ok().as_deref() == Some("1") {
         arith::square_addsub_selftest::run();
         if std::env::var("TLM_SQ_SELFTEST_ONLY").ok().as_deref() == Some("1") {
