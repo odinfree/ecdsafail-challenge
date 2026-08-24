@@ -90,25 +90,6 @@ fn rounds() -> usize {
     tuned_window("SUB4_PP_ROUNDS", &SLOT, 696)
 }
 
-/// Structural suffix codec: after both walk values have reached +/-1, every
-/// later round is stationary and emits the same sign.  An explicit cutoff can
-/// therefore retain one run bit instead of one raw sign per remaining round.
-/// Inputs that have not reached that terminal family at the cutoff fail the
-/// ordinary value/phase/ancilla gates; no hidden reset or fallback is used.
-fn tail_run_start(rounds: usize) -> Option<usize> {
-    std::env::var("SUB4_PP_TAIL_RUN_START")
-        .ok()
-        .and_then(|value| value.parse::<usize>().ok())
-        .filter(|&start| start >= 2 && start < rounds)
-}
-
-fn physical_history_len(logical_len: usize, rounds: usize) -> usize {
-    match tail_run_start(rounds) {
-        Some(start) => logical_len.min(start + 1),
-        None => logical_len,
-    }
-}
-
 /// The width schedule is compressed so it still reaches its floor on the
 /// final round at the reduced 698-round depth, instead of stopping short:
 /// every walk and replay add above the floor gets its scheduled width from a
@@ -321,8 +302,7 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
         PingPongDirection::Divide => usize::from(signed_frame()),
         PingPongDirection::Multiply => 1, // `doubled_out` lives across the add
     };
-    let pick_chunks = |plan: &Plan, logical_tape_len: usize, walk_width: usize| -> usize {
-        let tape_len = physical_history_len(logical_tape_len, rounds);
+    let pick_chunks = |plan: &Plan, tape_len: usize, walk_width: usize| -> usize {
         let a = allowance(plan, tape_len, walk_width);
         if legacy_ladder() {
             // Legacy: a chunk *count*, translated to a width by `set_chunks`.
@@ -381,7 +361,7 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
             phase(b, "pp_div_walk", "pp_mul_walk");
             tape = Vec::with_capacity(rounds);
             for r in 0..plan.r1.min(rounds) {
-                record_walk_round(b, &mut u, &mut v, &mut tape, r, rounds);
+                tape.push(walk_round(b, &mut u, &mut v, r, rounds));
             }
             phase(b, "pp_div_replay", "pp_mul_replay");
             // `walk_round(r1)` would shrink to `value_width(r1)` anyway; doing
@@ -401,7 +381,7 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
                 if r >= rounds {
                     break;
                 }
-                record_walk_round(b, &mut u, &mut v, &mut tape, r, rounds);
+                tape.push(walk_round(b, &mut u, &mut v, r, rounds));
                 if r + 1 < rounds {
                     shrink_to(b, &mut u, &mut v, value_width(r + 1));
                 }
@@ -410,7 +390,7 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
                 clear_chunks();
             }
             for r in (plan.r2 + 1).max(plan.r1)..rounds {
-                record_walk_round(b, &mut u, &mut v, &mut tape, r, rounds);
+                tape.push(walk_round(b, &mut u, &mut v, r, rounds));
             }
             let loans = loan(b, &u, &v);
             set_chunks(pick_chunks(&plan, tape.len(), 1));
@@ -454,13 +434,17 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
             phase(b, "pp_div_walkback", "pp_mul_walkback");
             set_walk_peak(walk_peak(&plan));
             for r in ((plan.r2 + 1).max(plan.r1)..rounds).rev() {
-                reverse_recorded_walk_round(b, &mut u, &mut v, &mut tape, r, rounds);
+                let sign = tape.pop().expect("tape has round r");
+                assert_eq!(tape.len(), r);
+                walk_back_round(b, &mut u, &mut v, r, sign, rounds);
             }
             for r in (plan.r1..=plan.r2.min(rounds - 1)).rev() {
                 set_chunks(pick_chunks(&plan, r + 1, u.len()));
                 replay_doubling_round(b, r, tape[r], &coefficient, numerator);
                 clear_chunks();
-                reverse_recorded_walk_round(b, &mut u, &mut v, &mut tape, r, rounds);
+                let sign = tape.pop().expect("tape has round r");
+                assert_eq!(tape.len(), r);
+                walk_back_round(b, &mut u, &mut v, r, sign, rounds);
             }
             set_chunks(pick_chunks(&plan, plan.r1.min(rounds), u.len()));
             for r in (0..plan.r1.min(rounds)).rev() {
@@ -470,7 +454,9 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
             b.free_vec(&coefficient);
             clear_walk_peak();
             for r in (0..plan.r1.min(rounds)).rev() {
-                reverse_recorded_walk_round(b, &mut u, &mut v, &mut tape, r, rounds);
+                let sign = tape.pop().expect("tape has round r");
+                assert_eq!(tape.len(), r);
+                walk_back_round(b, &mut u, &mut v, r, sign, rounds);
             }
             grow_to(b, &mut u, &mut v, VALUE_WIDTH);
         }
@@ -1104,13 +1090,12 @@ fn walk_split_disabled() -> bool {
 /// low chunk and `width - low` in the high chunk, and the boundary carry is
 /// repaired EXACTLY (see [`signed_add_wrapping_sigma_split`]), so a narrower
 /// ladder costs `low` emitted Toffoli and no new truncation.
-fn walk_low_chunk(round: usize, width: usize, rounds: usize) -> Option<usize> {
+fn walk_low_chunk(round: usize, width: usize) -> Option<usize> {
     if walk_split_disabled() {
         return None;
     }
     let peak = WALK_PEAK.with(|c| c.get())?;
-    let tape_len = physical_history_len(round + 1, rounds);
-    let ladder = peak.saturating_sub(tape_len + 2 * N + 2 * width);
+    let ladder = peak.saturating_sub((round + 1) + 2 * N + 2 * width);
     // W-B: `signed_add_wrapping_sigma`'s real ladder is `width - 3` (two of
     // the `width - 1` ancillas it used to allocate are provable copies of
     // live wires and are no longer built at all), so the no-split path is
@@ -1684,7 +1669,7 @@ fn walk_round(
     b.cx(target[1], sign);
     b.cx(source[1], sign);
     let top_skip = walk_top_skip(round, rounds);
-    match walk_low_chunk(round, width, rounds) {
+    match walk_low_chunk(round, width) {
         Some(low) => signed_add_wrapping_sigma_split(b, sign, source, target, true, low, top_skip),
         None => signed_add_wrapping(b, sign, source, target, true, top_skip),
     }
@@ -1693,55 +1678,6 @@ fn walk_round(
     }
     b.cx(target[width - 2], target[width - 1]);
     sign
-}
-
-/// Forward walk round using a sign already materialized by the first round of
-/// a stationary terminal run.  The sign is a read-only control and remains
-/// live for the later coefficient replay and inverse walk.
-fn walk_round_known_sign(
-    b: &mut B,
-    u: &mut Vec<QubitId>,
-    v: &mut Vec<QubitId>,
-    round: usize,
-    sign: QubitId,
-    rounds: usize,
-) {
-    assert!(round >= 2, "tail-run codec starts after the fused seed rounds");
-    let width = value_width(round);
-    shrink_to(b, u, v, width);
-    let (source, target) = if round.is_multiple_of(2) {
-        (&u[..width], &v[..width])
-    } else {
-        (&v[..width], &u[..width])
-    };
-    let top_skip = walk_top_skip(round, rounds);
-    match walk_low_chunk(round, width, rounds) {
-        Some(low) => signed_add_wrapping_sigma_split(b, sign, source, target, true, low, top_skip),
-        None => signed_add_wrapping(b, sign, source, target, true, top_skip),
-    }
-    for i in 0..width - 1 {
-        b.swap(target[i], target[i + 1]);
-    }
-    b.cx(target[width - 2], target[width - 1]);
-}
-
-/// Append one logical history entry.  In the terminal suffix, later entries
-/// alias the first run sign instead of allocating additional qubits.
-fn record_walk_round(
-    b: &mut B,
-    u: &mut Vec<QubitId>,
-    v: &mut Vec<QubitId>,
-    tape: &mut Vec<QubitId>,
-    round: usize,
-    rounds: usize,
-) {
-    if tail_run_start(rounds).is_some_and(|start| round > start) {
-        let sign = tape[tail_run_start(rounds).expect("checked tail start")];
-        walk_round_known_sign(b, u, v, round, sign, rounds);
-        tape.push(sign);
-    } else {
-        tape.push(walk_round(b, u, v, round, rounds));
-    }
 }
 
 /// One reverse walk round; consumes and frees the round's sign qubit.
@@ -1776,7 +1712,7 @@ fn walk_back_round(
     }
     b.x(sign);
     let top_skip = walk_top_skip(round, rounds);
-    match walk_low_chunk(round, width, rounds) {
+    match walk_low_chunk(round, width) {
         Some(low) => signed_add_wrapping_sigma_split(b, sign, source, target, false, low, top_skip),
         None => signed_add_wrapping(b, sign, source, target, false, top_skip),
     }
@@ -1784,55 +1720,6 @@ fn walk_back_round(
     b.cx(target[1], sign);
     b.cx(source[1], sign);
     b.free(sign);
-}
-
-/// Reverse a stationary-run round without recomputing or freeing the shared
-/// sign.  The first run round is reversed by `walk_back_round`, which clears
-/// the one physical history qubit after every alias has been consumed.
-fn walk_back_round_known_sign(
-    b: &mut B,
-    u: &mut Vec<QubitId>,
-    v: &mut Vec<QubitId>,
-    round: usize,
-    sign: QubitId,
-    rounds: usize,
-) {
-    assert!(round >= 2, "tail-run codec starts after the fused seed rounds");
-    let width = value_width(round);
-    grow_to(b, u, v, width);
-    let (source, target) = if round.is_multiple_of(2) {
-        (&u[..width], &v[..width])
-    } else {
-        (&v[..width], &u[..width])
-    };
-    b.cx(target[width - 2], target[width - 1]);
-    for i in (0..width - 1).rev() {
-        b.swap(target[i], target[i + 1]);
-    }
-    b.x(sign);
-    let top_skip = walk_top_skip(round, rounds);
-    match walk_low_chunk(round, width, rounds) {
-        Some(low) => signed_add_wrapping_sigma_split(b, sign, source, target, false, low, top_skip),
-        None => signed_add_wrapping(b, sign, source, target, false, top_skip),
-    }
-    b.x(sign);
-}
-
-fn reverse_recorded_walk_round(
-    b: &mut B,
-    u: &mut Vec<QubitId>,
-    v: &mut Vec<QubitId>,
-    tape: &mut Vec<QubitId>,
-    round: usize,
-    rounds: usize,
-) {
-    let sign = tape.pop().expect("tape has round r");
-    assert_eq!(tape.len(), round);
-    if tail_run_start(rounds).is_some_and(|start| round > start) {
-        walk_back_round_known_sign(b, u, v, round, sign, rounds);
-    } else {
-        walk_back_round(b, u, v, round, sign, rounds);
-    }
 }
 
 fn replay_halving_round(b: &mut B, round: usize, sign: QubitId, x: &[QubitId], y: &[QubitId]) {
@@ -1947,22 +1834,98 @@ fn walk_peak(plan: &Plan) -> usize {
 fn value_walk(b: &mut B, u: &mut Vec<QubitId>, v: &mut Vec<QubitId>, rounds: usize) -> Vec<QubitId> {
     let mut tape = Vec::with_capacity(rounds);
     for round in 0..rounds {
-        record_walk_round(b, u, v, &mut tape, round, rounds);
+        let width = value_width(round);
+        while u.len() > width {
+            let (lu, lv) = (u.len(), v.len());
+            b.cx(u[lu - 2], u[lu - 1]);
+            b.cx(v[lv - 2], v[lv - 1]);
+            b.free(u.pop().expect("u has the scheduled width"));
+            b.free(v.pop().expect("v has the scheduled width"));
+        }
+
+        if round == 0 && fused_lift_round0_enabled() {
+            tape.push(fused_lift_round0_forward(b, v));
+            continue;
+        }
+        if round == 1 && fuse_round1_enabled() {
+            tape.push(fused_round1_forward(b, &u[..width], &v[..width]));
+            continue;
+        }
+
+        let (source, target) = if round.is_multiple_of(2) {
+            (&u[..width], &v[..width])
+        } else {
+            (&v[..width], &u[..width])
+        };
+        // REBASE (2026-08-23, 4eb93cb): upstream's `tail_share` sign-aliasing
+        // (PP_TAIL_SHARE, default-off on b523ecf) was deleted upstream as
+        // dead code -- it was never enabled by default, so dropping it here
+        // changes nothing observable. Our `top_skip` carry-chain trim
+        // (REPORT5 W-B extension) is independent of it and survives alone.
+        let sign = b.alloc_qubit();
+        b.cx(target[1], sign);
+        b.cx(source[1], sign);
+        signed_add_wrapping(b, sign, source, target, true, walk_top_skip(round, rounds));
+        tape.push(sign);
+
+        for i in 0..width - 1 {
+            b.swap(target[i], target[i + 1]);
+        }
+        b.cx(target[width - 2], target[width - 1]);
     }
     tape
 }
 
-fn value_walk_back(
-    b: &mut B,
-    u: &mut Vec<QubitId>,
-    v: &mut Vec<QubitId>,
-    mut tape: Vec<QubitId>,
-) {
+fn value_walk_back(b: &mut B, u: &mut Vec<QubitId>, v: &mut Vec<QubitId>, tape: Vec<QubitId>) {
     let rounds = tape.len();
-    for round in (0..rounds).rev() {
-        reverse_recorded_walk_round(b, u, v, &mut tape, round, rounds);
+    for elapsed in 0..rounds {
+        let round = rounds - 1 - elapsed;
+        let width = value_width(round);
+        while u.len() < width {
+            let next_u = b.alloc_qubit();
+            let next_v = b.alloc_qubit();
+            b.cx(u[u.len() - 1], next_u);
+            b.cx(v[v.len() - 1], next_v);
+            u.push(next_u);
+            v.push(next_v);
+        }
+
+
+        if round == 0 && fused_lift_round0_enabled() {
+            fused_lift_round0_reverse(b, v, tape[round]);
+            continue;
+        }
+        if round == 1 && fuse_round1_enabled() {
+            fused_round1_reverse(b, &u[..width], &v[..width], tape[round]);
+            continue;
+        }
+
+        let sign = tape[round];
+        let (source, target) = if round.is_multiple_of(2) {
+            (&u[..width], &v[..width])
+        } else {
+            (&v[..width], &u[..width])
+        };
+        b.cx(target[width - 2], target[width - 1]);
+        for i in (0..width - 1).rev() {
+            b.swap(target[i], target[i + 1]);
+        }
+        b.x(sign);
+        signed_add_wrapping(b, sign, source, target, false, walk_top_skip(round, rounds));
+        b.x(sign);
+        b.cx(target[1], sign);
+        b.cx(source[1], sign);
+        b.free(sign);
     }
-    grow_to(b, u, v, VALUE_WIDTH);
+
+    while u.len() < VALUE_WIDTH {
+        let next_u = b.alloc_qubit();
+        let next_v = b.alloc_qubit();
+        b.cx(u[u.len() - 1], next_u);
+        b.cx(v[v.len() - 1], next_v);
+        u.push(next_u);
+        v.push(next_v);
+    }
 }
 
 fn conditional_mod_negate(b: &mut B, control: QubitId, value: &[QubitId]) {
