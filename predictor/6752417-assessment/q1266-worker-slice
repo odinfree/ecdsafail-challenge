@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd /root/q1266-comb8-parity
+
+fail() {
+  printf 'q1266_worker_slice=HARD_NACK reason=%s no_submit_ack=yes\n' "$1" >&2
+  exit 1
+}
+
+[[ "$#" == 3 ]] || fail usage
+worker="$1"
+from="$2"
+to="$3"
+[[ "$worker" =~ ^[0-3]$ ]] || fail worker
+[[ "$from" =~ ^[0-9]+$ && "$to" =~ ^[0-9]+$ ]] || fail range_format
+
+case "$worker" in
+  0) lo=82503798882304; hi=82504334704640 ;;
+  1) lo=82504334704640; hi=82504871575552 ;;
+  2) lo=82504871575552; hi=82505408446464 ;;
+  3) lo=82505408446464; hi=82505945317376 ;;
+esac
+
+(( from >= lo )) || fail range_below_partition
+(( to <= hi )) || fail range_above_partition
+(( to > from )) || fail empty_range
+count="$((to - from))"
+(( count <= 8388608 )) || fail slice_too_large
+
+[[ "$(sha256sum ops.bin | awk '{print $1}')" == 5f39b385c693a3f9179d7ba6d674c13676c0bb489bf2b07e208048b0e6ed561c ]] || fail ops_sha
+[[ "$(sha256sum src/ppgpu.cu | awk '{print $1}')" == dfa7cc860e24a4785ae3ec4da5451e7afaa9685f6ae2d9fe77f23cb185f0fa6a ]] || fail source_sha
+[[ "$(sha256sum ppgpu.runtime | awk '{print $1}')" == 4ff81a62f3be5333104df9bfd937a967d405656340d0e4656fb5d4d647c53956 ]] || fail runtime_sha
+
+mkdir -p search-logs
+stem="search-logs/w${worker}-${from}-${to}"
+[[ ! -e "${stem}.stdout" && ! -e "${stem}.stderr" && ! -e "${stem}.meta" ]] || fail existing_slice_log
+
+start_s="$(date +%s)"
+set +e
+./ppgpu.runtime --ops ops.bin --from "$from" --to "$to" --threads-block 128 \
+  > "${stem}.stdout" 2> "${stem}.stderr"
+rc="$?"
+set -e
+end_s="$(date +%s)"
+survivor_rows="$(wc -l < "${stem}.stdout" | tr -d ' ')"
+printf 'worker=%s\nfrom=%s\nto=%s\ncount=%s\nexit=%s\nelapsed_s=%s\nsurvivor_rows=%s\nsource_sha256=dfa7cc860e24a4785ae3ec4da5451e7afaa9685f6ae2d9fe77f23cb185f0fa6a\nops_sha256=5f39b385c693a3f9179d7ba6d674c13676c0bb489bf2b07e208048b0e6ed561c\nruntime_sha256=4ff81a62f3be5333104df9bfd937a967d405656340d0e4656fb5d4d647c53956\n' \
+  "$worker" "$from" "$to" "$count" "$rc" "$((end_s - start_s))" "$survivor_rows" > "${stem}.meta"
+sha256sum "${stem}.stdout" "${stem}.stderr" "${stem}.meta" > "${stem}.sha256"
+
+[[ "$rc" == 0 ]] || fail gpu_exit
+grep -F "\"from\":${from}" "${stem}.stderr" >/dev/null || fail telemetry_from
+grep -F "\"to\":${to}" "${stem}.stderr" >/dev/null || fail telemetry_to
+grep -F "\"count\":${count}" "${stem}.stderr" >/dev/null || fail telemetry_count
+grep -F '"comb_bits":8' "${stem}.stderr" >/dev/null || fail telemetry_comb
+grep -F 'state_digest":"bc16e98fdac46783"' "${stem}.stderr" >/dev/null || fail telemetry_state
+if grep -Eq 'FATAL|overflow|failed:' "${stem}.stderr"; then
+  fail telemetry_error
+fi
+
+printf 'q1266_worker_slice=PASS worker=%s from=%s to=%s count=%s survivors=%s elapsed_s=%s no_submit_ack=yes\n' \
+  "$worker" "$from" "$to" "$count" "$survivor_rows" "$((end_s - start_s))"

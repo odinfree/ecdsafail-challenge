@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd /root/q1266-comb8-parity
+
+fail() {
+  printf 'q1266_worker_bootstrap=HARD_NACK reason=%s no_submit_ack=yes\n' "$1" >&2
+  exit 1
+}
+
+require_sha() {
+  local expected="$1" path="$2" actual
+  actual="$(sha256sum "$path" | awk '{print $1}')"
+  [[ "$actual" == "$expected" ]] || fail "sha_${path//\//_}"
+}
+
+[[ ! -e bootstrap-logs ]] || fail prior_bootstrap_logs
+mkdir bootstrap-logs
+require_sha 5f39b385c693a3f9179d7ba6d674c13676c0bb489bf2b07e208048b0e6ed561c ops.bin
+require_sha dfa7cc860e24a4785ae3ec4da5451e7afaa9685f6ae2d9fe77f23cb185f0fa6a src/ppgpu.cu
+require_sha 4423f04bb6810993bbe500b3adc147d0a088abb0cb78fc7bf93b973ddef49dc5 src/pp_model.h
+require_sha bccaf9d1be17f131be65d637957cd04f409c3c13a8d5a6904070dab58a2b3c57 src/pp_host.h
+require_sha 7598ef077ab15573f2f1ed0d216a84ed0788f3c59a33ae7ae00a30051a867094 build.sh
+
+start_s="$(date +%s)"
+nice -n 10 ./build.sh > bootstrap-logs/build.log 2>&1 || fail build
+end_s="$(date +%s)"
+printf '%s\n' "$((end_s - start_s))" > bootstrap-logs/build-seconds.txt
+sha256sum ppcpu ppgpu > bootstrap-logs/raw-binary-sha256.txt
+stat -c '%n %s' ppcpu ppgpu > bootstrap-logs/raw-binary-bytes.txt
+readelf -n ppgpu > bootstrap-logs/raw-binary-notes.txt
+
+cp ppgpu ppgpu.runtime
+strip --strip-all ppgpu.runtime
+require_sha 4ff81a62f3be5333104df9bfd937a967d405656340d0e4656fb5d4d647c53956 ppgpu.runtime
+[[ "$(stat -c '%s' ppgpu.runtime)" == 2808400 ]] || fail canonical_runtime_bytes
+sha256sum ppgpu.runtime > bootstrap-logs/canonical-runtime-sha256.txt
+
+./ppcpu statedigest > bootstrap-logs/ppcpu-statedigest.out
+[[ "$(cat bootstrap-logs/ppcpu-statedigest.out)" == bc16e98fdac46783 ]] || fail state_digest
+
+set +e
+./ppgpu.runtime --ops ops.bin --comb-bits 8 > bootstrap-logs/forbidden-cli.out 2> bootstrap-logs/forbidden-cli.err
+forbidden_rc="$?"
+set -e
+[[ "$forbidden_rc" == 2 ]] || fail forbidden_cli_rc
+grep -F 'unknown arg --comb-bits' bootstrap-logs/forbidden-cli.err >/dev/null || fail forbidden_cli_message
+
+./ppgpu.runtime --ops ops.bin --probe-batchinv --threads-block 128 \
+  > bootstrap-logs/gpu-batchinv-w128.out 2> bootstrap-logs/gpu-batchinv-w128.err
+grep -Fx 'probe-batchinv: OK (0/128 bad)' bootstrap-logs/gpu-batchinv-w128.out >/dev/null || fail batchinv
+
+./ppgpu.runtime --ops ops.bin --from 82503797833728 --to 82503797837824 \
+  --threads-block 128 > bootstrap-logs/gpu-old-canary.stdout \
+  2> bootstrap-logs/gpu-old-canary.stderr
+[[ ! -s bootstrap-logs/gpu-old-canary.stdout ]] || fail old_canary_survivor
+grep -F 'state_digest":"bc16e98fdac46783"' bootstrap-logs/gpu-old-canary.stderr >/dev/null || fail old_canary_state
+grep -F '"comb_bits":8' bootstrap-logs/gpu-old-canary.stderr >/dev/null || fail old_canary_comb
+grep -F '"survivors":0' bootstrap-logs/gpu-old-canary.stderr >/dev/null || fail old_canary_count
+
+nvidia-smi --query-gpu=name,driver_version --format=csv,noheader > bootstrap-logs/gpu-runtime.txt
+nvcc --version > bootstrap-logs/nvcc-version.txt
+find bootstrap-logs -type f -print0 | sort -z | xargs -0 sha256sum > bootstrap-logs/SHA256SUMS
+printf 'q1266_worker_bootstrap=PASS canonical_runtime_sha256=4ff81a62f3be5333104df9bfd937a967d405656340d0e4656fb5d4d647c53956 old_canary_count=4096 old_canary_survivors=0 no_submit_ack=yes\n'
