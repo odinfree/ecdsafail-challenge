@@ -129,3 +129,37 @@ def reference_report(case: FieldCase) -> dict[str, int]:
         "curve_failures": curve_failures,
         "valid_t_zero_inputs": valid_t_zero_inputs,
     }
+
+
+def target_nonzero_determinants(case: FieldCase) -> set[int]:
+    """Jacobian determinants of (T,L)->(a-T,T*L-b) for T != 0.
+
+    The derivative matrix is [[-1, 0], [L, T]], so det=-T. The
+    returned set is normalized to positive field representatives.
+    """
+    p = case.prime
+    return {(-t) % p for t in range(1, p)}
+
+
+def low_degree_shear_certificate(case: FieldCase) -> dict[str, object]:
+    """Close the additive-shear grammar by its determinant invariant.
+
+    Translations and additive triangular shears have determinant one; swaps
+    have determinant minus one; multiplication by a classical field unit has
+    a fixed nonzero determinant. A composition therefore has one constant
+    nonzero determinant on the nonzero-T region. The target has determinant
+    -T and assumes every nonzero value when p > 3.
+    """
+    determinants = target_nonzero_determinants(case)
+    variable = len(determinants) > 1
+    return {
+        "grammar": "LOW_DEGREE_TWO_REGISTER_SHEARS",
+        "grammar_determinant_class": "constant_nonzero",
+        "target_determinants": sorted(determinants),
+        "target_determinant_count": len(determinants),
+        "target_is_variable": variable,
+        "zero_branch_relevant": False,
+        "proof_scope": "nonzero T fibers; zero-only corrections cannot repair the mismatch",
+        "verdict": "HARD_NACK_LOW_DEGREE_SHEAR" if variable else "INCONCLUSIVE",
+        "next_grammar": "REGISTER_SHARED_EUCLID",
+    }

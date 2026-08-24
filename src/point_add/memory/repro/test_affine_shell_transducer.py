@@ -28,6 +28,19 @@ class AffineShellOracleTests(unittest.TestCase):
         self.assertNotEqual(case.b, 0)
         self.assertEqual((case.b * case.b - case.a**3 - 7) % case.prime, 0)
 
+    def test_target_has_variable_nonzero_fiber_determinant(self) -> None:
+        case = shell.FieldCase(prime=17, a=1, b=5)
+        determinants = shell.target_nonzero_determinants(case)
+        self.assertEqual(determinants, set(range(1, case.prime)))
+
+    def test_low_degree_shear_grammar_is_hard_nacked(self) -> None:
+        case = shell.FieldCase(prime=31, a=0, b=10)
+        certificate = shell.low_degree_shear_certificate(case)
+        self.assertEqual(certificate["verdict"], "HARD_NACK_LOW_DEGREE_SHEAR")
+        self.assertEqual(certificate["grammar_determinant_class"], "constant_nonzero")
+        self.assertEqual(certificate["target_determinant_count"], 30)
+        self.assertEqual(certificate["next_grammar"], "REGISTER_SHARED_EUCLID")
+
 
 if __name__ == "__main__":
     unittest.main()
