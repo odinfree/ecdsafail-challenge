@@ -40,6 +40,14 @@ class PingPongSignTapeRecurrenceTests(unittest.TestCase):
                 sign, output = tape.signed_round(source, target)
                 self.assertEqual(tape.signed_round_inverse(source, output, sign), target)
 
+    def test_terminal_fixed_point_emits_a_constant_tail(self) -> None:
+        trace, terminal, first_terminal = tape.walk_trace_with_convergence(31, 7, 24)
+        self.assertIsNotNone(first_terminal)
+        self.assertEqual({abs(terminal[0]), abs(terminal[1])}, {1})
+        tail = trace[first_terminal:]
+        self.assertTrue(tail)
+        self.assertEqual(len(set(tail)), 1)
+
 
 class PingPongSignTapeSupportTests(unittest.TestCase):
     def test_fixed_block_support_and_information_bits(self) -> None:

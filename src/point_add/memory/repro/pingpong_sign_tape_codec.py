@@ -69,6 +69,17 @@ def walk_trace(
     widths: Sequence[int] | None = None,
 ) -> tuple[list[int], tuple[int, int]]:
     """Run the recurrence; optional widths mirror the circuit's truncation."""
+    trace, terminal, _ = walk_trace_with_convergence(modulus, value, rounds, widths)
+    return trace, terminal
+
+
+def walk_trace_with_convergence(
+    modulus: int,
+    value: int,
+    rounds: int,
+    widths: Sequence[int] | None = None,
+) -> tuple[list[int], tuple[int, int], int | None]:
+    """Also return the number of completed rounds at the first +/-1 fixed point."""
     if rounds < 1:
         raise ValueError("rounds must be positive")
     if widths is not None and len(widths) < rounds:
@@ -76,6 +87,7 @@ def walk_trace(
     first, v = fused_round_zero(modulus, value)
     u = modulus
     trace = [first]
+    first_terminal = 1 if abs(u) == 1 and abs(v) == 1 else None
     for round_index in range(1, rounds):
         if widths is not None:
             width = widths[round_index]
@@ -90,7 +102,9 @@ def walk_trace(
             if widths is not None:
                 u = wrap_signed(u, widths[round_index])
         trace.append(sign)
-    return trace, (u, v)
+        if first_terminal is None and abs(u) == 1 and abs(v) == 1:
+            first_terminal = round_index + 1
+    return trace, (u, v), first_terminal
 
 
 def bits_to_string(bits: Sequence[int]) -> str:
@@ -222,16 +236,17 @@ def analyze_domain(
     block_widths: Sequence[int],
 ) -> dict[str, Any]:
     supports = _new_supports(rounds, block_widths)
-    suffix_widths = (4, 8, 12, 16, 20, 24, 28, 32)
+    suffix_widths = (4, 8, 12, 16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 128)
     suffix_supports = {width: set() for width in suffix_widths if width <= rounds}
     whole_hashes: set[bytes] = set()
     terminal_counts: dict[str, int] = {}
     sample_hash = hashlib.sha256()
+    convergence_rounds: list[int] = []
     seen = 0
     for value in values:
         if seen >= samples:
             break
-        trace, terminal = walk_trace(modulus, value, rounds)
+        trace, terminal, first_terminal = walk_trace_with_convergence(modulus, value, rounds)
         _record_trace(supports, trace)
         packed = int(bits_to_string(reversed(trace)), 2).to_bytes((rounds + 7) // 8, "little")
         whole_hashes.add(hashlib.sha256(packed).digest())
@@ -241,7 +256,21 @@ def analyze_domain(
             support.add(word)
         key = f"{terminal[0]},{terminal[1]}"
         terminal_counts[key] = terminal_counts.get(key, 0) + 1
+        convergence_rounds.append(first_terminal if first_terminal is not None else rounds + 1)
         seen += 1
+    convergence_rounds.sort()
+    quantiles = {}
+    for label, numerator, denominator in (
+        ("p50", 1, 2),
+        ("p90", 9, 10),
+        ("p99", 99, 100),
+        ("p999", 999, 1000),
+        ("p9999", 9999, 10000),
+    ):
+        if convergence_rounds:
+            index = min(len(convergence_rounds) - 1, (len(convergence_rounds) * numerator - 1) // denominator)
+            quantiles[label] = convergence_rounds[index]
+    cutoffs = sorted({max(1, rounds - offset) for offset in range(0, min(128, rounds - 1) + 1, 8)})
     return {
         "modulus": modulus,
         "field_width": modulus.bit_length(),
@@ -251,6 +280,17 @@ def analyze_domain(
         "unique_whole_traces": len(whole_hashes),
         "whole_trace_rank_lower_bound": (len(whole_hashes) - 1).bit_length(),
         "terminal_counts": terminal_counts,
+        "convergence": {
+            "quantiles": quantiles,
+            "survivors_by_completed_round": [
+                {
+                    "round": cutoff,
+                    "survivors": sum(value > cutoff for value in convergence_rounds),
+                    "fraction": sum(value > cutoff for value in convergence_rounds) / seen,
+                }
+                for cutoff in cutoffs
+            ],
+        },
         "partitions": _summarize_supports(supports, rounds),
         "suffixes": [
             {
@@ -267,7 +307,9 @@ def analyze_domain(
 def run(args: argparse.Namespace) -> dict[str, Any]:
     started = time.monotonic()
     toy_cases = []
-    for modulus in (31, 61, 127, 251, 509, 1021, 4093):
+    # The production fused-round identity assumes p == 3 (mod 4), so use
+    # primes in that same class rather than silently testing another map.
+    for modulus in (31, 59, 127, 251, 503, 1019, 4091):
         rounds = max(12, 3 * modulus.bit_length())
         toy_cases.append(analyze_domain(
             modulus,
