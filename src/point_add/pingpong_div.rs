@@ -2007,13 +2007,13 @@ fn and_uncompute(b: &mut B, out: QubitId, a: QubitId, c: QubitId) {
 }
 
 /// Replace one owned chunk carry only when its pending allocation would cross
-/// the current Q1266 target at one of the two live Q1267 owners.  This is the
-/// exact Cuccaro MAJ/UMA source host first priced on the older Q1275 lane;
-/// default-off keeps the promoted stream byte-identical.
-fn binding_source_carry_q1266_enabled(b: &B, owned: usize) -> bool {
-    std::env::var_os("SUB4_BINDING_SOURCE_CARRY_Q1266").is_some()
+/// Q1265 after the odd-passenger loan has already removed the Q1267 peak. This
+/// is the exact Cuccaro MAJ/UMA source host priced previously at Q1266;
+/// default-off keeps the odd-passenger stream byte-identical.
+fn binding_source_carry_q1265_enabled(b: &B, owned: usize) -> bool {
+    std::env::var_os("SUB4_BINDING_SOURCE_CARRY_Q1265").is_some()
         && matches!(b.phase, "pp_div_replay" | "pp_mul_walkback")
-        && b.active_qubits as usize + owned > 1266
+        && b.active_qubits as usize + owned > 1265
 }
 
 /// One Gidney chunk, preserving the addend and carry-in and optionally
@@ -2048,7 +2048,7 @@ fn chunk_add(
     // Cuccaro MAJ/UMA hybrid: preserve one carry in its source bit while the
     // higher Gidney ladder runs, then restore source and incoming carry exactly
     // before the lower carries are measurement-uncomputed.
-    let source_host = if binding_source_carry_q1266_enabled(b, owned) {
+    let source_host = if binding_source_carry_q1265_enabled(b, owned) {
         let candidate = usize::from(carry_in.is_none());
         (candidate < owned).then_some(candidate)
     } else {
