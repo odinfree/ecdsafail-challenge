@@ -22,6 +22,16 @@ frozen odd-passenger Q1266 artifact. The Q1265 host therefore fired zero times.
 The remaining Q1266 allocation occurs after or outside the source-host
 predicate's owned-carry boundary, so this composition cannot remove it.
 
+An exact owner census over the first peak window `[2423000,2425000]` located
+the Q1266 instant at operation index `2423973` in `pp_div_replay`. Its final
+increment is the two-wire `reacquire` of `u[0]` and `v[0]`; the other material
+live groups are the 333-bit sign tape, 256-bit coefficient register, 256 input
+wires, two 145-wire shell groups, and the split replay ladders. This rules out
+the owned-carry host but exposes a changed-premise reopen interface: restore
+one or both odd passengers lazily inside the following walk cell, after a
+different live temporary has retired, or fuse the replay-to-walk boundary so
+the known-one low bits remain implicit. A mere threshold change cannot work.
+
 ## Gate decision
 
 The first predeclared gate required Q at most 1265. It failed deterministically,
