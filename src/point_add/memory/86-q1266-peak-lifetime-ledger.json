@@ -1,0 +1,77 @@
+{
+  "schema": "q1266-peak-lifetime-ledger-v1",
+  "captured_at_utc": "2026-08-25",
+  "local_branch": "research/codex-affine-shell-transducer-20260824",
+  "local_head": "6cb3334",
+  "local_tree": "80697feb7bd0059b2598f9405705b4035c46a706",
+  "local_base_commit": "cbf229dbd46a7c677fe2e28da882b4f8a02bac7f",
+  "local_base_tree": "eab2326ce33549eceeb5c10aa64eae33f148b0ac",
+  "live_frontier": {
+    "score": 1153834932,
+    "source_commit": "522d002",
+    "promoted_q": 1266,
+    "promoted_t": 911402,
+    "binding": "read-only ecdsafail benchmark and submissions --all"
+  },
+  "diagnostic_stream": {
+    "q": 1266,
+    "t": 911367.14,
+    "semantic_pre_nonce_ops": 12596343,
+    "compressed_ops": 12596439,
+    "compressed_ops_sha256": "715257aeabdacc03c5a121bc4e1c9bbd563875198728211abbb1a40caeec3184",
+    "status": "diagnostic-only; not a candidate or promoted receipt"
+  },
+  "binding_peak": {
+    "phase": "pp_div_replay",
+    "operation_index": 2423973,
+    "q": 1266,
+    "owners": [
+      {"family": "division sign tape", "qubits": 333, "source": "pingpong_div.rs:1676"},
+      {"family": "numerator y", "qubits": 256, "source": "point_add/mod.rs:2929"},
+      {"family": "coefficient", "qubits": 256, "source": "point_add/mod.rs:373"},
+      {"family": "residual denominator x", "qubits": 145, "source": "point_add/mod.rs:2928"},
+      {"family": "residual constant p", "qubits": 145, "source": "arith/adder.rs:341"},
+      {"family": "split-walk high carry ladder", "qubits": 125, "source": "pingpong_div.rs:1202"},
+      {"family": "reacquired wires", "qubits": 2},
+      {"family": "singleton controls and host bits", "qubits": 4}
+    ]
+  },
+  "terminal_replay_floor": {
+    "division_sign_tape": 696,
+    "coefficient_and_numerator": 512,
+    "subtotal_before_controls_or_scratch": 1208,
+    "conclusion": "adder-only changes cannot reach Q1169; at least 40 resident bits plus control overhead must be removed from tape or its hosting"
+  },
+  "peak_cap_sweep": [
+    {"requested_peak": 1273, "q": 1273, "t": 908909.08},
+    {"requested_peak": 1240, "q": 1266, "t": 931888.27},
+    {"requested_peak": 1210, "q": 1266, "t": 965301.75},
+    {"requested_peak": 1180, "q": 1266, "t": 999966.20},
+    {"requested_peak": 1160, "q": 1266, "t": 1039388.77},
+    {"requested_peak": 1150, "q": 1266, "t": 1039196.50}
+  ],
+  "target_tiers_for_score_1038451438": [
+    {"q": 1266, "max_t": 820261},
+    {"q": 1210, "max_t": 858224},
+    {"q": 1169, "max_t": 888324},
+    {"q": 1153, "max_t": 900651},
+    {"q": 1152, "max_t": 901433},
+    {"q": 1100, "max_t": 944046}
+  ],
+  "next_owner": "PINGPONG_SIGN_TAPE_CODEC_OR_REGENERATION",
+  "coordination_adapter": {
+    "lane_directory_present": false,
+    "coord_post_wrapper_present": false,
+    "action": "recorded in source-bound memory ledger; no improvised mailbox write"
+  },
+  "authority": {
+    "provider": false,
+    "nonce_grind": false,
+    "fleet": false,
+    "queue": false,
+    "push": false,
+    "public_note": false,
+    "promotion": false,
+    "submission": false
+  }
+}
