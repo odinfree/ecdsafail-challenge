@@ -121,6 +121,12 @@ build_circuit_bin="$(pwd)/target/release/build_circuit"
 #    network — none of which the process-group reap below covers at run time.
 ops_scratch="$(cd "$(mktemp -d)" && pwd -P)"   # resolved real path (the macOS profile needs it)
 chmod 1777 "${ops_scratch}"   # let the sandbox uid write without replacing runner-owned files
+build_stderr="${ops_scratch}/build-stderr.log"
+: > "${build_stderr}"
+audit_enabled=0
+if [[ "${J3_DEAD_GATE_AUDIT:-0}" == "1" ]]; then
+  audit_enabled=1
+fi
 
 # Build the (possibly confined) invocation:
 #   - Linux: bubblewrap (installed by setup.sh in the trusted sandbox).
@@ -173,6 +179,12 @@ elif [[ "$(uname -s)" == "Darwin" ]] && command -v sandbox-exec >/dev/null 2>&1;
       /bin/bash -c 'cd "$1" && export TMPDIR="$1" && exec "$2"' _ "${ops_scratch}" "${build_circuit_bin}"
   )
 else
+  if [[ "${audit_enabled}" -eq 1 ]]; then
+    echo "!! J3 dead-gate audit requires bubblewrap or sandbox-exec" >&2
+    rm -rf "${ops_scratch}"
+    ops_scratch=""
+    exit 1
+  fi
   echo "!! no sandbox available (bubblewrap/sandbox-exec); running build_circuit UNCONFINED (dev fallback)" >&2
   run_build=( bash -c 'cd "$1" && exec "$2"' _ "${ops_scratch}" "${build_circuit_bin}" )
 fi
@@ -199,7 +211,7 @@ cleanup() {
 trap cleanup EXIT
 
 if command -v setsid >/dev/null 2>&1; then
-  setsid "${run_build[@]}" &
+  setsid "${run_build[@]}" 2>"${ops_scratch}/build-stderr.log" &
   build_pid=$!
   cleanup_pgid="${build_pid}"
   set +e
@@ -211,7 +223,7 @@ if command -v setsid >/dev/null 2>&1; then
 else
   # Fallback: bash job control puts the background pipeline in its own pgid.
   set -m
-  "${run_build[@]}" &
+  "${run_build[@]}" 2>"${ops_scratch}/build-stderr.log" &
   build_pid=$!
   cleanup_pgid="${build_pid}"
   set +e
@@ -223,22 +235,84 @@ else
   set +m
 fi
 
+# General process diagnostics are replayed to the caller but never enter the
+# sealed evidence. Only the audit engine's dedicated diagnostics file can
+# become stderr.log.
+cat "${ops_scratch}/build-stderr.log" >&2
+
 if [[ "${build_status}" -ne 0 ]]; then
   echo "!! build_circuit exited with status ${build_status}" >&2
   exit "${build_status}"
 fi
 
-# Copy the untrusted output out of the scratch dir into the repo for scoring.
-if [[ -s "${ops_scratch}/ops.bin" ]]; then
-  cp "${ops_scratch}/ops.bin" ./ops.bin
+# The untrusted process may write only into scratch. Validate and seal its raw
+# audit output from the trusted wrapper before scratch cleanup.
+raw_audit_dir="${ops_scratch}/j3-dead-gate-audit-raw"
+if [[ "${audit_enabled}" -eq 1 ]]; then
+  expected_raw_names=(
+    audit-diagnostics.log
+    families.tsv
+    manifest.raw
+    sites.tsv
+    summary.raw
+    witnesses.tsv
+  )
+  if [[ ! -d "${raw_audit_dir}" || -L "${raw_audit_dir}" ]]; then
+    echo "!! J3 dead-gate audit did not produce a regular raw directory" >&2
+    exit 1
+  fi
+  shopt -s nullglob dotglob
+  raw_entries=("${raw_audit_dir}"/*)
+  shopt -u nullglob dotglob
+  if [[ "${#raw_entries[@]}" -ne "${#expected_raw_names[@]}" ]]; then
+    echo "!! J3 dead-gate raw artifact count mismatch" >&2
+    exit 1
+  fi
+  for raw_name in "${expected_raw_names[@]}"; do
+    if [[ ! -f "${raw_audit_dir}/${raw_name}" || -L "${raw_audit_dir}/${raw_name}" ]]; then
+      echo "!! J3 dead-gate raw artifact is missing or not regular: ${raw_name}" >&2
+      exit 1
+    fi
+  done
+  for raw_entry in "${raw_entries[@]}"; do
+    raw_name="${raw_entry##*/}"
+    raw_known=0
+    for expected_raw_name in "${expected_raw_names[@]}"; do
+      if [[ "${raw_name}" == "${expected_raw_name}" ]]; then
+        raw_known=1
+        break
+      fi
+    done
+    if [[ "${raw_known}" -ne 1 ]]; then
+      echo "!! unexpected J3 dead-gate raw artifact: ${raw_name}" >&2
+      exit 1
+    fi
+  done
+else
+  if [[ -e "${raw_audit_dir}" || -L "${raw_audit_dir}" ]]; then
+    echo "!! J3 dead-gate raw directory exists while audit is disabled" >&2
+    exit 1
+  fi
 fi
-rm -rf "${ops_scratch}"; ops_scratch=""
 
 # 3. Verify ops.bin actually got produced.
-if [[ ! -s ops.bin ]]; then
+if [[ ! -s "${ops_scratch}/ops.bin" ]]; then
   echo "!! build_circuit did not produce ops.bin" >&2
   exit 1
 fi
+
+if [[ "${audit_enabled}" -eq 1 ]]; then
+  python3 src/point_add/memory/repro/j3_dead_gate_seal.py seal \
+    --repo . \
+    --parent 67524171baaf568dc3dc606f38515745f70804ff \
+    --parent-tree 8202910d176fa1f3332ff961e6f3f789ca6a7ac2 \
+    --raw-dir "${raw_audit_dir}" \
+    --ops "${ops_scratch}/ops.bin" \
+    --out artifacts/j3-dead-gate-audit
+fi
+
+cp "${ops_scratch}/ops.bin" ./ops.bin
+rm -rf "${ops_scratch}"; ops_scratch=""
 
 # 4. Trusted scoring stage (never imports contestant code).
 ./target/release/eval_circuit "$@"
