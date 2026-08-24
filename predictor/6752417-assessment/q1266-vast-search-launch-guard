@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PREDICTOR_ROOT="/Users/odin/Documents/coding with codin/ecdsafail-675-predictor-port-codex"
+CANDIDATE_ROOT="/Users/odin/Documents/coding with codin/ecdsafail-structural-history-fiber"
+ASSESSMENT="$PREDICTOR_ROOT/predictor/6752417-assessment"
+POLICY="$ASSESSMENT/provider-search-policy.env"
+
+fail() {
+  printf 'q1266_vast_search_launch_guard=blocked reason=%s no_submit_ack=yes\n' "$1" >&2
+  exit 75
+}
+
+sha256_file() {
+  shasum -a 256 "$1" | awk '{print $1}'
+}
+
+require_sha() {
+  local expected="$1" path="$2" actual
+  [[ -f "$path" ]] || fail missing_file
+  actual="$(sha256_file "$path")"
+  [[ "$actual" == "$expected" ]] || fail sha256_mismatch
+}
+
+[[ -r "$POLICY" ]] || fail policy_missing
+# shellcheck disable=SC1090
+source "$POLICY"
+
+[[ "$FLEET_SPEND_MODE" == workers ]] || fail spend_mode
+[[ "$FLEET_SPEND_ALLOW_WORKERS" == 1 ]] || fail workers_closed
+[[ "$FLEET_ROUTE_GATE" == open ]] || fail route_closed
+[[ "$FLEET_NO_SUBMIT" == 1 ]] || fail no_submit_missing
+[[ "$FLEET_SUBMIT_MODE" == closed ]] || fail submit_open
+[[ "$FLEET_MAX_ACTIVE_WORKERS" == 4 ]] || fail worker_cap
+[[ "$FLEET_SPEND_PROVIDER_BUDGET" == *'vast_total<=50_usd_search'* ]] || fail search_cap_missing
+[[ "$FLEET_SPEND_PROVIDER_BUDGET" == *'total<=500_usd_per_europe_zurich_day'* ]] || fail daily_cap_missing
+
+[[ "$(git -C "$CANDIDATE_ROOT" rev-parse HEAD)" == 57ee207abe9f648dbc443bfb329e051707327d46 ]] || fail candidate_head
+[[ "$(git -C "$CANDIDATE_ROOT" rev-parse HEAD^{tree})" == b1528c97b2766bd99ea6ee75dcc64d69fbd43360 ]] || fail candidate_tree
+git -C "$CANDIDATE_ROOT" diff --quiet || fail candidate_dirty
+git -C "$CANDIDATE_ROOT" diff --cached --quiet || fail candidate_index_dirty
+
+git -C "$PREDICTOR_ROOT" merge-base --is-ancestor 8da6a28600573512cf300388b14c561e9d13e82b HEAD || fail gpu_receipt_missing
+git -C "$PREDICTOR_ROOT" merge-base --is-ancestor 0c2358e8d926ec80cc6f38e6dd12f0a0c20e6513 HEAD || fail search_order_missing
+git -C "$PREDICTOR_ROOT" diff --quiet || fail predictor_dirty
+git -C "$PREDICTOR_ROOT" diff --cached --quiet || fail predictor_index_dirty
+
+require_sha 5f39b385c693a3f9179d7ba6d674c13676c0bb489bf2b07e208048b0e6ed561c "$CANDIDATE_ROOT/ops.bin"
+require_sha dfa7cc860e24a4785ae3ec4da5451e7afaa9685f6ae2d9fe77f23cb185f0fa6a "$ASSESSMENT/src/ppgpu.cu"
+require_sha 4423f04bb6810993bbe500b3adc147d0a088abb0cb78fc7bf93b973ddef49dc5 "$ASSESSMENT/src/pp_model.h"
+require_sha bccaf9d1be17f131be65d637957cd04f409c3c13a8d5a6904070dab58a2b3c57 "$ASSESSMENT/src/pp_host.h"
+require_sha 7598ef077ab15573f2f1ed0d216a84ed0788f3c59a33ae7ae00a30051a867094 "$ASSESSMENT/build.sh"
+
+inventory="$({ vastai show instances-v1 --all --status running loading --raw || exit 1; } | ruby -rjson -e '
+  x=JSON.parse(STDIN.read)
+  rows=x.is_a?(Array) ? x : (x["instances"] || x["data"] || [])
+  chosen=rows.select{|r| r["label"].to_s.start_with?("ecdsa-q1266-odd-search-20260824-w")}
+  rate=chosen.sum{|r| (r["dph_total"] || r["dph_base"] || r["dph"] || 0).to_f}
+  puts "#{chosen.length} #{format("%.6f",rate)}"
+')" || fail inventory_query
+active_count="${inventory%% *}"
+active_rate="${inventory##* }"
+[[ "$active_count" =~ ^[0-9]+$ ]] || fail inventory_count
+(( active_count < 4 )) || fail active_worker_cap
+
+printf 'q1266_vast_search_launch_guard=pass active_search_workers=%s active_search_rate_usd_hr=%s max_workers=4 search_max_usd=50 daily_combined_max_usd=500 no_submit_ack=yes\n' "$active_count" "$active_rate"
