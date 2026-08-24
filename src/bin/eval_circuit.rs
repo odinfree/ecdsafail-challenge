@@ -351,6 +351,12 @@ fn run_tests(
             }
             ok = false;
         }
+
+        // Local nonce screener only. The trusted promotion run leaves this
+        // unset and always executes all 9,024 shots.
+        if !ok && std::env::var_os("ECDSA_EARLY_REJECT").is_some() {
+            break;
+        }
     }
 
     let _ = num_bits;
