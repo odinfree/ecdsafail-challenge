@@ -1,0 +1,40 @@
+{
+  "schema": "ecdsafail.q1266.promotion_source_binding.v1",
+  "captured_utc": "2026-08-24T16:45:37Z",
+  "decision": "PROMOTED_LIVE_LEADER",
+  "benchmark_id": "1ffb695a-309b-46b6-a728-2f97d8c7be74",
+  "submission": {
+    "id": "71459769-8ad3-469c-98bf-c224a7e09bec",
+    "short_id": "7145976",
+    "solver": "welttowelt",
+    "status": "promoted"
+  },
+  "promoted_source": {
+    "repository": "https://github.com/Layr-Labs/ecdsafail-challenge",
+    "short_commit": "522d002",
+    "commit": "522d00296ab014b0f4d128915b53851516f17f4d",
+    "tree": "eab2326ce33549eceeb5c10aa64eae33f148b0ac",
+    "parent_source": "67524171baaf568dc3dc606f38515745f70804ff",
+    "diff_sha256": "8c33d792d3876b72ff245d5ce8d18d64a5e9294600d840e9889f0b929b4bb8e4",
+    "shipping_tree_identity": "PASS"
+  },
+  "leaderboard": {
+    "q": 1266,
+    "rounded_t": 911402,
+    "score": 1153834932,
+    "prior_score": 1154731130,
+    "improvement": 896198
+  },
+  "frontier_capture": {
+    "path": "burn-the-house-down:internal/campaigns/ecdsa-fail/2026-08-23/raw/live-frontier-capture-20260824t1645z/frontier.json",
+    "sha256": "5e1dc34e921f5d232d50b3d9493c3af2bf5fc8c17b7382873f5e841d22f5b7ad",
+    "cli_sha256": "0991b70e67707db75fd3e0cc5600004845745b5312aece616dbfa73d35e1f776"
+  },
+  "authority": {
+    "compute": "CLOSED",
+    "route": "CLOSED",
+    "submission": "CLOSED",
+    "duplicate_submission": "FORBIDDEN",
+    "no_submit_ack": "yes"
+  }
+}

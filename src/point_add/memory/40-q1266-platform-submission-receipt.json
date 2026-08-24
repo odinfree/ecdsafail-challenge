@@ -5,7 +5,7 @@
   "controller": "codex-structural-cut",
   "benchmark_id": "1ffb695a-309b-46b6-a728-2f97d8c7be74",
   "submission_id": "71459769-8ad3-469c-98bf-c224a7e09bec",
-  "status": "validating",
+  "status": "promoted",
   "source": {
     "official_commit": "67524171baaf568dc3dc606f38515745f70804ff",
     "shipping_commit": "cbf229dbd46a7c677fe2e28da882b4f8a02bac7f",
@@ -39,5 +39,7 @@
     "duplicate_submission_policy": "HOLD_UNTIL_TERMINAL_PLATFORM_STATUS",
     "no_submit_ack": "yes"
   },
-  "decision": "WAIT_PLATFORM_VALIDATION"
+  "promoted_source_commit": "522d00296ab014b0f4d128915b53851516f17f4d",
+  "promoted_source_tree": "eab2326ce33549eceeb5c10aa64eae33f148b0ac",
+  "decision": "PROMOTED_LIVE_LEADER"
 }
