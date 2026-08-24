@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PREDICTOR_ROOT="/Users/odin/Documents/coding with codin/ecdsafail-675-predictor-port-codex"
+CANDIDATE_ROOT="/Users/odin/Documents/coding with codin/ecdsafail-structural-history-fiber"
+ASSESSMENT="$PREDICTOR_ROOT/predictor/6752417-assessment"
+
+fail() {
+  printf 'q1266_vast_launch_guard=blocked reason=%s no_submit_ack=yes\n' "$1" >&2
+  exit 75
+}
+
+sha256_file() {
+  shasum -a 256 "$1" | awk '{print $1}'
+}
+
+require_sha() {
+  local expected="$1" path="$2" actual
+  [[ -f "$path" ]] || fail "missing_file"
+  actual="$(sha256_file "$path")"
+  [[ "$actual" == "$expected" ]] || fail "sha256_mismatch"
+}
+
+[[ "${FLEET_SPEND_MODE:-}" == workers ]] || fail "spend_mode"
+[[ "${FLEET_SPEND_ALLOW_WORKERS:-0}" == 1 ]] || fail "workers_closed"
+[[ "${FLEET_ROUTE_GATE:-closed}" == open ]] || fail "route_closed"
+[[ "${FLEET_NO_SUBMIT:-0}" == 1 ]] || fail "no_submit_missing"
+[[ "${FLEET_SUBMIT_MODE:-open}" == closed ]] || fail "submit_open"
+[[ "${FLEET_SPEND_PROVIDER_BUDGET:-}" == *'vast_total<=2_usd_canary'* ]] || fail "canary_cap_missing"
+[[ "${FLEET_SPEND_PROVIDER_BUDGET:-}" == *'total<=500_usd_per_europe_zurich_day'* ]] || fail "daily_cap_missing"
+
+[[ "$(git -C "$CANDIDATE_ROOT" rev-parse HEAD)" == 57ee207abe9f648dbc443bfb329e051707327d46 ]] || fail "candidate_head"
+[[ "$(git -C "$CANDIDATE_ROOT" rev-parse HEAD^{tree})" == b1528c97b2766bd99ea6ee75dcc64d69fbd43360 ]] || fail "candidate_tree"
+git -C "$CANDIDATE_ROOT" diff --quiet || fail "candidate_dirty"
+git -C "$CANDIDATE_ROOT" diff --cached --quiet || fail "candidate_index_dirty"
+
+git -C "$PREDICTOR_ROOT" merge-base --is-ancestor 7ef751ce8cb47dbbe0bee67c8e1f364107f49786 HEAD || fail "contract_commit_missing"
+git -C "$PREDICTOR_ROOT" merge-base --is-ancestor de4b650d3cdc96c0e808bf6b61cbfafa103e8a74 HEAD || fail "truth_commit_missing"
+git -C "$PREDICTOR_ROOT" diff --quiet || fail "predictor_dirty"
+git -C "$PREDICTOR_ROOT" diff --cached --quiet || fail "predictor_index_dirty"
+
+require_sha 5f39b385c693a3f9179d7ba6d674c13676c0bb489bf2b07e208048b0e6ed561c "$CANDIDATE_ROOT/ops.bin"
+require_sha 687d1df6cd5b853d55e38b3ae066045bdffe3d01e3508b10ffe6704145f9caaf "$ASSESSMENT/src/ppgpu.cu"
+require_sha 4423f04bb6810993bbe500b3adc147d0a088abb0cb78fc7bf93b973ddef49dc5 "$ASSESSMENT/src/pp_model.h"
+require_sha bccaf9d1be17f131be65d637957cd04f409c3c13a8d5a6904070dab58a2b3c57 "$ASSESSMENT/src/pp_host.h"
+require_sha 7598ef077ab15573f2f1ed0d216a84ed0788f3c59a33ae7ae00a30051a867094 "$ASSESSMENT/build.sh"
+require_sha 5f61199791475bd7d2ee88a4b6f13c09b18f96e68bf5e576e5a3443c19b7d8a5 "$ASSESSMENT/gpu-cpu-fault-truth.tsv"
+require_sha cb718f024626b3b97925eb7d5411de90ea6cdeed0ac65b15041c17d112f3fb81 "$ASSESSMENT/gpu-cpu-probe-truth.tsv"
+
+printf 'q1266_vast_launch_guard=pass route=q1266_odd_passenger_gpu_parity canary_max_usd=2 daily_combined_max_usd=500 no_submit_ack=yes\n'
