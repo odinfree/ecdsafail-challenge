@@ -24,6 +24,7 @@ pub mod trailmix_ludicrous;
 mod pingpong_div;
 mod pp_profile;
 mod single_ccx_fanout;
+mod structural_cut_scan;
 mod m60_dead_t10;
 mod d2_deep_strip;
 mod deep_strip_keys;
@@ -2576,6 +2577,12 @@ pub fn build() -> Vec<Op> {
             return Vec::new();
         }
         let mut ops = pingpong_div::build_pingpong_point_add();
+        if std::env::var("STRUCTURAL_CUT_SCAN").ok().as_deref() == Some("1") {
+            structural_cut_scan::scan(&ops);
+        }
+        if std::env::var("STRUCTURAL_CUT_APPLY").ok().as_deref() == Some("1") {
+            ops = structural_cut_scan::apply(ops);
+        }
         // Exact-clean nonce for the Q1267/M697 stream, verified by the optimized
         // and reference evaluators over all 9,024 shots.
         let nonce = std::env::var("SUB4_PINGPONG_TAIL_NONCE")
