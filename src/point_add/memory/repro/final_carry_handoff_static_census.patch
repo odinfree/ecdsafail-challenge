@@ -1,0 +1,112 @@
+diff --git a/src/point_add/pingpong_div.rs b/src/point_add/pingpong_div.rs
+index f439956..6266016 100644
+--- a/src/point_add/pingpong_div.rs
++++ b/src/point_add/pingpong_div.rs
+@@ -2137,0 +2138,6 @@ fn add_chunked_measured_with(
++    let carry_handoff_census = late_carry_out
++        && std::env::var_os("CARRY_HANDOFF_STATIC_CENSUS").is_some();
++    let census_timeline_start = b.active_timeline.len();
++    let census_entry_active = b.active_qubits;
++    let census_ops_start = b.current_ops_len();
++    let census_ladder_target = ladder_target_now();
+@@ -2190,0 +2197,24 @@ fn add_chunked_measured_with(
++    if carry_handoff_census {
++        let local_peak = b.active_timeline[census_timeline_start..]
++            .iter()
++            .map(|&(_, active)| active)
++            .max()
++            .unwrap_or(census_entry_active)
++            .max(census_entry_active);
++        let bounds_text = bounds
++            .iter()
++            .map(|&(lo, hi)| format!("{lo}-{hi}"))
++            .collect::<Vec<_>>()
++            .join(",");
++        eprintln!(
++            "CARRY_HANDOFF_ADD phase={} ops_start={} ops_end={} entry_active={} local_peak={} return_active={} ladder_target={:?} bounds={}",
++            b.phase,
++            census_ops_start,
++            b.current_ops_len(),
++            census_entry_active,
++            local_peak,
++            b.active_qubits,
++            census_ladder_target,
++            bounds_text,
++        );
++    }
+@@ -2354,0 +2385,4 @@ fn signed_mod_add_pm_halve_fused(b: &mut B, sign: QubitId, source: &[QubitId], t
++    let carry_handoff_census = std::env::var_os("CARRY_HANDOFF_STATIC_CENSUS").is_some();
++    let census_timeline_start = b.active_timeline.len();
++    let census_ops_start = b.current_ops_len();
++    let census_entry_active = b.active_qubits;
+@@ -2367,0 +2402 @@ fn signed_mod_add_pm_halve_fused(b: &mut B, sign: QubitId, source: &[QubitId], t
++    let census_after_add_active = b.active_qubits;
+@@ -2392,0 +2428,2 @@ fn signed_mod_add_pm_halve_fused(b: &mut B, sign: QubitId, source: &[QubitId], t
++    let census_fold_timeline_start = b.active_timeline.len();
++    let census_fold_entry_active = b.active_qubits;
+@@ -2402,0 +2440,6 @@ fn signed_mod_add_pm_halve_fused(b: &mut B, sign: QubitId, source: &[QubitId], t
++    let census_fold_peak = b.active_timeline[census_fold_timeline_start..]
++        .iter()
++        .map(|&(_, active)| active)
++        .max()
++        .unwrap_or(census_fold_entry_active)
++        .max(census_fold_entry_active);
+@@ -2440,0 +2484,20 @@ fn signed_mod_add_pm_halve_fused(b: &mut B, sign: QubitId, source: &[QubitId], t
++    if carry_handoff_census {
++        let cell_peak = b.active_timeline[census_timeline_start..]
++            .iter()
++            .map(|&(_, active)| active)
++            .max()
++            .unwrap_or(census_entry_active)
++            .max(census_entry_active);
++        eprintln!(
++            "CARRY_HANDOFF_CELL site=divide phase={} ops_start={} ops_end={} entry_active={} after_add_active={} fold_entry_active={} fold_peak={} cell_peak={} end_active={}",
++            b.phase,
++            census_ops_start,
++            b.current_ops_len(),
++            census_entry_active,
++            census_after_add_active,
++            census_fold_entry_active,
++            census_fold_peak,
++            cell_peak,
++            b.active_qubits,
++        );
++    }
+@@ -2666,0 +2730,4 @@ fn signed_mod_double_add_pm_fused(
++    let carry_handoff_census = std::env::var_os("CARRY_HANDOFF_STATIC_CENSUS").is_some();
++    let census_timeline_start = b.active_timeline.len();
++    let census_ops_start = b.current_ops_len();
++    let census_entry_active = b.active_qubits;
+@@ -2686,0 +2754 @@ fn signed_mod_double_add_pm_fused(
++    let census_after_add_active = b.active_qubits;
+@@ -2717,0 +2786,2 @@ fn signed_mod_double_add_pm_fused(
++    let census_fold_timeline_start = b.active_timeline.len();
++    let census_fold_entry_active = b.active_qubits;
+@@ -2727,0 +2798,6 @@ fn signed_mod_double_add_pm_fused(
++    let census_fold_peak = b.active_timeline[census_fold_timeline_start..]
++        .iter()
++        .map(|&(_, active)| active)
++        .max()
++        .unwrap_or(census_fold_entry_active)
++        .max(census_fold_entry_active);
+@@ -2772,0 +2849,20 @@ fn signed_mod_double_add_pm_fused(
++    if carry_handoff_census {
++        let cell_peak = b.active_timeline[census_timeline_start..]
++            .iter()
++            .map(|&(_, active)| active)
++            .max()
++            .unwrap_or(census_entry_active)
++            .max(census_entry_active);
++        eprintln!(
++            "CARRY_HANDOFF_CELL site=multiply phase={} ops_start={} ops_end={} entry_active={} after_add_active={} fold_entry_active={} fold_peak={} cell_peak={} end_active={}",
++            b.phase,
++            census_ops_start,
++            b.current_ops_len(),
++            census_entry_active,
++            census_after_add_active,
++            census_fold_entry_active,
++            census_fold_peak,
++            cell_peak,
++            b.active_qubits,
++        );
++    }

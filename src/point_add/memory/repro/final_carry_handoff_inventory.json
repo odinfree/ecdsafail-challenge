@@ -1,0 +1,67 @@
+{
+  "baseline_cleanup": {
+    "divide": {
+      "carry": "overflow",
+      "fold_first_carry": "not_sign_and_parity",
+      "phase_repair": "top-22 target/source cmp_lt"
+    },
+    "multiply": {
+      "carry": "add_out",
+      "fold_first_carry": "target[0] AND (doubled_out XOR add_out)",
+      "phase_repair": "top-22 target/source cmp_lt"
+    }
+  },
+  "candidate_env": {
+    "SUB4_PP_ROUNDS": "694",
+    "SUB4_PP_ROUNDS_MUL": "693"
+  },
+  "cell_calls": {
+    "divide": 692,
+    "multiply": 691
+  },
+  "chunk_compare_width": 22,
+  "flag_compare_average_t": 14521.5,
+  "flag_compare_ccx_per_cell": 21,
+  "flag_compare_condition_depth": 1,
+  "flag_compare_width": 22,
+  "fold_carry_wires": {
+    "divide": 51,
+    "multiply": 50
+  },
+  "fold_width": {
+    "divide": 54,
+    "multiply": 53
+  },
+  "lifetime_obligations": [
+    "final carry is allocated only when the final chunk begins",
+    "retained predecessors overlap every selector live through the fold",
+    "dirty hosts must replace, not coexist with, clean fold carries",
+    "divide and multiply peak intervals are censused independently"
+  ],
+  "minimum_uniform_saved_ccx": 3,
+  "rounds": {
+    "divide": 694,
+    "multiply": 693
+  },
+  "schema": "final-carry-handoff-inventory-v1",
+  "source_blobs": {
+    "src/point_add/arith/compare.rs": "7c3c9cd4956799b8a93ff108ce4bc4d3358def91",
+    "src/point_add/mod.rs": "8b497c16d804d9e128fd1139ad4858ddb1de56de",
+    "src/point_add/pingpong_div.rs": "f4399563b1fe8c4beee568027ebf52df252e7555"
+  },
+  "source_commit": "522d00296ab014b0f4d128915b53851516f17f4d",
+  "source_lines": {
+    "chunk_add": 1999,
+    "divide": 2354,
+    "flag_compare": 437,
+    "fold": 2231,
+    "forced_rounds": 2463,
+    "late_carry": 2127,
+    "multiply": 2661
+  },
+  "source_tree": "eab2326ce33549eceeb5c10aa64eae33f148b0ac",
+  "target_net_average_t": 1500.0,
+  "three_ccx_added_cost_ceiling": 574.5,
+  "three_ccx_gross_average_t": 2074.5,
+  "total_cells": 1383
+}
