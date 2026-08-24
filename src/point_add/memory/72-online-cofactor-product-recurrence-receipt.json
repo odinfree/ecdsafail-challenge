@@ -1,0 +1,41 @@
+{
+  "schema": "online-cofactor-product-recurrence-summary-v1",
+  "verdict": "HARD_NACK_ONLINE_COFACTOR_NATURAL_CLEANUPS",
+  "coherent_dual_row_verdict": "HARD_NACK_COHERENT_DUAL_ROW_Q_FLOOR",
+  "measurement_cleanup_verdict": "HARD_NACK_ZERO_EXTENDED_COFACTOR_MBUC",
+  "implementation_commit": "354723824c86842aefb298eed85679dbb5493ee6",
+  "implementation_tree": "197158509e0e70fce41d14b70984c75fff77648d",
+  "full_gate_receipt_sha256": "24b81ec50568bec7b862b011c95df04e9f410e75238b0dbd8a6232a885f32ddd",
+  "dual_row_qubits": {
+    "width": 256,
+    "value_words": 2,
+    "product_words": 2,
+    "cancellation_words": 2,
+    "total_words": 6,
+    "field_word_floor_q": 1536,
+    "component_cap_q": 1100,
+    "protected_peak_q": 1266,
+    "excess_over_component_cap_q": 436,
+    "excess_over_protected_peak_q": 270
+  },
+  "phase_cases": [
+    {"modulus": 31, "width": 5, "output_mask": 10, "degree": 7, "density": 254, "table_size": 1024, "garbage_relation_failures": 0, "truth_table_sha256": "919c6ee5158fb0a0cd1738236145385d253c4a8f7e2a35f97b63bef7d284bf99"},
+    {"modulus": 61, "width": 6, "output_mask": 42, "degree": 11, "density": 1896, "table_size": 4096, "garbage_relation_failures": 0, "truth_table_sha256": "6b8f0447e3126753817257a242ade989c836648378a4d1d493eee3151fac7867"},
+    {"modulus": 127, "width": 7, "output_mask": 42, "degree": 14, "density": 7394, "table_size": 16384, "garbage_relation_failures": 0, "truth_table_sha256": "123c6c878cccf394eb37476af79805e6bdf4dd1365140e00d517645abfecc6ca"},
+    {"modulus": 251, "width": 8, "output_mask": 170, "degree": 15, "density": 31966, "table_size": 65536, "garbage_relation_failures": 0, "truth_table_sha256": "3c19668f9208aca1f0abc3d2f4f69e9feef70e5c3fcce7cdb5a78dd45a4e4bbb"}
+  ],
+  "scope": "COHERENT_DUAL_ROW_AND_ZERO_EXTENDED_PHASE_COORDINATE_ONLY",
+  "universal_lower_bound": false,
+  "full_field_candidate": false,
+  "next_grammar": "BLOCKWISE_RESIDUAL_COFACTOR_COMPACTOR",
+  "authority": {
+    "provider": false,
+    "nonce_grind": false,
+    "fleet": false,
+    "queue": false,
+    "push": false,
+    "public_note": false,
+    "promotion": false,
+    "submission": false
+  }
+}
