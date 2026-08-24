@@ -251,6 +251,21 @@ capacity are not `HARD_NACK` evidence.
 - No production circuit, provider, nonce, queue, push, public-note, or
   submission action was taken.
 
+### Phase four settlement — source-present full streaming `HARD_NACK`
+
+- Evidence:
+  `src/point_add/memory/19-full-streaming-co-residence-verdict.md`.
+- Removing both batch regions through `R1=0/R2=terminal` leaves divide signs
+  resident for the later reverse walk. The first exact binder is Q1309:
+  coefficient/numerator 512 + walk limbs 478 + early walk ladder 235 + tape
+  82 + two scalar wires.
+- The fixed 64-lane stream is clean but costs T999247.98, yielding a diagnostic
+  product 1,308,015,632. It is wider and more expensive than the live circuit,
+  so no trusted evaluator or external-state action is admitted.
+- Changed-premise reopen requires a sign-erasing recurrence, a smaller replay
+  ABI, an exact narrow early walk cell, or removal of the affine multiply phase;
+  another interleave coordinate does not qualify.
+
 ## Anti-rot ban list
 
 The following do not advance structural cadence:
