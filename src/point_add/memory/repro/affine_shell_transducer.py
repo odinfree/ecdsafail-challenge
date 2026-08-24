@@ -175,6 +175,80 @@ def low_degree_shear_certificate(case: FieldCase) -> dict[str, object]:
     }
 
 
+def curve_support_report(case: FieldCase) -> dict[str, object]:
+    """Check the exact shared-denominator identity on the curve support.
+
+    For ``d=x-a``, ``lambda=(y-b)/d``, and
+    ``T=d+3a-lambda^2``, subtraction of the two curve equations gives
+
+        d*T = 2*b*lambda - 3*a^2.
+
+    Thus lambda is recoverable from ``(d,T)`` when ``b`` is nonzero.  The
+    reformulated output still contains ``d*T^2`` and has variable Jacobian;
+    this report exposes that remaining obligation rather than crediting the
+    identity as a multiplication-free construction.
+    """
+    p = case.prime
+    if case.b == 0:
+        raise ValueError("shared-denominator recovery requires nonzero classical y")
+    inverse_two_b = inv(2 * case.b, p)
+    rows: list[tuple[int, int, int, int, int]] = []
+    t_fibers: dict[int, set[int]] = {}
+    identity_failures = 0
+    lambda_recovery_failures = 0
+    output_failures = 0
+    reformulated_output_failures = 0
+    jacobians: set[int] = set()
+
+    for x in range(p):
+        for y in range(p):
+            if (y * y - x**3 - 7) % p != 0 or x == case.a:
+                continue
+            d = (x - case.a) % p
+            lam = ((y - case.b) * inv(d, p)) % p
+            t = (d + 3 * case.a - lam * lam) % p
+            x_out, y_out = transducer(case, t, lam)
+            expected = ec_add(case, x, y)
+            output_failures += int(expected is None or (x_out, y_out) != expected)
+
+            rhs = (2 * case.b * lam - 3 * case.a * case.a) % p
+            identity_failures += int(d * t % p != rhs)
+            recovered_lam = ((d * t + 3 * case.a * case.a) * inverse_two_b) % p
+            lambda_recovery_failures += int(recovered_lam != lam)
+
+            reformulated_y = (
+                (d * t * t + 3 * case.a * case.a * t) * inverse_two_b - case.b
+            ) % p
+            reformulated_output_failures += int(
+                (case.a - t) % p != x_out or reformulated_y != y_out
+            )
+            jacobians.add(t * t * inverse_two_b % p)
+            t_fibers.setdefault(t, set()).add(lam)
+            rows.append((x, y, d, lam, t))
+
+    fiber_sizes = sorted(len(values) for values in t_fibers.values())
+    digest = hashlib.sha256(canonical_json(rows)).hexdigest()
+    return {
+        "prime": p,
+        "a": case.a,
+        "b": case.b,
+        "support_states": len(rows),
+        "distinct_t": len(t_fibers),
+        "maximum_t_fiber_size": max(fiber_sizes, default=0),
+        "singleton_t_fibers": sum(size == 1 for size in fiber_sizes),
+        "double_t_fibers": sum(size == 2 for size in fiber_sizes),
+        "identity_failures": identity_failures,
+        "lambda_recovery_failures": lambda_recovery_failures,
+        "output_failures": output_failures,
+        "reformulated_output_failures": reformulated_output_failures,
+        "reformulated_jacobian_count": len(jacobians),
+        "support_sha256": digest,
+        "identity": "d*T = 2*b*lambda - 3*a^2",
+        "reformulated_y": "(d*T^2 + 3*a^2*T)/(2*b) - b",
+        "remaining_obligation": "variable d*T^2 product plus reversible cleanup",
+    }
+
+
 def canonical_json(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
 

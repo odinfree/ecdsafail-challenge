@@ -55,6 +55,19 @@ class AffineShellOracleTests(unittest.TestCase):
         self.assertTrue(all(row["curve_failures"] == 0 for row in first["cases"]))
         self.assertEqual(len(first["receipt_sha256"]), 64)
 
+    def test_curve_support_shared_denominator_identity_multi_width(self) -> None:
+        reports = [
+            shell.curve_support_report(shell.first_curve_point(prime))
+            for prime in (31, 127, 251)
+        ]
+        self.assertTrue(all(row["identity_failures"] == 0 for row in reports))
+        self.assertTrue(all(row["lambda_recovery_failures"] == 0 for row in reports))
+        self.assertTrue(all(row["output_failures"] == 0 for row in reports))
+        self.assertTrue(all(row["reformulated_output_failures"] == 0 for row in reports))
+        self.assertTrue(all(row["maximum_t_fiber_size"] <= 2 for row in reports))
+        self.assertTrue(all(row["reformulated_jacobian_count"] > 1 for row in reports))
+        self.assertEqual([row["support_states"] for row in reports], [18, 124, 249])
+
 
 if __name__ == "__main__":
     unittest.main()
