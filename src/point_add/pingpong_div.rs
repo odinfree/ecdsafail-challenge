@@ -2102,6 +2102,15 @@ fn add_chunked_measured_with(
     carry_out: Option<QubitId>,
     late_carry_out: bool,
 ) -> Option<QubitId> {
+    if std::env::var_os("SUB4_PP_EXACT_WINDOW_CLEANUP").is_some() {
+        return add_chunked_measured_with_exact_window(
+            b,
+            addend,
+            acc,
+            carry_out,
+            late_carry_out,
+        );
+    }
     let n = addend.len();
     let final_carry = carry_out.is_some() || late_carry_out;
     let bounds = match ladder_target_now() {
@@ -2154,6 +2163,106 @@ fn add_chunked_measured_with(
     for index in (0..live_boundaries.len()).rev() {
         let (carry, lo, hi) = live_boundaries[index];
         erase(b, carry, lo, hi);
+    }
+    final_carry
+}
+
+/// Experimental exact cleanup for the measured inter-chunk boundaries.
+///
+/// The production schedule erases a boundary immediately after the next
+/// chunk consumes it, which loses the preceding chunk input before an exact
+/// truncated-window carry can be recomputed.  This bounded experiment keeps
+/// every inter-chunk boundary until the complete add has finished, then
+/// erases them in reverse.  The predecessor boundary is therefore still live
+/// while the carry entering the selected top window is computed, used for the
+/// HMR phase correction, and uncomputed.
+///
+/// This is intentionally env-gated.  It is a lifetime/cost falsifier for the
+/// actual 675 replay circuit, not a default-path claim.
+fn add_chunked_measured_with_exact_window(
+    b: &mut B,
+    addend: &[QubitId],
+    acc: &[QubitId],
+    carry_out: Option<QubitId>,
+    late_carry_out: bool,
+) -> Option<QubitId> {
+    let n = addend.len();
+    let final_carry_requested = carry_out.is_some() || late_carry_out;
+    let bounds = match ladder_target_now() {
+        None => chunk_bounds(n, replay_chunk()),
+        Some(v) => match legacy_width(v) {
+            Some(width) => chunk_bounds(n, width),
+            None => chunk_layout(n, v, final_carry_requested)
+                .unwrap_or_else(|| chunk_bounds(n, n.div_ceil(12))),
+        },
+    };
+    let compare_target = std::env::var("SUB4_PP_EXACT_WINDOW_COMPARE")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or_else(replay_chunk_compare)
+        .max(1);
+
+    let mut boundaries = Vec::<(QubitId, usize, usize, Option<QubitId>)>::new();
+    let mut carry_in = None;
+    let mut final_carry = carry_out;
+    for (index, &(lo, hi)) in bounds.iter().enumerate() {
+        let last = index + 1 == bounds.len();
+        let next = if last {
+            if final_carry.is_none() && late_carry_out {
+                final_carry = Some(b.alloc_qubit());
+            }
+            final_carry
+        } else {
+            Some(b.alloc_qubit())
+        };
+        chunk_add(b, &addend[lo..hi], &acc[lo..hi], carry_in, next);
+        if !last {
+            boundaries.push((next.expect("interior carry"), lo, hi, carry_in));
+        }
+        carry_in = next;
+    }
+
+    for &(carry, lo, hi, chunk_cin) in boundaries.iter().rev() {
+        let compare = compare_target.min(hi - lo);
+        let split = hi - compare;
+
+        let owned_zero;
+        let cin = match chunk_cin {
+            Some(q) => q,
+            None => {
+                owned_zero = b.alloc_qubit();
+                owned_zero
+            }
+        };
+        let window_cin = if split > lo {
+            let q = b.alloc_qubit();
+            cmp_lt_into_fast_with_cin(b, &acc[lo..split], &addend[lo..split], cin, q);
+            q
+        } else {
+            cin
+        };
+
+        let phase = b.alloc_bit();
+        b.hmr(carry, phase);
+        let compare_carries = b.alloc_qubits(compare.saturating_sub(1));
+        cmp_lt_phase_conditioned_with_cin_borrowed_carries(
+            b,
+            &acc[split..hi],
+            &addend[split..hi],
+            window_cin,
+            &compare_carries,
+            phase,
+        );
+        b.free_vec(&compare_carries);
+
+        if split > lo {
+            cmp_lt_into_fast_with_cin(b, &acc[lo..split], &addend[lo..split], cin, window_cin);
+            b.free(window_cin);
+        }
+        if chunk_cin.is_none() {
+            b.free(cin);
+        }
+        b.free(carry);
     }
     final_carry
 }
