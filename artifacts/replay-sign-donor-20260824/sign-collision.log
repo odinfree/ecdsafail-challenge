@@ -1,0 +1,9 @@
+actual_width=259 witness_source=1 branches=[(1, 0, 1), (3, 1, 1)]
+width=4 inputs=64 post_keys=32 preimages_per_key=2 signs_per_key=0,1
+width=5 inputs=256 post_keys=128 preimages_per_key=2 signs_per_key=0,1
+width=6 inputs=1024 post_keys=512 preimages_per_key=2 signs_per_key=0,1
+width=7 inputs=4096 post_keys=2048 preimages_per_key=2 signs_per_key=0,1
+width=8 inputs=16384 post_keys=8192 preimages_per_key=2 signs_per_key=0,1
+width=9 inputs=65536 post_keys=32768 preimages_per_key=2 signs_per_key=0,1
+width=10 inputs=262144 post_keys=131072 preimages_per_key=2 signs_per_key=0,1
+PASS total_inputs=349504 total_collision_keys=174752 sign_is_not_a_function_of_post_walk_state=true
