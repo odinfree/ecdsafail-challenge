@@ -32,3 +32,34 @@ Exact CPU postfilter binding:
 The survivor is rejected before trusted evaluation. It releases the ball and
 the ordered lease may continue. No trusted evaluator, promotion, queue, or
 submission action occurred. `submit=CLOSED`, `no_submit_ack=yes`.
+
+## Worker 0 slice 2
+
+- range / count: `[82503807270912,82503815659520)` / `8388608`
+- wall / kernel / throughput: `401 s` / `398325.7 ms` / `21059.7 nonce/s`
+- state digest / comb mode: `bc16e98fdac46783` / `comb_bits=8`
+- survivors: `0`
+- evidence archive SHA-256 / bytes:
+  `28faedefd249506969c14e9cca95ebcca916bc421f27e45e4cd7e662a167a67a` /
+  `804`
+- evidence archive:
+  `/tmp/q1266-w0-slice-82503807270912-82503815659520.tar.gz`
+
+## Worker 2 bootstrap and slice 1
+
+- distributed runtime: exact SHA-256 `4ff81a62...`, bootstrap PASS
+- exhausted canary: 4,096 nonces, zero survivors, exact state telemetry
+- range / count: `[82504871575552,82504879964160)` / `8388608`
+- wall / kernel / throughput: `394 s` / `389166.6 ms` / `21555.3 nonce/s`
+- state digest / comb mode: `bc16e98fdac46783` / `comb_bits=8`
+- survivors: `0`
+- combined bootstrap, hard-nack, and slice evidence archive SHA-256 / bytes:
+  `0ca1dff266fe9a95fbe368a39f590ccd47d2931f74047a56ac03b2f2c3a91040` /
+  `3207`
+- evidence archive: `/tmp/q1266-w2-bootstrap-and-slice1.tar.gz`
+
+Cumulative new production coverage through these completed records is
+`26210304` nonces, including the production canary. Exactly one GPU survivor
+has appeared and it was exact-postfiltered non-clean. Search continues under
+the existing lease with no trusted replay. `submit=CLOSED`,
+`no_submit_ack=yes`.
