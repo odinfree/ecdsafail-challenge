@@ -566,6 +566,37 @@ mod tests {
         tail
     }
 
+    fn x(target: QubitId) -> Op {
+        let mut operation = op(OperationType::X);
+        operation.q_target = target;
+        operation
+    }
+
+    fn rewritten_nonce_fixture(enabled: bool) -> TracedOps {
+        let mut builder = B::new_for_test();
+        builder.ops = TracedOps::new(enabled);
+        emit_inverse(&mut builder, |builder| builder.push_op(x(QubitId(9))));
+
+        let mut stream = builder.ops.take();
+        let mut targets = [QubitId(0); 96];
+        for bit in 0usize..48 {
+            let target = if bit.is_multiple_of(2) {
+                QubitId(1)
+            } else {
+                QubitId(0)
+            };
+            targets[2 * bit] = target;
+            targets[2 * bit + 1] = target;
+        }
+        let tail = stream
+            .append_synthetic_tail(&[x(QubitId(0)); 96])
+            .expect("append exact synthetic tail");
+        stream
+            .rewrite_synthetic_tail_targets(tail, &targets)
+            .expect("rewrite exact synthetic tail");
+        stream
+    }
+
     fn forge_synthetic_tail(tail: &SyntheticTailSuffix) -> SyntheticTailSuffix {
         SyntheticTailSuffix {
             owner_generation: tail.owner_generation,
@@ -781,7 +812,7 @@ mod tests {
     }
 
     #[test]
-    fn audit_flag_value_requires_exact_literal_one() {
+    fn audit_flag_requires_exact_string_one() {
         assert!(j3_dead_gate_audit_value_is_enabled(Some("1")));
         for value in [
             None,
@@ -795,6 +826,54 @@ mod tests {
             assert!(
                 !j3_dead_gate_audit_value_is_enabled(value),
                 "unexpected audit enable for {value:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn inverse_and_nonce_tail_have_total_provenance() {
+        let stream = rewritten_nonce_fixture(true);
+        assert_eq!(stream.origins().len(), stream.len());
+        assert_eq!(stream.len(), 97);
+        assert_eq!(stream.origins()[0].inverse_depth, 1);
+        assert_eq!(stream.origins()[0].flags, ORIGIN_EMIT_INVERSE);
+        assert!(stream.origins()[1..].iter().all(|origin| {
+            origin.flags == (ORIGIN_SYNTHETIC_TAIL | ORIGIN_TAIL_NONCE_REWRITTEN)
+        }));
+    }
+
+    #[test]
+    fn nonce_tail_has_96_synthetic_origins() {
+        let stream = rewritten_nonce_fixture(true);
+        assert_eq!(
+            stream
+                .origins()
+                .iter()
+                .filter(|origin| origin.flags & ORIGIN_SYNTHETIC_TAIL != 0)
+                .count(),
+            96
+        );
+    }
+
+    #[test]
+    fn nonce_rewrite_preserves_sites_and_adds_only_rewrite_flag() {
+        let mut stream = TracedOps::new(true);
+        let tail = stream
+            .append_synthetic_tail(&[x(QubitId(0)); 96])
+            .expect("append exact synthetic tail");
+        let before = stream.origins().to_vec();
+        let targets = [QubitId(7); 96];
+        stream
+            .rewrite_synthetic_tail_targets(tail, &targets)
+            .expect("rewrite exact synthetic tail");
+
+        for (before, after) in before.iter().zip(stream.origins()) {
+            assert_eq!(
+                OriginRef {
+                    flags: before.flags | ORIGIN_TAIL_NONCE_REWRITTEN,
+                    ..*before
+                },
+                *after
             );
         }
     }
@@ -1362,27 +1441,41 @@ mod tests {
     }
 
     #[test]
-    fn synthetic_tail_rewrite_has_audit_off_on_operation_identity() {
-        let mut plain = TracedOps::new(false);
-        let plain_tail = plain
-            .append_synthetic_tail_at(&canonical_tail(QubitId(1)), "src/point_add/tail.rs", 2, 3)
-            .expect("append plain tail");
-        plain
-            .rewrite_synthetic_tail_targets(plain_tail, &[QubitId(8), QubitId(8)])
-            .expect("rewrite plain tail");
-
-        let mut audited = TracedOps::new(true);
-        let audited_tail = audited
-            .append_synthetic_tail_at(&canonical_tail(QubitId(1)), "src/point_add/tail.rs", 2, 3)
-            .expect("append audited tail");
-        audited
-            .rewrite_synthetic_tail_targets(audited_tail, &[QubitId(8), QubitId(8)])
-            .expect("rewrite audited tail");
-
+    fn audit_off_and_on_return_identical_fixture_ops() {
+        let plain = rewritten_nonce_fixture(false);
+        let audited = rewritten_nonce_fixture(true);
         assert_eq!(plain.to_vec(), audited.to_vec());
         assert!(plain.origins().is_empty());
         assert!(plain.sites().is_empty());
         assert_eq!(audited.origins().len(), audited.len());
+    }
+
+    #[test]
+    fn paired_tail_matches_legacy_nonce_targets() {
+        for nonce in [0, 1, 8107117281543, (1u64 << 48) - 1, u64::MAX] {
+            let mut expected = vec![x(QubitId(0)); 96];
+            let mut targets = [QubitId(0); 96];
+            for bit in 0usize..48 {
+                let target = if (nonce >> bit) & 1 == 1 {
+                    QubitId(1)
+                } else {
+                    QubitId(0)
+                };
+                expected[2 * bit].q_target = target;
+                expected[2 * bit + 1].q_target = target;
+                targets[2 * bit] = target;
+                targets[2 * bit + 1] = target;
+            }
+
+            let mut stream = TracedOps::new(false);
+            let tail = stream
+                .append_synthetic_tail(&[x(QubitId(0)); 96])
+                .expect("append exact synthetic tail");
+            stream
+                .rewrite_synthetic_tail_targets(tail, &targets)
+                .expect("rewrite exact synthetic tail");
+            assert_eq!(stream.to_vec(), expected, "nonce {nonce}");
+        }
     }
 
     #[test]
