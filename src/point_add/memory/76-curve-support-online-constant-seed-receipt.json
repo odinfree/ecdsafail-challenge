@@ -1,0 +1,56 @@
+{
+  "schema": "curve-support-online-constant-seed-summary-v1",
+  "identity_verdict": "ADMIT_CURVE_SUPPORT_CONSTANT_SEED_INJECTIVITY_TOY_ONLY",
+  "affine_decoder_verdict": "HARD_NACK_AFFINE_CONSTANT_SEED_POSTDECODER",
+  "cube_root_verdict": "HARD_NACK_CURRENT_SQUARE_CUBIC_DECOMPRESS",
+  "verdict": "HARD_NACK_CURVE_SUPPORT_CONSTANT_SEED_NATURAL_DECODERS",
+  "implementation_commit": "65f300aaa505f16ff52d070d68e3526636fe8248",
+  "implementation_tree": "903cfe0e4886411ef17c1fcc2174d184c6bb50d7",
+  "full_gate_receipt_sha256": "cd668dca73475179dce411d83c5ed7c7a6cd9f71666233efb286ae1b8ce8db2f",
+  "identity": "(lambda,c)*[[-r,T],[k,-p]] = (-r*lambda+k*c,T*lambda mod p)",
+  "exhaustive_totals": {
+    "fields": 8,
+    "classical_points": 8210,
+    "support_states": 22943190,
+    "unavoidable_collision_points": 0,
+    "uncertified_points": 0,
+    "injectivity_failures": 0,
+    "product_failures": 0
+  },
+  "support_cases": [
+    {"modulus": 31, "points": 20, "support_states": 360, "prime_mod_3": 1, "max_z_fiber": 3, "max_forbidden_constants": 14, "max_abs_seed": 1, "transcript_sha256": "16aafbb44409fc385bfb2dc32feee9742acb045edb33a957643d7e076389520b"},
+    {"modulus": 61, "points": 60, "support_states": 3480, "prime_mod_3": 1, "max_z_fiber": 3, "max_forbidden_constants": 40, "max_abs_seed": 5, "transcript_sha256": "fab4ab14d757a7f612040f55e8d22ca0e5209dc79a2ed3e244e5207b26298ce0"},
+    {"modulus": 127, "points": 126, "support_states": 15624, "prime_mod_3": 1, "max_z_fiber": 3, "max_forbidden_constants": 87, "max_abs_seed": 7, "transcript_sha256": "59a1d8ce6d2590767d79170827eb4900af051ddbb3ade2838eb2dab6b6a0aab9"},
+    {"modulus": 251, "points": 251, "support_states": 62500, "prime_mod_3": 2, "max_z_fiber": 1, "max_forbidden_constants": 0, "max_abs_seed": 0, "transcript_sha256": "1911fd2737bbc6ae19825fcb7ed1a4f6e5406dbfc69f451a14b4bef17df2b3de"},
+    {"modulus": 509, "points": 509, "support_states": 258064, "prime_mod_3": 2, "max_z_fiber": 1, "max_forbidden_constants": 0, "max_abs_seed": 0, "transcript_sha256": "79f587edd7598ce86f68ffefb4327daa2ee4dab1efbf0d09b03022b6d163d7c4"},
+    {"modulus": 1021, "points": 1035, "support_states": 1069158, "prime_mod_3": 1, "max_z_fiber": 3, "max_forbidden_constants": 681, "max_abs_seed": 8, "transcript_sha256": "415c891095b8996bae00b06b2e8bc69e95a1b0619adf758dd3ac2cf825433f43"},
+    {"modulus": 2039, "points": 2039, "support_states": 4153444, "prime_mod_3": 2, "max_z_fiber": 1, "max_forbidden_constants": 0, "max_abs_seed": 0, "transcript_sha256": "24e416d7150b0839cd6557fa73d5fdec6cc2870dbf8710707abeeba245bb7e09"},
+    {"modulus": 4093, "points": 4170, "support_states": 17380560, "prime_mod_3": 1, "max_z_fiber": 3, "max_forbidden_constants": 2686, "max_abs_seed": 10, "transcript_sha256": "7fd695f73565bb461ceb3500412b6f0ee0814e3c358fd8de8bd54071189f7241"}
+  ],
+  "first_point_affine_decoder_solutions": 0,
+  "secp_cube_root": {
+    "prime_mod_3": 1,
+    "prime_mod_9": 7,
+    "root_exponent_bits": 253,
+    "root_exponent_popcount": 127,
+    "binary_squarings": 252,
+    "current_square_t": 54876.89,
+    "square_only_t": 13828976.28,
+    "replacement_t_ceiling": 335738.86,
+    "budget_multiple": 41.18968021753574
+  },
+  "production_seed_certificate": false,
+  "off_support_extension": false,
+  "full_field_candidate": false,
+  "next_grammar": "GLV_TRIT_TAG_DECODER",
+  "authority": {
+    "provider": false,
+    "nonce_grind": false,
+    "fleet": false,
+    "queue": false,
+    "push": false,
+    "public_note": false,
+    "promotion": false,
+    "submission": false
+  }
+}
