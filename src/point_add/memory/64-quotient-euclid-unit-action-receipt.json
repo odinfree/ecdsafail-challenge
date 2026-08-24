@@ -1,0 +1,65 @@
+{
+  "schema": "quotient-euclid-unit-action-summary-v1",
+  "verdict": "ADMIT_QUOTIENT_EUCLID_RECURRENCE_ONLY",
+  "base_commit": "cbf229dbd46a7c677fe2e28da882b4f8a02bac7f",
+  "base_tree": "eab2326ce33549eceeb5c10aa64eae33f148b0ac",
+  "implementation_commit": "e843705a64728ae8d5b103888eed24a704089882",
+  "implementation_tree": "160d80b019aa23b8db2ee5ab2486f707e07b3f7e",
+  "oracle": "repro/quotient_euclid_unit_action.py",
+  "test": "repro/test_quotient_euclid_unit_action.py",
+  "full_gate_receipt_sha256": "1e54f3a15f98d56c71db2c92d39e5b0043a65e5834c90f037bb292844a975910",
+  "exact_action": {
+    "fields": [31, 61, 127, 251],
+    "checked_pairs": 83342,
+    "forward_failures": 0,
+    "inverse_failures": 0,
+    "zero_companion_failures": 0,
+    "transcript_sha256": {
+      "31": "db1089cba1f5b60baef8a8c846d1fddb59b8b2d60940524845fe98a98ffe8938",
+      "61": "0d5347cfce96dfbf2f94eeb74befb13775fa2fd88337946231a7e23f5dad35ca",
+      "127": "f1b62c437edc64da1e1a31fea477b5337dadb635c1b29ded56c50d08d532d9b2",
+      "251": "90e26ae165455ad57b3feba0dc38e9a369009be98de14cb582b291f913b89cdf"
+    }
+  },
+  "complete_denominator_census": {
+    "widths": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+    "trace_reconstruction_failures": 0,
+    "gamma_codec_failures": 0,
+    "final_quotient_failures": 0,
+    "max_steps_by_width": [6, 6, 8, 9, 9, 12, 12, 14, 15, 16],
+    "max_payload_bits_by_width": [8, 9, 11, 13, 14, 16, 17, 19, 21, 22],
+    "max_gamma_bits_by_width": [12, 14, 16, 19, 22, 24, 27, 29, 31, 34]
+  },
+  "production_sample": {
+    "field": "secp256k1",
+    "method": "sha256('quotient-euclid-secp256k1:' || decimal_index)",
+    "count": 10000,
+    "sample_sha256": "65bbb5f5a52097a40e2da5ad500960d7488242d3bcebf11215810d9a56eb5cbc",
+    "trace_reconstruction_failures": 0,
+    "gamma_codec_failures": 0,
+    "steps": {"min": 113, "mean": 150.0185, "p95": 166, "max": 186},
+    "quotient_payload_bits": {"min": 319, "mean": 337.4212, "p95": 345, "max": 355},
+    "gamma_bits": {"min": 499, "mean": 524.8239, "p95": 534, "max": 548},
+    "shifted_add_terms": {"min": 195, "mean": 224.5499, "p95": 238, "max": 259},
+    "max_quotient_bits": 23
+  },
+  "comparison": {
+    "live_binary_rounds": 696,
+    "sample_max_steps_below_live_rounds": true,
+    "sample_max_payload_below_live_rounds": true,
+    "sample_max_gamma_below_live_rounds": true,
+    "fixed_circuit_cost_known": false
+  },
+  "full_field_candidate": false,
+  "remaining_blocker": "STATIC_REVERSIBLE_TRANSCRIPT_COMPILER",
+  "authority": {
+    "provider": false,
+    "nonce_grind": false,
+    "fleet": false,
+    "queue": false,
+    "push": false,
+    "public_note": false,
+    "promotion": false,
+    "submission": false
+  }
+}
