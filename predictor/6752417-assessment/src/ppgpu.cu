@@ -1,5 +1,7 @@
 // ppgpu.cu — CUDA port of the source-literal classical prefilter for the
-// ecdsa.fail 6752417 Q1266 odd-passenger candidate. The shared model binds the
+// ecdsa.fail 6752417 Q1266 odd-passenger candidate. This fresh artifact retains
+// only the source-literal comb8 path; the separately frozen comb16 port was
+// hard-nacked on an intermediate Jacobian mismatch. The shared model binds the
 // executed depths (ROUNDS_DIV=696/ROUNDS_MUL=694), exact width schedule,
 // candidate operation count, and prefix-state digest. RTX 4090 (sm_89).
 //
@@ -34,66 +36,9 @@ __device__ __constant__ u64 d_base_st[25];
 __device__ __constant__ int d_base_n;
 __device__ __constant__ u8 d_tail[96 * PP_OP_BYTES];
 __device__ u64* d_comb;   // comb8: 32*255 entries * 8 u64
-__device__ u64* d_comb16; // comb16: 16*65535 entries * 8 u64 (optional)
-__device__ __constant__ int d_comb_bits;
-
-// ─── comb16 construction (device): entry (j,d) = comb8[2j][lo] + comb8[2j+1][hi]
-__global__ void build_comb16_kernel(const u64* comb8, u64* comb16) {
-    u64 idx = blockIdx.x * (u64)blockDim.x + threadIdx.x;
-    u64 total = 16ull * 65535ull;
-    for (u64 i = idx; i < total; i += gridDim.x * (u64)blockDim.x) {
-        int j = (int)(i / 65535ull);
-        u32 d = (u32)(i % 65535ull) + 1;
-        u32 lo = d & 0xff, hi = d >> 8;
-        u64 ax[4], ay[4];
-        const u64* e;
-        if (lo) {
-            e = comb8 + ((size_t)(2 * j) * 255 + lo - 1) * 8;
-            for (int k = 0; k < 4; k++) { ax[k] = e[k]; ay[k] = e[4 + k]; }
-        }
-        if (hi) {
-            e = comb8 + ((size_t)(2 * j + 1) * 255 + hi - 1) * 8;
-            if (lo) {
-                // Jacobian add of the two affine entries, then to affine
-                PP_Jac a, r;
-                for (int k = 0; k < 4; k++) { a.x[k] = ax[k]; a.y[k] = ay[k]; a.z[k] = (k == 0); }
-                pp_jadd_mixed(&a, e, e + 4, &r);
-                u64 zi[4], zi2[4], zi3[4];
-                pp_finv(r.z, zi);
-                pp_fsq(zi, zi2);
-                pp_fmul(zi2, zi, zi3);
-                pp_fmul(r.x, zi2, ax);
-                pp_fmul(r.y, zi3, ay);
-            } else {
-                for (int k = 0; k < 4; k++) { ax[k] = e[k]; ay[k] = e[4 + k]; }
-            }
-        }
-        u64* out = comb16 + i * 8;
-        for (int k = 0; k < 4; k++) { out[k] = ax[k]; out[4 + k] = ay[k]; }
-    }
-}
-
-// Scalar mul with the comb16 table: 16 windows of 16 bits.
-__device__ __forceinline__ void pp_comb_mul16(const u64* table, const u8 k[32],
-                                              PP_Jac* acc) {
-    pp_jac_inf(acc);
-    for (int j = 0; j < 16; j++) {
-        u32 d = (u32)k[2 * j] | ((u32)k[2 * j + 1] << 8);
-        if (d != 0) {
-            const u64* e = table + ((size_t)j * 65535 + d - 1) * 8;
-            PP_Jac r;
-            pp_jadd_mixed(acc, e, e + 4, &r);
-            *acc = r;
-        }
-    }
-}
 
 __device__ __forceinline__ void dev_comb_mul(const u8 k[32], PP_Jac* acc) {
-    if (d_comb_bits == 16 && d_comb16) {
-        pp_comb_mul16(d_comb16, k, acc);
-    } else {
-        pp_comb_mul(d_comb, k, acc);
-    }
+    pp_comb_mul(d_comb, k, acc);
 }
 
 // ─── per-nonce SHAKE tail absorb + wave squeeze (thread 0 only) ────────────
@@ -554,7 +499,6 @@ int main(int argc, char** argv) {
     u64 from = 0, to = 0;
     int wave = 128;
     int blocks = 0; // 0 = auto
-    int comb_bits = 16;
     u64 faultshots_nonce = ~0ULL;
     u64 shot_nonce = ~0ULL;
     int shot_idx = -1;
@@ -571,7 +515,6 @@ int main(int argc, char** argv) {
         else if (a == "--to") to = strtoull(next(), 0, 10);
         else if (a == "--threads-block") wave = atoi(next());
         else if (a == "--blocks") blocks = atoi(next());
-        else if (a == "--comb-bits") comb_bits = atoi(next());
         else if (a == "--faultshots") faultshots_nonce = strtoull(next(), 0, 10);
         else if (a == "--shot") {
             shot_nonce = strtoull(next(), 0, 10);
@@ -588,14 +531,12 @@ int main(int argc, char** argv) {
     if (!ops) {
         fprintf(stderr,
                 "usage: ppgpu --ops OPS.bin (--from A --to B | --faultshots N | "
-                "--shot N IDX | --breakdown N) [--threads-block 128] [--blocks N] "
-                "[--comb-bits 8|16]\n");
+                "--shot N IDX | --breakdown N) [--threads-block 128] [--blocks N]\n");
         return 2;
     }
     if (wave < 32) wave = 32;
     if (wave > MAX_WAVE) wave = MAX_WAVE;
     if (wave % 32) wave = ((wave + 31) / 32) * 32;
-    if (comb_bits != 8 && comb_bits != 16) comb_bits = 16;
 
     // host prefix load (includes the op-count fingerprint guard)
     PP_Prefix prefix;
@@ -618,25 +559,6 @@ int main(int argc, char** argv) {
     cudaMalloc(&dc, comb.size() * 8);
     cudaMemcpy(dc, comb.data(), comb.size() * 8, cudaMemcpyHostToDevice);
     cudaMemcpyToSymbol(d_comb, &dc, sizeof(dc));
-
-    u64* dc16 = nullptr;
-    if (comb_bits == 16) {
-        size_t bytes = 16ull * 65535ull * 8 * sizeof(u64);
-        cudaError_t ce = cudaMalloc(&dc16, bytes);
-        if (ce) {
-            fprintf(stderr, "ppgpu: comb16 malloc failed: %s\n", cudaGetErrorString(ce));
-            return 1;
-        }
-        build_comb16_kernel<<<2048, 256>>>(dc, dc16);
-        ce = cudaDeviceSynchronize();
-        if (ce) {
-            fprintf(stderr, "ppgpu: comb16 build failed: %s\n", cudaGetErrorString(ce));
-            return 1;
-        }
-        fprintf(stderr, "ppgpu: comb16 built (%.1f MiB)\n", bytes / 1048576.0);
-    }
-    cudaMemcpyToSymbol(d_comb16, &dc16, sizeof(dc16));
-    cudaMemcpyToSymbol(d_comb_bits, &comb_bits, 4);
 
     if (probe_bytes_nonce != ~0ULL) {
         u8* dout;
@@ -818,9 +740,8 @@ int main(int argc, char** argv) {
     cudaMalloc(&dfaults, 8);
     cudaMemset(dfaults, 0, 8);
 
-    fprintf(stderr, "ppgpu: scan [%llu,%llu) blocks=%d wave=%d shmem=%zu comb_bits=%d\n",
-            (unsigned long long)from, (unsigned long long)to, blocks, wave, shmem,
-            comb_bits);
+    fprintf(stderr, "ppgpu: scan [%llu,%llu) blocks=%d wave=%d shmem=%zu comb_bits=8\n",
+            (unsigned long long)from, (unsigned long long)to, blocks, wave, shmem);
     cudaEvent_t t0, t1;
     cudaEventCreate(&t0);
     cudaEventCreate(&t1);
@@ -851,11 +772,11 @@ int main(int argc, char** argv) {
     double secs = ms / 1000.0;
     fprintf(stderr,
             "TELEMETRY {\"from\":%llu,\"to\":%llu,\"count\":%llu,\"blocks\":%d,"
-            "\"wave\":%d,\"comb_bits\":%d,\"kernel_ms\":%.1f,\"nonces_per_s\":%.1f,"
+            "\"wave\":%d,\"comb_bits\":8,\"kernel_ms\":%.1f,\"nonces_per_s\":%.1f,"
             "\"waves\":%llu,\"fault_shots\":%llu,\"survivors\":%u,"
             "\"state_digest\":\"%016llx\"}\n",
             (unsigned long long)from, (unsigned long long)to, (unsigned long long)count,
-            blocks, wave, comb_bits, ms, count / secs, (unsigned long long)hwaves,
+            blocks, wave, ms, count / secs, (unsigned long long)hwaves,
             (unsigned long long)hfaults, cnt, (unsigned long long)pp_state_digest(&prefix));
     return 0;
 }
