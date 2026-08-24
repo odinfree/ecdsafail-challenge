@@ -281,6 +281,25 @@ capacity are not `HARD_NACK` evidence.
 - The prototype is preserved at commit `3a00a61` and reverted at `255b9dd`; the
   source head contains no activated dirty-history implementation.
 
+### Phase six settlement — stationary terminal suffix `HARD_NACK`
+
+- Evidence:
+  `src/point_add/memory/21-stationary-suffix-codec-verdict.md`.
+- A fixed cutoff at round 631 aliases 64 later logical signs to one physical
+  terminal-run sign, but the exact fixed-64 selfcheck reports 27 classical
+  mismatches. The `(+-1, +-1)` orbit is stationary; entry into it is not
+  universally complete by round 631.
+- The default planner absorbs the nominal history saving into replay ladders,
+  leaving Q1267. Forcing both planner caps to 1209 makes the exact split
+  geometry worse at Q1289/T64 957078.58 and does not repair correctness.
+- Prototype `ffa9e377d4b48a23d216cd071a5b3c6009bc2324` was exactly reverted by
+  `33197ff07b58eecc9d89e2b7dd5d4b237c25b1a8`; the production source is restored.
+- Reopen only for an exact variable-boundary suffix code, a proof of an earlier
+  admitted-domain convergence bound, or a recurrence with a cheaper reversible
+  convergence certificate.
+- No 9,024-shot evaluation, provider, nonce, fleet, queue, push, public note,
+  protected-instance, or submission action was taken.
+
 ## Anti-rot ban list
 
 The following do not advance structural cadence:
