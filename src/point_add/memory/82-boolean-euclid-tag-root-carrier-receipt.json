@@ -1,0 +1,35 @@
+{
+  "schema": "boolean-euclid-tag-root-carrier-summary-v1",
+  "verdict": "HARD_NACK_BOOLEAN_EUCLID_TAG_ROOT_CARRIER_NATURAL_ANF",
+  "implementation_commit": "1578076c642be41d205b22d2f0c05ed7a60905df",
+  "implementation_tree": "de43b3d25735a9b4985bb3dfae55af37a72495a7",
+  "full_gate_receipt_sha256": "f478a5a1d5a1195721a549241d68a068a2a31c53fd137cd57ee5ed7ac2515bd7",
+  "support_degree_cases": [
+    {"modulus": 31, "support": 18, "degree": 2, "monomials": 56, "capacity_rank": 18, "preceding_ranks": [9, 10], "support_sha256": "f4b86803f741b7d5a1f6325bbadb0e6aad3333d586caf7d4d20ef85de7e76134"},
+    {"modulus": 61, "support": 58, "degree": 2, "monomials": 79, "capacity_rank": 58, "preceding_ranks": [13, 14], "support_sha256": "6c5f53d21df497eda3e486243db021ad7d7e19272ba4552b4ed0678ac481f981"},
+    {"modulus": 127, "support": 124, "degree": 3, "monomials": 470, "capacity_rank": 124, "preceding_ranks": [106, 107], "support_sha256": "84060710cb49349bf37736434617d4cdf7385c3f7772fa873f733316f60c4c5b"},
+    {"modulus": 251, "support": 249, "degree": 3, "monomials": 697, "capacity_rank": 249, "preceding_ranks": [137, 138], "support_sha256": "2b240091b37a7159e004e9586f33a1f2b6a8af73f69b9e0edf83b6a01b5688fd"},
+    {"modulus": 509, "support": 507, "degree": 3, "monomials": 988, "capacity_rank": 507, "preceding_ranks": [172, 173], "support_sha256": "f70aaf50f0b11f26252f1bf439d9bd76a6d70d0897b48fcbdeb3fc40465614f2"}
+  ],
+  "zero_extension_cases": [
+    {"modulus": 31, "rows": 1024, "degrees": [9, 9, 9, 9, 9], "counts": [144, 166, 140, 110, 146]},
+    {"modulus": 61, "rows": 4096, "degrees": [11, 11, 11, 11, 11, 11], "counts": [1904, 1758, 1236, 1242, 1854, 1734]},
+    {"modulus": 127, "rows": 16384, "degrees": [13, 13, 13, 13, 13, 13, 13], "counts": [4756, 4112, 4734, 4516, 4578, 5148, 5116]},
+    {"modulus": 251, "rows": 65536, "degrees": [15, 15, 15, 16, 16, 15, 16, 15], "counts": [19104, 21192, 19684, 19512, 21416, 20360, 20878, 21022]},
+    {"modulus": 509, "rows": 262144, "degrees": [18, 17, 17, 17, 17, 18, 18, 18, 17], "counts": [66002, 70928, 64964, 69468, 69246, 64660, 64260, 67950, 62348]}
+  ],
+  "arbitrary_factored_boolean_circuits_closed": false,
+  "scope": "SELECTED_CONSTANT_SEED_BOOLEAN_SUPPORT_DEGREE_AND_ZERO_EXTENSION_ANF_ONLY",
+  "full_field_candidate": false,
+  "next_grammar": "SUPPORT_TRACE_ROOT_SELECTOR",
+  "authority": {
+    "provider": false,
+    "nonce_grind": false,
+    "fleet": false,
+    "queue": false,
+    "push": false,
+    "public_note": false,
+    "promotion": false,
+    "submission": false
+  }
+}
