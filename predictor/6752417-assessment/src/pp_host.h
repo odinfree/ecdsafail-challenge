@@ -14,8 +14,8 @@
 #define PP_NUM_TESTS 9024
 
 // Hard op-count fingerprint guard: the only stream this build serves.
-static const u64 PP_EXPECTED_OPS_Q1272 = 12593858ULL; // exact 6752417 stream
-static const u64 PP_EXPECTED_STATE_DIGEST_Q1272 = 0x867497b860476be7ULL;
+static const u64 PP_EXPECTED_OPS_CANDIDATE = 12596439ULL;
+static const u64 PP_EXPECTED_STATE_DIGEST_CANDIDATE = 0xbc16e98fdac46783ULL;
 
 struct PP_Prefix {
     PP_Shake checkpoint;
@@ -58,11 +58,11 @@ inline void pp_load_prefix(const char* path, PP_Prefix* out) {
     u64 n;
     memcpy(&n, header + 8, 8);
     fclose(f);
-    if (n != PP_EXPECTED_OPS_Q1272) {
+    if (n != PP_EXPECTED_OPS_CANDIDATE) {
         fprintf(stderr,
                 "ppgpu: FATAL: ops stream op count %llu != expected %llu (6752417); "
                 "refusing to run on an unknown stream\n",
-                (unsigned long long)n, (unsigned long long)PP_EXPECTED_OPS_Q1272);
+                (unsigned long long)n, (unsigned long long)PP_EXPECTED_OPS_CANDIDATE);
         exit(2);
     }
     if (n < 96) {
@@ -142,12 +142,12 @@ inline void pp_load_prefix(const char* path, PP_Prefix* out) {
     out->checkpoint = shake;
     out->total_ops = n;
     u64 digest = pp_state_digest(out);
-    if (digest != PP_EXPECTED_STATE_DIGEST_Q1272) {
+    if (digest != PP_EXPECTED_STATE_DIGEST_CANDIDATE) {
         fprintf(stderr,
                 "ppgpu: FATAL: ops stream state digest %016llx != expected %016llx "
                 "(6752417); refusing same-count unknown stream\n",
                 (unsigned long long)digest,
-                (unsigned long long)PP_EXPECTED_STATE_DIGEST_Q1272);
+                (unsigned long long)PP_EXPECTED_STATE_DIGEST_CANDIDATE);
         exit(2);
     }
 }

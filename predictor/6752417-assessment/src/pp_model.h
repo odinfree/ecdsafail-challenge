@@ -1,15 +1,13 @@
-// pp_model.h — bit-exact C++ port of the ppfilter fault model
-// (ecdsa-ppfilter-rl/src/bin/ppfilter.rs md5 f19ad08ddd00210942dd380d1fec81f2,
-// ROUNDS_DIV=696, ROUNDS_MUL=696), retargeted to the Q1272 width-rescale
-// stream at source commit da61d4872ec9749411e87a2fb59e77d199fba60c. The
-// Rust circuit maps each walk round r to floor(r * 703 / 695) in the sampled
-// 704-round width schedule for both divide and multiply traversals.
+// pp_model.h — source-literal C++ port of the frozen 6752417 ping-pong fault
+// model, bound to the Q1266 odd-passenger candidate at commit 57ee207. The
+// circuit maps each walk round r to floor(r * 703 / 695) in the sampled
+// 704-round width schedule for both divide and multiply traversals, then
+// applies its default-active sparse WIDTH_REPAIR set.
 // Pure integer code; compiles under g++/clang++ (host CPU reference) and
 // nvcc (host+device). No CUDA keywords live here.
 //
-// Provenance: every function is a line-level port of the Rust oracle.
-// ROUNDS_MUL is fixed to 696 (hunt target; the Rust oracle's
-// PPF_ROUNDS_MUL=696 env override selects the same value).
+// Provenance: every function is a line-level port of the Rust oracle. The
+// emitted stream executes 696 divide rounds and 694 multiply rounds.
 #pragma once
 
 #include <cstdint>
@@ -35,6 +33,7 @@ typedef unsigned __int128 u128;
 #define PP_P4_INIT {0xFFFFFFFEFFFFFC2FULL, 0xFFFFFFFFFFFFFFFFULL, 0xFFFFFFFFFFFFFFFFULL, 0xFFFFFFFFFFFFFFFFULL}
 #define PP_P4(name) const u64 name[4] = PP_P4_INIT
 #define PP_FC 0x1000003D1ULL // 2^32 + 977 = 2^256 - p
+#define PP_MASK53 ((1ULL << 53) - 1)
 #define PP_MASK54 ((1ULL << 54) - 1)
 
 PP_HD void pp_fadd(const u64 a[4], const u64 b[4], u64 s[4]) {
@@ -519,8 +518,8 @@ PP_HD bool pp_s320_is_pm1(const PP_S320* a) {
 
 #define PP_N 256
 #define PP_VALUE_WIDTH (PP_N + 3) // 259
-#define PP_ROUNDS_DIV 696 // exact d919/da61 divide depth
-#define PP_ROUNDS_MUL 697 // exact 6752417 multiply depth
+#define PP_ROUNDS_DIV 696 // exact executed 6752417 divide depth
+#define PP_ROUNDS_MUL 694 // exact executed 6752417 multiply depth
 
 // WIDTH_SCHEDULE @7ca0559 — sampled value_width table, copied verbatim from
 // ecdsa-ppfilter-rl/src/bin/ppfilter.rs (md5 f19ad08ddd00210942dd380d1fec81f2).
@@ -559,7 +558,35 @@ static const u16 PP_WIDTH_SCHEDULE[700] = {
 __device__ __constant__ u16 PP_WIDTH_SCHEDULE_D[700];
 #endif
 
-// Q1272 rescaled value_width(): round 0 stays VALUE_WIDTH. Other rounds map
+// Exact default-active WIDTH_REPAIR membership at source 67524171. These are
+// sampled-schedule indices, not raw rounds. A switch keeps the definition
+// byte-identical between host and device compilation.
+PP_HD bool pp_width_repair_index(int r) {
+    switch (r) {
+        case 18: case 19: case 27: case 35: case 44: case 54: case 55:
+        case 57: case 58: case 67: case 70: case 73: case 76: case 98:
+        case 119: case 121: case 123: case 124: case 125: case 127:
+        case 129: case 164: case 166: case 167: case 168: case 193:
+        case 248: case 259: case 261: case 262: case 263: case 264:
+        case 272: case 297: case 299: case 300: case 301: case 302:
+        case 303: case 304: case 312: case 323: case 325: case 327:
+        case 328: case 356: case 377: case 400: case 401: case 402:
+        case 403: case 406: case 475: case 516: case 526: case 528:
+        case 530: case 533: case 536: case 538: case 541: case 563:
+        case 593: case 595: case 600: case 602: case 603: case 625:
+        case 628: case 629: case 631: case 647: case 648: case 649:
+        case 650: case 651: case 652: case 655: case 657: case 659:
+        case 661: case 663: case 664: case 666: case 667: case 668:
+        case 669: case 671: case 672: case 674: case 676: case 678:
+        case 679: case 680: case 681: case 683: case 685: case 687:
+        case 689: case 693:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// Frozen 6752417 rescaled value_width(): round 0 stays VALUE_WIDTH. Other rounds map
 // through the exact Rust width_round_index calculation r * (704-1)/(696-1),
 // then read the sampled table and clamp [8, 259]. Indices >=700 use the floor
 // width 8. The _t variant reads a caller-supplied table (the kernels stage it
@@ -569,7 +596,8 @@ PP_HD int pp_value_width_t(int round, const u16* tab) {
     if (round == 0) return PP_VALUE_WIDTH;
     int schedule_round = round * 703 / 695;
     if (schedule_round < 700) {
-        int w = (int)tab[schedule_round];
+        int w = (int)tab[schedule_round]
+              + (pp_width_repair_index(schedule_round) ? 1 : 0);
         if (w < 8) w = 8;
         if (w > PP_VALUE_WIDTH) w = PP_VALUE_WIDTH;
         return w;
@@ -914,6 +942,30 @@ PP_HD bool pp_fold54(u64 acc[4], int k) {
     return fault;
 }
 
+// The frozen 6752417 stream uses a one-bit-shorter fold for multiply replay
+// (SUB4_PP_REPLAY_FOLD_WINDOW_MUL=53).  Its correction algebra is identical
+// to pp_fold54; only the retained low window and discarded carry differ.
+PP_HD bool pp_fold53(u64 acc[4], int k) {
+    if (k == 0) return false;
+    u64 low = acc[0] & PP_MASK53;
+    u64 nl;
+    bool fault;
+    if (k == 1) {
+        u128 s = (u128)low + PP_FC;
+        nl = (u64)s & PP_MASK53;
+        fault = s >= ((u128)1 << 53);
+    } else if (k == 2) {
+        u128 s = (u128)low + 2 * PP_FC;
+        nl = (u64)s & PP_MASK53;
+        fault = s >= ((u128)1 << 53);
+    } else { // k == -1
+        fault = low < PP_FC;
+        nl = (low - PP_FC) & PP_MASK53;
+    }
+    acc[0] = (acc[0] & ~PP_MASK53) | nl;
+    return fault;
+}
+
 // conditional_mod_negate: complement then csub(f-1, window=20 -> last=52).
 PP_HD bool pp_cneg(u64 acc[4]) {
     pp_not256(acc);
@@ -972,7 +1024,7 @@ PP_HD bool pp_double_add_fused(bool sign, const u64 s[4], u64 t[4]) {
     bool plus_2f = routed && !sign;
     bool plus_f = d ^ o ^ minus_f;
     int k = (int)plus_f + 2 * (int)plus_2f - (int)minus_f;
-    bool fault = pp_fold54(t, k);
+    bool fault = pp_fold53(t, k);
     if (sign) pp_not256(t);
     return fault;
 }
@@ -1060,18 +1112,14 @@ PP_HD void pp_divide_replay(const u64 dy[4], const u64 signs[11], bool su, bool 
     // round 1 is odd: (source, target) = (y, x)
     pp_seed_round_one(pp_sign_at(signs, 1), y, x);
     pp_mod_halve_pm(x);
-    pp_to_signed_frame(x);
-    pp_to_signed_frame(y);
     for (int r = 2; r < PP_ROUNDS_DIV; r++) {
         bool sign = pp_sign_at(signs, r);
         if (r % 2 == 0) {
-            pp_halve_fused_signed(sign, x, y);
+            pp_halve_fused(sign, x, y);
         } else {
-            pp_halve_fused_signed(sign, y, x);
+            pp_halve_fused(sign, y, x);
         }
     }
-    pp_from_signed_frame(x);
-    pp_from_signed_frame(y);
     if (su) pp_cneg(x);
     if (sv) pp_cneg(y);
     for (int i = 0; i < 4; i++) { x_out[i] = x[i]; y_out[i] = y[i]; }
