@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -53,6 +54,15 @@ class CliTests(unittest.TestCase):
     def test_receipt_is_byte_deterministic(self) -> None:
         args = ["--width", "5", "--modulus", "29", "--rounds", "12"]
         self.assertEqual(render_receipt(args), render_receipt(args))
+
+    def test_production_projection_uses_retained_word_not_ratio(self) -> None:
+        args = ["--width", "5", "--modulus", "29", "--rounds", "12"]
+        receipt = json.loads(render_receipt(args))
+        self.assertEqual(receipt["projected_resident_history"], 256)
+        self.assertIn(
+            "retained 256-bit denominator",
+            receipt["model_scope"]["projection_method"],
+        )
 
 
 if __name__ == "__main__":

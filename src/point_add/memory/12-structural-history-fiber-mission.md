@@ -181,21 +181,55 @@ capacity are not `HARD_NACK` evidence.
 
 - Verdict: `ADMIT` to decoder synthesis only.
 - Evidence: `src/point_add/memory/14-structural-history-fiber-verdict.json`
-- Evidence SHA256: `1e92903b82396058f2d0a7d8895c18eee1fd8dda0b536da35ceb8d6ccff79e88`
+- Evidence SHA256: `fe2ea4b37efccd20b7786b9a08952d0ebc68cac9c396fe6174004be108733ba3`
 - Width 5: modulus 29, 12 rounds, 812/812 exhaustive inputs converged,
   maximum final fiber 10, minimum code 4 bits for 12 raw signs.
 - Width 6: modulus 61, 17 rounds, 3660/3660 exhaustive inputs converged,
   maximum final fiber 21, minimum code 5 bits for 17 raw signs.
 - Scaling: code/raw improved from 0.333333 to 0.294118.
-- Production information projection: `ceil(636 * 5 / 17) = 188` resident
-  history bits, below the Q1100 history cap 469 and the Q1000 cap 369.
+- Production information projection: one retained 256-bit denominator word.
+  The reduced-width code grows as `width - 1` (4 bits at width 5, 5 bits at
+  width 6), so scaling by the raw-sign ratio would be invalid. The corrected
+  256-bit code is below the Q1100 history cap 469 and Q1000 cap 369.
 - Qualification: information-theoretic and reduced-width only. No reversible
   decoder cost, production Q, executed T, op stream, nonce, or correctness
   claim follows from this result.
 - Actions not taken: no circuit edit, provider action, nonce grind, fleet or
   queue dispatch, push, public note, submission, or protected-instance change.
-- Next authorized action: synthesize and price an exact block decoder at two
-  widths, with whole-circuit T headroom 138,365 at Q1100 as the kill threshold.
+- Next authorized action: apply the current-source materialization and
+  recomputation bounds before any decoder implementation.
+
+## Decoder static closeout
+
+- Verdict: `HARD_NACK` for the selected endpoint-fiber/retained-denominator
+  decoder family on Q1100 and Q1000.
+- Evidence: `src/point_add/memory/15-structural-history-decoder-static-verdict.json`.
+- Evidence SHA256: `6a3caf77906d930eea579ef9ae0655a86b3d2280cb845370bb745756e8fc151b`.
+- Exact current-source geometry: the first unimplemented production sign at
+  round 8 has `value_width(8)=258`. A materializing decoder needs 516 walk-state
+  qubits + 512 replay-pair qubits + the 256-bit retained code = Q1284 before a
+  sign, carry, extraction scratch, or the other co-binders.
+- Exact current-source ordinary recomputation floor: deterministic generic walk
+  CCX sums are 93,935 Divide and 93,925 Multiply after granting rounds 0..7
+  free. One extra reverse+forward pass on both traversals costs at least
+  `2 * (93,935 + 93,925) = 375,720 T`, before decoder, replay, square, or
+  cleanup. This exceeds the Q1100 headroom 138,365 and Q1000 headroom 243,341.
+- Direct retained-word extraction has adjacent exact evidence only through sign
+  7; literal ANF terms through sign 14 grow
+  `2,2,5,11,25,57,115,244,481,1001,2013,4041,8177,16433`. That is not a
+  Boolean-circuit lower bound, but it supplies no full-depth decoder and cannot
+  overturn either exact bound above.
+- Prior artifacts reconciled: `fb07d5e` (retained transducer static kill),
+  `43bcb37` (checkpoint Q/T bound), `0e20bdd` (only 6/1390 production fused
+  calls covered), `2b0bd4c` (reachable local-sign collisions), and `65381d3`
+  (ordinary full-history recomputation +38.1 percent on its bound ancestor).
+- Actions not taken: no production circuit edit, full evaluator, provider,
+  nonce, queue, push, public note, or submission.
+- Changed-premise reopen: an exact in-place code update with a bounded-width
+  reverse discriminator that never materializes `(u,v)` and is not a literal
+  denominator ANF. The reduced-width fiber receipt does not exhibit one.
+- Next authorized structural action: move off the closed sign axis and bind one
+  replay-ABI/lifetime owner that lowers all current co-binders.
 
 ## Anti-rot ban list
 

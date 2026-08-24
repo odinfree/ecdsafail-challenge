@@ -25,12 +25,27 @@
       "pass": true
     },
     {
+      "evidence": [
+        {
+          "minimum_code_bits": 4,
+          "width": 5
+        },
+        {
+          "minimum_code_bits": 5,
+          "width": 6
+        }
+      ],
+      "name": "small_width_code_tracks_denominator_width",
+      "pass": true
+    },
+    {
       "evidence": {
         "cap": 469,
         "production_binding_history": 636,
-        "projected_resident_history": 188
+        "production_code_bits": 256,
+        "projected_resident_history": 256
       },
-      "name": "modeled_q1100_history_cap",
+      "name": "retained_denominator_fits_q1100_history_cap",
       "pass": true
     }
   ],
@@ -55,9 +70,9 @@
     "claim": "exact reduced-width fixed-schedule recurrence enumeration",
     "not_a_candidate": true,
     "production_binding_history": 636,
-    "projection_method": "ceil(636 * final minimum_code_bits / final raw_history_bits)"
+    "projection_method": "one exact retained 256-bit denominator word; small widths use width-1 code bits"
   },
-  "projected_resident_history": 188,
+  "projected_resident_history": 256,
   "reports": [
     {
       "config": {

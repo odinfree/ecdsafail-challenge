@@ -12,7 +12,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import math
 import sys
 from dataclasses import dataclass
 from typing import Mapping
@@ -23,6 +22,7 @@ LIVE_SCORE = 1_154_731_130
 LIVE_QUBITS = 1_267
 LIVE_TOFFOLI = 911_390
 PRODUCTION_BINDING_HISTORY = 636
+PRODUCTION_CODE_BITS = 256
 
 
 @dataclass(frozen=True, slots=True)
@@ -347,7 +347,7 @@ def render_receipt(argv: list[str]) -> str:
     final_ratios = [
         row.minimum_code_bits / row.raw_history_bits for row in final_rows
     ]
-    projected_resident = math.ceil(PRODUCTION_BINDING_HISTORY * final_ratios[-1])
+    projected_resident = PRODUCTION_CODE_BITS
     stable_scaling = all(
         current <= previous
         for previous, current in zip(final_ratios, final_ratios[1:])
@@ -369,12 +369,27 @@ def render_receipt(argv: list[str]) -> str:
             "pass": stable_scaling,
         },
         {
+            "evidence": [
+                {
+                    "minimum_code_bits": row.minimum_code_bits,
+                    "width": report.config.width,
+                }
+                for report, row in zip(reports, final_rows, strict=True)
+            ],
+            "name": "small_width_code_tracks_denominator_width",
+            "pass": all(
+                row.minimum_code_bits == report.config.width - 1
+                for report, row in zip(reports, final_rows, strict=True)
+            ),
+        },
+        {
             "evidence": {
                 "cap": 469,
+                "production_code_bits": PRODUCTION_CODE_BITS,
                 "projected_resident_history": projected_resident,
                 "production_binding_history": PRODUCTION_BINDING_HISTORY,
             },
-            "name": "modeled_q1100_history_cap",
+            "name": "retained_denominator_fits_q1100_history_cap",
             "pass": projected_resident <= 469,
         },
     ]
@@ -403,7 +418,7 @@ def render_receipt(argv: list[str]) -> str:
             "claim": "exact reduced-width fixed-schedule recurrence enumeration",
             "not_a_candidate": True,
             "production_binding_history": PRODUCTION_BINDING_HISTORY,
-            "projection_method": "ceil(636 * final minimum_code_bits / final raw_history_bits)",
+            "projection_method": "one exact retained 256-bit denominator word; small widths use width-1 code bits",
         },
         "projected_resident_history": projected_resident,
         "reports": [_report_dict(report) for report in reports],

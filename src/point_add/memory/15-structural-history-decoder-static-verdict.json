@@ -1,0 +1,70 @@
+{
+  "actions_not_taken": [
+    "production_circuit_edit",
+    "full_9024_evaluator",
+    "provider_compute",
+    "nonce_grind",
+    "fleet_or_queue_dispatch",
+    "push",
+    "public_note",
+    "submission"
+  ],
+  "binding": {
+    "live_frontier": {
+      "qubits": 1267,
+      "score": 1154731130,
+      "toffoli": 911390
+    },
+    "source_commit": "67524171baaf568dc3dc606f38515745f70804ff",
+    "source_tree": "8202910d176fa1f3332ff961e6f3f789ca6a7ac2"
+  },
+  "changed_premise_reopen": "exact in-place code update with a bounded-width reverse discriminator that never materializes u,v and is not a literal denominator ANF",
+  "direct_extractor_evidence": {
+    "anf_terms_signs_1_through_14": [
+      2,
+      2,
+      5,
+      11,
+      25,
+      57,
+      115,
+      244,
+      481,
+      1001,
+      2013,
+      4041,
+      8177,
+      16433
+    ],
+    "complete_production_sign_source": false,
+    "covered_divide_calls": 6,
+    "covered_multiply_calls": 0,
+    "scope": "adjacent exact evidence; density is not asserted as a Boolean-circuit lower bound"
+  },
+  "materializing_decoder_bound": {
+    "first_missing_round": 8,
+    "live_walk_state_qubits": 516,
+    "replay_pair_qubits": 512,
+    "retained_code_qubits": 256,
+    "target_q": 1100,
+    "total_q_floor_before_scratch": 1284,
+    "value_width": 258
+  },
+  "ordinary_recomputation_bound": {
+    "divide_generic_walk_ccx_after_round7": 93935,
+    "extra_reverse_forward_both_traversals_ccx": 375720,
+    "multiply_generic_walk_ccx_after_round7": 93925,
+    "q1000_toffoli_headroom": 243341,
+    "q1100_toffoli_headroom": 138365,
+    "rounds_0_through_7_granted_free": true
+  },
+  "prior_exact_artifacts": [
+    "fb07d5e3dae47fcf0cafd51b32331e78d4e39feb",
+    "43bcb37fd16eec321d0478e7529b32c1dfe14125",
+    "0e20bdd97df460121fc809d4ebeb6bab12a7a0ca",
+    "2b0bd4ca3ee863fc28e5c33a6447c2e0d9cc1a76",
+    "65381d3187ab9ebd559659174112dad8123b2bcd"
+  ],
+  "verdict": "HARD_NACK",
+  "verdict_scope": "selected endpoint-fiber and retained-denominator decoder family at Q1100 and Q1000"
+}
