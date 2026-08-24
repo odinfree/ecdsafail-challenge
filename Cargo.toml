@@ -14,6 +14,10 @@ path = "src/bin/build_circuit.rs"
 name = "eval_circuit"
 path = "src/bin/eval_circuit.rs"
 
+[[bin]]
+name = "pingpong_filter"
+path = "src/bin/pingpong_filter.rs"
+
 [profile.release]
 opt-level = 3
 lto = "thin"
