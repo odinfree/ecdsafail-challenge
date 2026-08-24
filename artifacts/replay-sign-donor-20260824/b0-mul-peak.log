@@ -1,0 +1,22 @@
+=== quantum_ecc: build_circuit (untrusted stage) ===
+
+-- building circuit --
+B0_CENSUS_BEGIN best_active=1267 best_ops=8322690 best_phase=pp_mul_walkback n_live=1267 n_groups=13 win=[8322434,8322946]
+B0_OWN count=636 phase=pp_mul_walk caller=src/bin/../point_add/pingpong_div.rs:1865
+B0_OWN count=256 phase=init caller=src/bin/../point_add/pingpong_div.rs:2896
+B0_OWN count=256 phase=pp_mul_replay caller=src/bin/../point_add/pingpong_div.rs:421
+B0_OWN count=58 phase=pp_mul_walkback caller=src/bin/../point_add/pingpong_div.rs:1992
+B0_OWN count=20 phase=pp_mul_walkback caller=src/bin/../point_add/pingpong_div.rs:1636
+B0_OWN count=20 phase=pp_mul_walkback caller=src/bin/../point_add/pingpong_div.rs:1637
+B0_OWN count=14 phase=pp_mul_replay caller=reacquire:0
+B0_OWN count=2 phase=pp_mul_walkback caller=src/bin/../point_add/pingpong_div.rs:2135
+B0_OWN count=1 phase=init caller=src/bin/../point_add/pingpong_div.rs:2895
+B0_OWN count=1 phase=pp_mul_walk caller=src/bin/../point_add/pingpong_div.rs:852
+B0_OWN count=1 phase=pp_mul_walk caller=src/bin/../point_add/pingpong_div.rs:925
+B0_OWN count=1 phase=pp_mul_walkback caller=src/bin/../point_add/pingpong_div.rs:2638
+B0_OWN count=1 phase=tlm_forward_multiply caller=src/bin/../point_add/arith/adder.rs:341
+B0_CENSUS_END
+  emitted ops : 12593858
+  wrote       : ops.bin (45668102 bytes on disk, 705256064 uncompressed, 15.4x)
+
+=== build_circuit OK ===
