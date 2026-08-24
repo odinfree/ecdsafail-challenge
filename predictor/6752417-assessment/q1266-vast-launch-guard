@@ -4,6 +4,14 @@ set -euo pipefail
 PREDICTOR_ROOT="/Users/odin/Documents/coding with codin/ecdsafail-675-predictor-port-codex"
 CANDIDATE_ROOT="/Users/odin/Documents/coding with codin/ecdsafail-structural-history-fiber"
 ASSESSMENT="$PREDICTOR_ROOT/predictor/6752417-assessment"
+POLICY="$ASSESSMENT/provider-canary-policy.env"
+
+[[ -r "$POLICY" ]] || {
+  printf 'q1266_vast_launch_guard=blocked reason=policy_missing no_submit_ack=yes\n' >&2
+  exit 75
+}
+# shellcheck disable=SC1090
+source "$POLICY"
 
 fail() {
   printf 'q1266_vast_launch_guard=blocked reason=%s no_submit_ack=yes\n' "$1" >&2
