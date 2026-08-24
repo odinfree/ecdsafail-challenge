@@ -17,6 +17,8 @@ pub(crate) use emit::*;
 mod provenance;
 pub(crate) use provenance::*;
 
+mod dead_gate_audit;
+
 mod arith;
 pub(crate) use arith::*;
 
