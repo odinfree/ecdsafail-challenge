@@ -29,6 +29,7 @@ mod d2_deep_strip;
 mod deep_strip_keys;
 mod dirtyscan;
 pub mod small_width;
+pub mod small_width_redteam;
 
 thread_local! {
     pub(crate) static CUR_DIVSTEP: std::cell::Cell<u32> = std::cell::Cell::new(0xffff_ffff);
