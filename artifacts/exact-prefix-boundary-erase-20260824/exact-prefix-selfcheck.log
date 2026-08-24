@@ -1,0 +1,8 @@
+=== quantum_ecc: build_circuit (untrusted stage) ===
+
+-- building circuit --
+pingpong full affine add: 1220174 emitted / 1043558.219 executed Toffoli, 1416 qubits
+  emitted ops : 0
+  wrote       : ops.bin (25 bytes on disk, 16 uncompressed, 0.6x)
+
+=== build_circuit OK ===

@@ -2059,6 +2059,36 @@ fn chunk_bounds(width: usize, chunk: usize) -> Vec<(usize, usize)> {
     bounds
 }
 
+fn boundary_erase_compare_start(
+    exact_prefix: bool,
+    lo: usize,
+    hi: usize,
+    compare: usize,
+) -> usize {
+    if exact_prefix {
+        0
+    } else {
+        hi - compare.min(hi - lo)
+    }
+}
+
+fn exact_prefix_boundary_erase_range_selfcheck() {
+    let (lo, hi, compare) = (4usize, 8usize, 4usize);
+    assert_eq!(
+        boundary_erase_compare_start(false, lo, hi, compare),
+        4
+    );
+    assert_eq!(boundary_erase_compare_start(true, lo, hi, compare), 0);
+
+    let original_acc = 0xffusize;
+    let addend = 0x01usize;
+    let sum = original_acc.wrapping_add(addend) & ((1usize << hi) - 1);
+    let local_carry = (sum >> lo) < (addend >> lo);
+    let global_zero_carry = sum < addend;
+    assert!(!local_carry);
+    assert!(global_zero_carry);
+}
+
 /// Exact value add with approximate measurement-only erasure of chunk carries.
 ///
 /// Footprint discipline (the chunk ladder is the binding allocation at the
@@ -2113,12 +2143,25 @@ fn add_chunked_measured_with(
         },
     };
     let legacy = std::env::var_os("SUB4_PP_LEGACY_CHUNK_ORDER").is_some();
+    let exact_prefix_erase = std::env::var("SUB4_PP_EXACT_PREFIX_BOUNDARY_ERASE")
+        .ok()
+        .as_deref()
+        == Some("1");
     let erase = |b: &mut B, carry: QubitId, lo: usize, hi: usize| {
-        let width = hi - lo;
-        let compare = replay_chunk_compare().min(width);
+        let compare_start = boundary_erase_compare_start(
+            exact_prefix_erase,
+            lo,
+            hi,
+            replay_chunk_compare(),
+        );
         let phase = b.alloc_bit();
         b.hmr(carry, phase);
-        cmp_lt_phase_conditioned(b, &acc[hi - compare..hi], &addend[hi - compare..hi], phase);
+        cmp_lt_phase_conditioned(
+            b,
+            &acc[compare_start..hi],
+            &addend[compare_start..hi],
+            phase,
+        );
         b.free(carry);
     };
     let mut live_boundaries = Vec::<(QubitId, usize, usize)>::new();
@@ -2953,6 +2996,7 @@ pub(crate) fn pingpong_point_add_simulator_selfcheck() {
         Shake256,
     };
 
+    exact_prefix_boundary_erase_range_selfcheck();
     let ops = build_pingpong_point_add();
     let (num_qubits, num_bits, num_registers, registers) = analyze_ops(ops.iter());
     assert_eq!(num_registers, 4);
@@ -3267,6 +3311,12 @@ pub(crate) fn pingpong_simulator_selfcheck() {
             assert_eq!(sim.qubit(q), 0, "dirty ancilla {q:?} in {direction:?}");
         }
     }
+}
+
+#[cfg(test)]
+#[test]
+fn exact_prefix_boundary_erase_includes_global_zero_carry() {
+    exact_prefix_boundary_erase_range_selfcheck();
 }
 
 #[cfg(test)]
