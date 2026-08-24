@@ -96,6 +96,16 @@ struct Hit {
     target_zero: bool,
 }
 
+#[derive(Clone, Debug)]
+struct Reduction {
+    op_index: usize,
+    kind: OperationType,
+    replacement: &'static str,
+    q2: u64,
+    q1: u64,
+    target: u64,
+}
+
 impl Hit {
     fn quantum_zero(&self) -> bool {
         self.q2_zero || self.q1_zero || (self.kind == OperationType::CCZ && self.target_zero)
@@ -149,11 +159,12 @@ fn input_state(ops: &[Op]) -> (Vec<Value>, Vec<Value>) {
     (qubits, bits)
 }
 
-fn interpret(ops: &[Op]) -> Vec<Hit> {
+fn interpret(ops: &[Op]) -> (Vec<Hit>, Vec<Reduction>) {
     let (mut qubits, mut bits) = input_state(ops);
     let mut base_condition = Value::One;
     let mut condition_stack = Vec::new();
     let mut hits = Vec::new();
+    let mut reductions = Vec::new();
 
     for (op_index, op) in ops.iter().enumerate() {
         let condition = if op.c_condition == NO_BIT {
@@ -184,6 +195,30 @@ fn interpret(ops: &[Op]) -> Vec<Hit> {
                         q1_zero: q1 == Value::Zero,
                         target_zero: op.kind == OperationType::CCZ && target == Value::Zero,
                     });
+                } else {
+                    let known_ones = [q2, q1]
+                        .into_iter()
+                        .chain((op.kind == OperationType::CCZ).then_some(target))
+                        .filter(|value| *value == Value::One)
+                        .count();
+                    let replacement = match (op.kind, known_ones) {
+                        (OperationType::CCX, 1) => Some("CX"),
+                        (OperationType::CCX, 2) => Some("X"),
+                        (OperationType::CCZ, 1) => Some("CZ"),
+                        (OperationType::CCZ, 2) => Some("Z"),
+                        (OperationType::CCZ, 3) => Some("NEG"),
+                        _ => None,
+                    };
+                    if let Some(replacement) = replacement {
+                        reductions.push(Reduction {
+                            op_index,
+                            kind: op.kind,
+                            replacement,
+                            q2: op.q_control2.0,
+                            q1: op.q_control1.0,
+                            target: op.q_target.0,
+                        });
+                    }
                 }
                 if op.kind == OperationType::CCX {
                     let delta = condition.and(q2).and(q1);
@@ -250,7 +285,7 @@ fn interpret(ops: &[Op]) -> Vec<Hit> {
         condition_stack.is_empty(),
         "unbalanced condition stack at stream end"
     );
-    hits
+    (hits, reductions)
 }
 
 pub(crate) fn scan(ops: &[Op]) {
@@ -264,7 +299,7 @@ pub(crate) fn scan(ops: &[Op]) {
         ops.len(),
         "operation/source trace length drift"
     );
-    let hits = interpret(ops);
+    let (hits, reductions) = interpret(ops);
 
     let q775 = hits.iter().any(|hit| {
         hit.op_index == 15_461
@@ -301,11 +336,12 @@ pub(crate) fn scan(ops: &[Op]) {
     let quantum_hits = hits.iter().filter(|hit| hit.quantum_zero()).count();
     let condition_only = hits.len() - quantum_hits;
     eprintln!(
-        "STRUCTURAL_CUT_SCAN_PASS ops={} nonlinear_identities={} quantum_zero={} condition_only={} groups={} q775=true",
+        "STRUCTURAL_CUT_SCAN_PASS ops={} nonlinear_identities={} quantum_zero={} condition_only={} constant_one_reductions={} groups={} q775=true",
         ops.len(),
         hits.len(),
         quantum_hits,
         condition_only,
+        reductions.len(),
         groups.len(),
     );
 
@@ -320,6 +356,19 @@ pub(crate) fn scan(ops: &[Op]) {
             hit.target,
             hit.quantum_zero(),
             hit.reason(),
+        );
+    }
+
+    for reduction in &reductions {
+        let (file, line, context) = sites[reduction.op_index];
+        eprintln!(
+            "STRUCTURAL_CUT_REDUCE op={} kind={:?} replacement={} q2={} q1={} target={} site={file}:{line} context={context:#010x}",
+            reduction.op_index,
+            reduction.kind,
+            reduction.replacement,
+            reduction.q2,
+            reduction.q1,
+            reduction.target,
         );
     }
 
@@ -349,7 +398,7 @@ pub(crate) fn apply(mut ops: Vec<Op>) -> Vec<Op> {
         EXPECTED_PRE_TAIL_OPS,
         "structural-cut source stream drift"
     );
-    let hits = interpret(&ops);
+    let (hits, _reductions) = interpret(&ops);
     let actual: Vec<_> = hits
         .iter()
         .map(|hit| {
