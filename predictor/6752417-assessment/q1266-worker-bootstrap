@@ -23,7 +23,7 @@ require_sha bccaf9d1be17f131be65d637957cd04f409c3c13a8d5a6904070dab58a2b3c57 src
 require_sha 7598ef077ab15573f2f1ed0d216a84ed0788f3c59a33ae7ae00a30051a867094 build.sh
 
 start_s="$(date +%s)"
-nice -n 10 ./build.sh > bootstrap-logs/build.log 2>&1 || fail build
+nice -n 10 bash ./build.sh > bootstrap-logs/build.log 2>&1 || fail build
 end_s="$(date +%s)"
 printf '%s\n' "$((end_s - start_s))" > bootstrap-logs/build-seconds.txt
 sha256sum ppcpu ppgpu > bootstrap-logs/raw-binary-sha256.txt
