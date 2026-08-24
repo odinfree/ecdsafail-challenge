@@ -3,7 +3,15 @@
 
 from __future__ import annotations
 
+import argparse
 from dataclasses import dataclass
+import hashlib
+import json
+
+
+BASE_COMMIT = "cbf229dbd46a7c677fe2e28da882b4f8a02bac7f"
+BASE_TREE = "eab2326ce33549eceeb5c10aa64eae33f148b0ac"
+DESIGN_PATH = "docs/superpowers/specs/2026-08-24-affine-shell-transducer-design.md"
 
 
 @dataclass(frozen=True)
@@ -146,15 +154,17 @@ def low_degree_shear_certificate(case: FieldCase) -> dict[str, object]:
 
     Translations and additive triangular shears have determinant one; swaps
     have determinant minus one; multiplication by a classical field unit has
-    a fixed nonzero determinant. A composition therefore has one constant
-    nonzero determinant on the nonzero-T region. The target has determinant
-    -T and assumes every nonzero value when p > 3.
+    a fixed nonzero determinant. A symbolic composition therefore has one
+    constant nonzero determinant on the nonzero-T open set. The target has
+    determinant -T and assumes every nonzero value when p > 3. This argument
+    deliberately does not cover field-specific lookup permutations.
     """
     determinants = target_nonzero_determinants(case)
     variable = len(determinants) > 1
     return {
         "grammar": "LOW_DEGREE_TWO_REGISTER_SHEARS",
         "grammar_determinant_class": "constant_nonzero",
+        "identity_requirement": "symbolic identity on the nonzero-T open set",
         "target_determinants": sorted(determinants),
         "target_determinant_count": len(determinants),
         "target_is_variable": variable,
@@ -163,3 +173,55 @@ def low_degree_shear_certificate(case: FieldCase) -> dict[str, object]:
         "verdict": "HARD_NACK_LOW_DEGREE_SHEAR" if variable else "INCONCLUSIVE",
         "next_grammar": "REGISTER_SHARED_EUCLID",
     }
+
+
+def canonical_json(value: object) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+
+
+def run_wave1(primes: tuple[int, ...]) -> dict[str, object]:
+    cases: list[dict[str, object]] = []
+    for prime in primes:
+        case = first_curve_point(prime)
+        row: dict[str, object] = {
+            "prime": prime,
+            "a": case.a,
+            "b": case.b,
+        }
+        row.update(reference_report(case))
+        row["certificate"] = low_degree_shear_certificate(case)
+        cases.append(row)
+    payload: dict[str, object] = {
+        "schema": "affine-shell-wave1-v1",
+        "base_commit": BASE_COMMIT,
+        "base_tree": BASE_TREE,
+        "design_path": DESIGN_PATH,
+        "grammar": "LOW_DEGREE_TWO_REGISTER_SHEARS",
+        "cases": cases,
+        "verdict": "HARD_NACK_LOW_DEGREE_SHEAR",
+        "scope": "scalable symbolic translations, additive triangular shears, swaps, constant unit scalings, and zero-only corrections",
+        "next_grammar": "REGISTER_SHARED_EUCLID",
+        "authority": {
+            "provider": False,
+            "nonce_grind": False,
+            "push": False,
+            "submission": False,
+        },
+    }
+    payload["receipt_sha256"] = hashlib.sha256(canonical_json(payload)).hexdigest()
+    return payload
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--prime", type=int, action="append")
+    parser.add_argument("--compact", action="store_true")
+    args = parser.parse_args()
+    primes = tuple(args.prime or (31, 127, 251))
+    report = run_wave1(primes)
+    print(json.dumps(report, sort_keys=True, indent=None if args.compact else 2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

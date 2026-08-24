@@ -38,8 +38,22 @@ class AffineShellOracleTests(unittest.TestCase):
         certificate = shell.low_degree_shear_certificate(case)
         self.assertEqual(certificate["verdict"], "HARD_NACK_LOW_DEGREE_SHEAR")
         self.assertEqual(certificate["grammar_determinant_class"], "constant_nonzero")
+        self.assertEqual(
+            certificate["identity_requirement"],
+            "symbolic identity on the nonzero-T open set",
+        )
         self.assertEqual(certificate["target_determinant_count"], 30)
         self.assertEqual(certificate["next_grammar"], "REGISTER_SHARED_EUCLID")
+
+    def test_wave1_receipt_is_deterministic_and_multi_width(self) -> None:
+        first = shell.run_wave1((31, 127, 251))
+        second = shell.run_wave1((31, 127, 251))
+        self.assertEqual(first, second)
+        self.assertEqual(first["verdict"], "HARD_NACK_LOW_DEGREE_SHEAR")
+        self.assertEqual([row["prime"] for row in first["cases"]], [31, 127, 251])
+        self.assertTrue(all(row["inverse_failures"] == 0 for row in first["cases"]))
+        self.assertTrue(all(row["curve_failures"] == 0 for row in first["cases"]))
+        self.assertEqual(len(first["receipt_sha256"]), 64)
 
 
 if __name__ == "__main__":
