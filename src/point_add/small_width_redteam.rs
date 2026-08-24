@@ -18,6 +18,7 @@ const BUDGET: usize = 4;
 const CASES: usize = 1 << (2 * WIDTH);
 const BATCH: usize = 64;
 const ALT_SEEDS: u8 = 32;
+const D2_COMPARE_WINDOW: usize = 2;
 
 #[derive(Clone, Copy, Debug)]
 enum Variant {
@@ -272,6 +273,402 @@ fn print_sweep(
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+enum D2Cleanup {
+    ExactControl,
+    ZeroPredecessor,
+}
+
+impl D2Cleanup {
+    fn name(self) -> &'static str {
+        match self {
+            Self::ExactControl => "reverse-retention-control",
+            Self::ZeroPredecessor => "zero-predecessor-falsifier",
+        }
+    }
+}
+
+/// Red-team-local copy of the value path in `pingpong_div::chunk_add`.
+/// Keeping it here lets the falsifier alter only boundary phase repair without
+/// making the production primitive expose another control surface.
+fn d2_chunk_add(
+    b: &mut B,
+    addend: &[QubitId],
+    acc: &[QubitId],
+    carry_in: Option<QubitId>,
+    carry_out: Option<QubitId>,
+) {
+    let width = addend.len();
+    assert_eq!(width, acc.len());
+    if width == 0 {
+        return;
+    }
+    let num_carries = if carry_out.is_some() {
+        width
+    } else {
+        width - 1
+    };
+    if num_carries == 0 {
+        if let Some(carry) = carry_in {
+            b.cx(carry, acc[0]);
+        }
+        b.cx(addend[0], acc[0]);
+        return;
+    }
+
+    let owned = num_carries - usize::from(carry_out.is_some());
+    let mut carries = b.alloc_qubits(owned);
+    if let Some(carry) = carry_out {
+        carries.push(carry);
+    }
+
+    for i in 0..num_carries {
+        let previous = if i == 0 {
+            carry_in
+        } else {
+            Some(carries[i - 1])
+        };
+        if let Some(previous) = previous {
+            b.cx(previous, addend[i]);
+            b.cx(previous, acc[i]);
+        }
+        b.ccx(addend[i], acc[i], carries[i]);
+        if let Some(previous) = previous {
+            b.cx(previous, carries[i]);
+        }
+    }
+
+    if carry_out.is_some() {
+        let i = width - 1;
+        let previous = if i == 0 {
+            carry_in
+        } else {
+            Some(carries[i - 1])
+        };
+        if let Some(previous) = previous {
+            b.cx(previous, addend[i]);
+        }
+        b.cx(addend[i], acc[i]);
+    } else {
+        b.cx(carries[num_carries - 1], acc[width - 1]);
+        b.cx(addend[width - 1], acc[width - 1]);
+    }
+
+    for i in (0..owned).rev() {
+        let previous = if i == 0 {
+            carry_in
+        } else {
+            Some(carries[i - 1])
+        };
+        if let Some(previous) = previous {
+            b.cx(previous, carries[i]);
+        }
+        let measured = b.alloc_bit();
+        b.hmr(carries[i], measured);
+        b.cz_if(addend[i], acc[i], measured);
+        if let Some(previous) = previous {
+            b.cx(previous, addend[i]);
+        }
+        b.cx(addend[i], acc[i]);
+    }
+    b.free_vec(&carries[..owned]);
+}
+
+/// Retain every boundary exactly as the control does, but use a fresh zero in
+/// every boundary phase repair. The lowest boundary legitimately has global
+/// carry-in zero; every higher one deliberately ignores its live predecessor.
+fn d2_add_zero_predecessor(
+    b: &mut B,
+    addend: &[QubitId],
+    acc: &[QubitId],
+    budget: usize,
+) -> Vec<(usize, usize)> {
+    let bounds = pingpong_div::research_chunk_layout(addend.len(), budget);
+    let mut boundaries = Vec::new();
+    let mut carry_in = None;
+
+    for (index, &(lo, hi)) in bounds.iter().enumerate() {
+        let last = index + 1 == bounds.len();
+        let carry_out = (!last).then(|| b.alloc_qubit());
+        d2_chunk_add(b, &addend[lo..hi], &acc[lo..hi], carry_in, carry_out);
+        if let Some(carry) = carry_out {
+            boundaries.push((carry, lo, hi));
+        }
+        carry_in = carry_out;
+    }
+
+    for &(carry, lo, hi) in boundaries.iter().rev() {
+        let compare = D2_COMPARE_WINDOW.min(hi - lo);
+        let split = hi - compare;
+        let zero_cin = b.alloc_qubit();
+        let window_cin = if split > lo {
+            let q = b.alloc_qubit();
+            cmp_lt_into_fast_with_cin(b, &acc[lo..split], &addend[lo..split], zero_cin, q);
+            q
+        } else {
+            zero_cin
+        };
+
+        let phase = b.alloc_bit();
+        b.hmr(carry, phase);
+        let ctrl = b.alloc_qubit();
+        b.x(ctrl);
+        cmp_lt_phase_conditioned_with_cin(
+            b,
+            &acc[split..hi],
+            &addend[split..hi],
+            window_cin,
+            ctrl,
+            phase,
+        );
+        b.x(ctrl);
+        b.free(ctrl);
+
+        if split > lo {
+            cmp_lt_into_fast_with_cin(b, &acc[lo..split], &addend[lo..split], zero_cin, window_cin);
+            b.free(window_cin);
+        }
+        b.free(zero_cin);
+        b.free(carry);
+    }
+    bounds
+}
+
+fn d2_build(width: usize, budget: usize, cleanup: D2Cleanup) -> (Built, Vec<(usize, usize)>) {
+    let mut b = B::new_for_test();
+    let addend = b.alloc_qubits(width);
+    let acc = b.alloc_qubits(width);
+    b.set_phase("small_width_redteam_d2");
+    let bounds = match cleanup {
+        D2Cleanup::ExactControl => {
+            let bounds = pingpong_div::research_chunk_layout(width, budget);
+            pingpong_div::add_chunked_measured_exact_window_budgeted(&mut b, &addend, &acc, budget);
+            bounds
+        }
+        D2Cleanup::ZeroPredecessor => d2_add_zero_predecessor(&mut b, &addend, &acc, budget),
+    };
+    b.declare_qubit_register(&addend);
+    b.declare_qubit_register(&acc);
+    let peak_qubits = b.peak_qubits;
+    let ops = b.take_ops();
+    let (_, _, _, registers) = analyze_ops(ops.iter());
+    let external = addend.iter().chain(&acc).map(|q| q.0).collect();
+    let emitted_toffoli = ops
+        .iter()
+        .filter(|op| matches!(op.kind, OperationType::CCX | OperationType::CCZ))
+        .count();
+    let hmr_count = ops
+        .iter()
+        .filter(|op| op.kind == OperationType::Hmr)
+        .count();
+    let reset_count = ops.iter().filter(|op| op.kind == OperationType::R).count();
+    (
+        Built {
+            ops,
+            registers,
+            external,
+            peak_qubits,
+            emitted_toffoli,
+            hmr_count,
+            reset_count,
+        },
+        bounds,
+    )
+}
+
+fn d2_sweep(built: &Built, width: usize, budget: usize) -> Sweep {
+    let cases = 1usize << (2 * width);
+    let value_mask = ((1u16 << width) - 1) as u8;
+    let (num_qubits, num_bits, _, _) = analyze_ops(built.ops.iter());
+    let mut result = Sweep::default();
+
+    for batch in 0..cases.div_ceil(BATCH) {
+        let first_case = batch * BATCH;
+        let live = (cases - first_case).min(BATCH);
+        let live_mask = if live == BATCH {
+            u64::MAX
+        } else {
+            (1u64 << live) - 1
+        };
+        let mut seed = Shake256::default();
+        seed.update(b"small-width-redteam-d2-zero-predecessor-v1");
+        seed.update(&(width as u64).to_le_bytes());
+        seed.update(&(budget as u64).to_le_bytes());
+        seed.update(&(batch as u64).to_le_bytes());
+        let mut reader = seed.finalize_xof();
+        let mut sim = Simulator::new(num_qubits as usize, num_bits as usize, &mut reader);
+        for shot in 0..live {
+            let case = first_case + shot;
+            let addend = (case as u8) & value_mask;
+            let acc = ((case >> width) as u8) & value_mask;
+            sim.set_register(&built.registers[0], U256::from(addend), shot);
+            sim.set_register(&built.registers[1], U256::from(acc), shot);
+        }
+        sim.apply_iter(built.ops.iter());
+
+        let phase_mask = sim.phase & live_mask;
+        if phase_mask != 0 {
+            result.phase_batches += 1;
+            result.phase_shots += phase_mask.count_ones() as usize;
+            if result.first_phase.is_none() {
+                let shot = phase_mask.trailing_zeros() as usize;
+                let case = first_case + shot;
+                result.first_phase = Some((
+                    (case as u8) & value_mask,
+                    ((case >> width) as u8) & value_mask,
+                    phase_mask,
+                ));
+            }
+        }
+
+        let mut dirty_mask = 0u64;
+        let mut dirty_qubit = 0u64;
+        for q in 0..num_qubits {
+            if !built.external.contains(&u64::from(q)) {
+                let value = sim.qubit(QubitId(u64::from(q))) & live_mask;
+                if value != 0 {
+                    dirty_mask = value;
+                    dirty_qubit = u64::from(q);
+                    break;
+                }
+            }
+        }
+        if dirty_mask != 0 {
+            result.dirty_ancilla_batches += 1;
+            if result.first_dirty.is_none() {
+                let shot = dirty_mask.trailing_zeros() as usize;
+                let case = first_case + shot;
+                result.first_dirty = Some((
+                    (case as u8) & value_mask,
+                    ((case >> width) as u8) & value_mask,
+                    dirty_qubit,
+                    dirty_mask,
+                ));
+            }
+        }
+
+        for shot in 0..live {
+            let case = first_case + shot;
+            let addend = (case as u8) & value_mask;
+            let acc = ((case >> width) as u8) & value_mask;
+            let got_addend = sim.get_register(&built.registers[0], shot).to::<u8>();
+            let got_acc = sim.get_register(&built.registers[1], shot).to::<u8>();
+            let want_acc = acc.wrapping_add(addend) & value_mask;
+            if got_addend != addend || got_acc != want_acc {
+                result.value_errors += 1;
+                if result.first_value.is_none() {
+                    result.first_value = Some((addend, acc, got_addend, got_acc));
+                }
+            }
+        }
+    }
+    result
+}
+
+fn d2_print(
+    cleanup: D2Cleanup,
+    width: usize,
+    budget: usize,
+    bounds: &[(usize, usize)],
+    built: &Built,
+    sweep: &Sweep,
+) {
+    let sizes = bounds
+        .iter()
+        .map(|&(lo, hi)| (hi - lo).to_string())
+        .collect::<Vec<_>>()
+        .join(",");
+    println!(
+        concat!(
+            "{{\"d2_cleanup\":\"{}\",\"width\":{},\"budget\":{},",
+            "\"compare_window\":{},\"layout\":[{}],\"checked_pairs\":{},",
+            "\"op_count\":{},\"emitted_toffoli\":{},\"hmr_count\":{},",
+            "\"reset_count\":{},\"peak_qubits\":{},\"value_errors\":{},",
+            "\"phase_batches\":{},\"phase_shots\":{},",
+            "\"dirty_ancilla_batches\":{},\"first_phase\":{}}}"
+        ),
+        cleanup.name(),
+        width,
+        budget,
+        D2_COMPARE_WINDOW,
+        sizes,
+        1usize << (2 * width),
+        built.ops.len(),
+        built.emitted_toffoli,
+        built.hmr_count,
+        built.reset_count,
+        built.peak_qubits,
+        sweep.value_errors,
+        sweep.phase_batches,
+        sweep.phase_shots,
+        sweep.dirty_ancilla_batches,
+        witness_json(sweep.first_phase),
+    );
+}
+
+fn d2_zero_predecessor_gate() -> usize {
+    for width in 1..=WIDTH {
+        for budget in 1..=width {
+            let bounds = pingpong_div::research_chunk_layout(width, budget);
+            if bounds.len() < 3 {
+                continue;
+            }
+
+            let (control, control_bounds) = d2_build(width, budget, D2Cleanup::ExactControl);
+            let control_sweep = d2_sweep(&control, width, budget);
+            if control_sweep.value_errors != 0
+                || control_sweep.phase_batches != 0
+                || control_sweep.dirty_ancilla_batches != 0
+            {
+                d2_print(
+                    D2Cleanup::ExactControl,
+                    width,
+                    budget,
+                    &control_bounds,
+                    &control,
+                    &control_sweep,
+                );
+                return 1;
+            }
+
+            let (falsifier, falsifier_bounds) = d2_build(width, budget, D2Cleanup::ZeroPredecessor);
+            let falsifier_sweep = d2_sweep(&falsifier, width, budget);
+            if falsifier_sweep.value_errors != 0 || falsifier_sweep.dirty_ancilla_batches != 0 {
+                d2_print(
+                    D2Cleanup::ZeroPredecessor,
+                    width,
+                    budget,
+                    &falsifier_bounds,
+                    &falsifier,
+                    &falsifier_sweep,
+                );
+                return 1;
+            }
+            if falsifier_sweep.phase_batches != 0 {
+                d2_print(
+                    D2Cleanup::ExactControl,
+                    width,
+                    budget,
+                    &control_bounds,
+                    &control,
+                    &control_sweep,
+                );
+                d2_print(
+                    D2Cleanup::ZeroPredecessor,
+                    width,
+                    budget,
+                    &falsifier_bounds,
+                    &falsifier,
+                    &falsifier_sweep,
+                );
+                return 0;
+            }
+        }
+    }
+    eprintln!("D2_NO_ZERO_PREDECESSOR_PHASE_WITNESS");
+    1
+}
+
 pub fn main() {
     std::env::set_var("SUB4_PP_REPLAY_CHUNK_COMPARE", "2");
     let mut failures = 0usize;
@@ -323,6 +720,7 @@ pub fn main() {
     if peak_delta != 2 || toffoli_delta != 5 {
         failures += 1;
     }
+    failures += d2_zero_predecessor_gate();
     println!(
         "{{\"summary\":\"redteam\",\"alt_seeds\":{},\"peak_delta\":{},\"toffoli_delta\":{},\"failures\":{}}}",
         ALT_SEEDS, peak_delta, toffoli_delta, failures,

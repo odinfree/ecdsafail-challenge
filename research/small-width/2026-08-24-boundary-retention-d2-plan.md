@@ -25,9 +25,9 @@
 - Verify unchanged: `src/point_add/pingpong_div.rs`
 - Verify unchanged: `src/point_add/small_width.rs`
 
-- [ ] Add a dynamic-width red-team circuit builder that reproduces the current exact reverse-retention cleanup and offers a zero-predecessor phase-repair mode without changing the forward value path.
-- [ ] Add an exhaustive, live-shot-masked simulator sweep that checks addend preservation, modular addition, phase, and every non-external qubit.
-- [ ] Search `(width, budget)` lexicographically for the smallest layout with at least three chunks and print the exact control plus the first zero-predecessor phase-only witness.
-- [ ] Fail closed unless the exact control has zero value, phase, and ancilla errors and the falsifier has zero value and ancilla errors but at least one phase witness.
-- [ ] Build with `cargo build --release --offline --bin small_width_redteam` and run `./target/release/small_width_redteam`; capture the smallest witness and baseline control.
-- [ ] Re-run the width-256 standalone approximate/exact probes and point-add proxies, then verify production file hashes, expected diff scope, and a clean committed tree.
+- [x] Add a dynamic-width red-team circuit builder that reproduces the current exact reverse-retention cleanup and offers a zero-predecessor phase-repair mode without changing the forward value path.
+- [x] Add an exhaustive, live-shot-masked simulator sweep that checks addend preservation, modular addition, phase, and every non-external qubit.
+- [x] Search `(width, budget)` lexicographically for the smallest layout with at least three chunks and print the exact control plus the first zero-predecessor phase-only witness.
+- [x] Fail closed unless the exact control has zero value, phase, and ancilla errors and the falsifier has zero value and ancilla errors but at least one phase witness.
+- [x] Build with `cargo build --release --offline --bin small_width_redteam` and run `./target/release/small_width_redteam`; capture the smallest witness and baseline control.
+- [x] Re-run the width-256 standalone approximate/exact probes and point-add proxies, then verify production file hashes, expected diff scope, and a clean committed tree.
