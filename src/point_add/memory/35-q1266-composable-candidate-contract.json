@@ -1,0 +1,94 @@
+{
+  "schema": "storm.composable-candidate.v1",
+  "state": "TRUSTED_REPLAY_PASS",
+  "activity": "public quantum-circuit benchmark parameter sweep",
+  "authorization": "User authorized autonomous ECDSA.fail structural-cut research and up to USD 500 per Europe/Zurich calendar day on Vast and RunPod; submission, queue, and public-note authority remain closed pending gates.",
+  "project": "/Users/odin/Documents/coding with codin/ecdsafail-structural-history-fiber",
+  "submit": "CLOSED",
+  "frontier": {
+    "commit": "67524171baaf568dc3dc606f38515745f70804ff",
+    "lock_receipt": "/Users/odin/Documents/coding with codin/ecdsafail-structural-history-fiber/src/point_add/memory/34-q1266-frontier-lock.txt",
+    "lock_sha256": "a4531738e3f4171fe1aac346bfade85a1472c156133f7830aeac1eb164b6f7a5",
+    "q": 1267,
+    "avg_t": 911390,
+    "score": 1154731130,
+    "strict_score_ceiling": 1153834932
+  },
+  "source": {
+    "checkout": "/Users/odin/Documents/coding with codin/ecdsafail-structural-history-fiber",
+    "base_commit": "67524171baaf568dc3dc606f38515745f70804ff",
+    "base_tree": "8202910d176fa1f3332ff961e6f3f789ca6a7ac2",
+    "implementation_commit": "61b974c27409d5baf3677da37f38e2f2d84078d7",
+    "candidate_commit": "57ee207abe9f648dbc443bfb329e051707327d46",
+    "candidate_tree": "b1528c97b2766bd99ea6ee75dcc64d69fbd43360",
+    "selector": "SUB4_PP_INTERLEAVED_ODD_LOAN=1 SUB4_PINGPONG_TAIL_NONCE=82505456522172",
+    "changed_files": [
+      "src/point_add/pingpong_div.rs",
+      "src/point_add/memory/32-interleaved-odd-passenger-plan.md",
+      "src/point_add/memory/repro/pp_odd_passenger.py",
+      "src/point_add/memory/repro/test_pp_odd_passenger.py"
+    ]
+  },
+  "proof": {
+    "semantic_invariant": "The ping-pong binary-GCD walk keeps u[0]=v[0]=1 at every replay boundary; replay reads only the sign tape and coefficient registers, so those two known-one wires may be toggled to zero, released, reacquired, and toggled back to one around replay-only cells.",
+    "classical_obligation": "Exhaustive low-two-bit support proves the chosen signed numerator is always 2 mod 4 and the divided target remains odd; the official evaluator reports zero classical mismatches in 9024 shots.",
+    "phase_obligation": "The transform adds only paired X/release/reacquire/X operations and no Hmr/reset/randomness-consumption change; the official evaluator reports zero phase-garbage batches.",
+    "ancilla_obligation": "Each exact borrowed wire ID is reacquired before the next walk or walk-back round; the official evaluator reports zero ancilla-garbage batches.",
+    "nested_control_obligation": "All four source-audited loan intervals contain only replay_halving_round or replay_doubling_round bodies and do not read u or v while the passengers are released.",
+    "forward_inverse_obligation": "Loan and restore are exact inverses in reverse wire order, and the full trusted reversible replay passes all 9024 shots.",
+    "first_falsifier": "Any non-odd replay boundary, any u/v read inside a loan interval, failure to reacquire the same wire IDs, Q above 1266, or any nonzero classical, phase, or ancilla count."
+  },
+  "metrics": {
+    "executed_path_confirmed": true,
+    "peak_q": 1266,
+    "peak_owner": "interleaved ping-pong replay after lending u[0] and v[0]",
+    "avg_t": 911402,
+    "avg_t_unrounded": 911402.453,
+    "total_toffoli": 8224495739,
+    "score": 1153834932,
+    "ops": 12596439,
+    "ops_sha256": "715257aeabdacc03c5a121bc4e1c9bbd563875198728211abbb1a40caeec3184"
+  },
+  "validation": {
+    "selector_selftest": "PASS",
+    "reduced_width_exhaustive": "PASS",
+    "forward_inverse": "PASS",
+    "historical_shots": "PASS",
+    "canary": "PASS",
+    "trusted_9024": "PASS",
+    "classical_failures": 0,
+    "phase_failures": 0,
+    "ancilla_failures": 0,
+    "validator_sha256": "bc903869666390b07ea74e75bcd4c08cae53ab231a56641dd9b8390851c1619a",
+    "receipt_sha256": "116fdedba7e40386efe3dcb5bbe757030b8269bf64c699903e8aeb39a602f4ae",
+    "proof_receipt_sha256": "177a6f4de40611665f77d3d35305a45d3c3515e25a62c48c21cd0083ecd8dcb5",
+    "binding_sha256": "b43af4045ee81c2cbe44d0dac42bbde39540f8f8ca66ff5112f4c096c8c4409f",
+    "official_path": "owned isolated Vast workspace; candidate builder from 57ee207; separate trusted eval_circuit from untouched official 6752417",
+    "remote_host": "owned_vast_ephemeral_pod_redacted",
+    "no_submit_ack": "yes"
+  },
+  "reproduction": {
+    "result": "PENDING",
+    "model": "not required at TRUSTED_REPLAY_PASS state",
+    "clean_checkout": "PENDING",
+    "implementation_commit": "61b974c27409d5baf3677da37f38e2f2d84078d7",
+    "receipt_sha256": "PENDING"
+  },
+  "composition": {
+    "rebase_result": "PENDING",
+    "classical_failures": null,
+    "phase_failures": null,
+    "ancilla_failures": null,
+    "nonce_density_regression": "UNKNOWN",
+    "receipt_sha256": "PENDING"
+  },
+  "compute": {
+    "status": "CLOSED"
+  },
+  "authority": {
+    "no_submit_ack": "yes",
+    "queue": "CLOSED",
+    "public_note": "CLOSED",
+    "submission": "CLOSED"
+  }
+}

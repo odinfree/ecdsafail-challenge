@@ -1,0 +1,58 @@
+{
+  "schema": "ecdsafail.q1266.stable_shipping_bridge.v1",
+  "decision": "ADMIT_BYTE_IDENTICAL_SHIPPING_SOURCE_HOLD_SUBMISSION",
+  "created_utc": "2026-08-24T16:33:38Z",
+  "controller": "codex-structural-cut",
+  "official_source": {
+    "commit": "67524171baaf568dc3dc606f38515745f70804ff",
+    "tree": "8202910d176fa1f3332ff961e6f3f789ca6a7ac2"
+  },
+  "validated_research_source": {
+    "commit": "57ee207abe9f648dbc443bfb329e051707327d46",
+    "tree": "b1528c97b2766bd99ea6ee75dcc64d69fbd43360",
+    "selector": "SUB4_PP_INTERLEAVED_ODD_LOAN=1 SUB4_PINGPONG_TAIL_NONCE=82505456522172"
+  },
+  "shipping_source": {
+    "repository": "https://github.com/odinfree/ecdsafail-challenge",
+    "branch": "research/codex-q1266-submit-odd-passenger-20260824",
+    "commit": "cbf229dbd46a7c677fe2e28da882b4f8a02bac7f",
+    "tree": "eab2326ce33549eceeb5c10aa64eae33f148b0ac",
+    "base_commit": "67524171baaf568dc3dc606f38515745f70804ff",
+    "diff_sha256": "8c33d792d3876b72ff245d5ce8d18d64a5e9294600d840e9889f0b929b4bb8e4",
+    "changed_files": [
+      "src/point_add/mod.rs",
+      "src/point_add/pingpong_div.rs"
+    ],
+    "insertions": 34,
+    "deletions": 1,
+    "environment_required": false,
+    "pushed": true
+  },
+  "byte_identity": {
+    "result": "PASS",
+    "shipping_build_environment": "none",
+    "ops": 12596439,
+    "shipping_ops_sha256": "715257aeabdacc03c5a121bc4e1c9bbd563875198728211abbb1a40caeec3184",
+    "trusted_replay_ops_sha256": "715257aeabdacc03c5a121bc4e1c9bbd563875198728211abbb1a40caeec3184"
+  },
+  "trusted_replay": {
+    "shots": 9024,
+    "qubits": 1266,
+    "average_toffoli": 911402.453,
+    "score": 1153834932,
+    "classical_mismatches": 0,
+    "phase_garbage_batches": 0,
+    "ancilla_garbage_batches": 0,
+    "bundle_sha256": "116fdedba7e40386efe3dcb5bbe757030b8269bf64c699903e8aeb39a602f4ae"
+  },
+  "public_note": {
+    "state": "DRAFT_ONLY",
+    "sha256": "3fff7d0966a2bb25cbc866aca347852b99ac69d1086b02d7d76e1e8d1d5af07b"
+  },
+  "authority": {
+    "no_submit_ack": "yes",
+    "queue": "CLOSED",
+    "public_note": "CLOSED",
+    "submission": "CLOSED"
+  }
+}

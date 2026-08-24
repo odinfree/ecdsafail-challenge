@@ -1,0 +1,16 @@
+frontier_lock=PASS
+refreshed_utc=2026-08-24T15:55:34Z
+challenge=gpsanant/ecdsafail-challenge
+status=open
+source_commit=67524171baaf568dc3dc606f38515745f70804ff
+source_tree=8202910d176fa1f3332ff961e6f3f789ca6a7ac2
+frontier_q=1267
+frontier_avg_t_rounded=911390
+frontier_score=1154731130
+official_cli=ecdsafail benchmark
+candidate_q=1266
+candidate_avg_t_rounded=911402
+candidate_score=1153834932
+candidate_edge=896198
+no_submit_ack=yes
+submit=CLOSED

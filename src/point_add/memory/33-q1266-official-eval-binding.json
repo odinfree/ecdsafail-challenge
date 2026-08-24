@@ -1,0 +1,93 @@
+{
+  "schema": "ecdsafail.q1266.official_eval_binding.v1",
+  "decision": "ADMIT_OFFICIAL_CANDIDATE_HOLD_SUBMISSION",
+  "created_utc": "2026-08-24T15:54:54Z",
+  "controller": "codex-structural-cut",
+  "upstream_prefilter": {
+    "repository": "https://github.com/somejohnbforya/pingpong-prefilter",
+    "inspected_commit": "da0e5721f14f5d956aa703b38311f4087388a7b1",
+    "method_used": "nonce-independent SHAKE checkpoint plus exact classical ping-pong model",
+    "shipped_binary_used": false,
+    "reason": "shipped constants bind the older 8d7051b frontier; the live artifact was rebuilt and requalified for 6752417"
+  },
+  "source": {
+    "campaign_commit": "67524171baaf568dc3dc606f38515745f70804ff",
+    "campaign_tree": "8202910d176fa1f3332ff961e6f3f789ca6a7ac2",
+    "candidate_commit": "57ee207abe9f648dbc443bfb329e051707327d46",
+    "candidate_tree": "b1528c97b2766bd99ea6ee75dcc64d69fbd43360",
+    "candidate_mod_sha256": "bb8a07e6cb9b4a196621f9139d58eafb0cf054a8c20085dd72b51b6455822384",
+    "candidate_pingpong_div_sha256": "91cf1f711f66191b8b7d0de0a95fb8c83d84e38e5f57a27308f1e9f5443f7394",
+    "candidate_builder_source_sha256": "ac013f1d851156a117c7d41ddb16cb5bb014ed4e6ed4679df143207b46852f33",
+    "trusted_evaluator_source_sha256": "b35314bc47a5f8eecbf60459e6c76c9b43aa034eeb9b7ec3421655d74f9e890b",
+    "trusted_circuit_source_sha256": "ac2255f6bcb6895c9da2dfe21c3a051a0ef8fc4e0af9598634fec0035dbf35c6",
+    "cargo_lock_sha256": "42ff16919e551891ad1b21821329b116d133194245a0e0734a33573dfe598e07",
+    "rust_toolchain_sha256": "92b454c1ccf330de9b94242f73bc3214370fb420d5152baeec12dc82ceef9dcc",
+    "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
+  },
+  "candidate": {
+    "nonce": 82505456522172,
+    "environment": {
+      "SUB4_PP_INTERLEAVED_ODD_LOAN": "1",
+      "SUB4_PINGPONG_TAIL_NONCE": "82505456522172"
+    },
+    "ops": 12596439,
+    "ops_bytes": 45924054,
+    "ops_sha256": "715257aeabdacc03c5a121bc4e1c9bbd563875198728211abbb1a40caeec3184",
+    "builder_binary_sha256": "a5da6d32f3e49f1e966eb18afba629a25a1c93a8c209f6c0757a3fb1e1ff04ed"
+  },
+  "official_eval": {
+    "path": "separate-process official eval_circuit built from campaign commit 6752417 in an isolated owned provider workspace",
+    "trusted_evaluator_binary_sha256": "bc903869666390b07ea74e75bcd4c08cae53ab231a56641dd9b8390851c1619a",
+    "eval_stdout_sha256": "f25330d58e2291ed4d19d756cd93bf377d5541f92423115f00d9116ca9f09abc",
+    "score_json_sha256": "80d5646fb449b19d12162e76f13f93ba97c6edf58a061d075d3837460829d6d6",
+    "completed_utc": "2026-08-24T15:52:51Z",
+    "shots": 9024,
+    "loaded_ops": 12596439,
+    "qubits": 1266,
+    "bits": 952914,
+    "classical_mismatches": 0,
+    "phase_garbage_batches": 0,
+    "ancilla_garbage_batches": 0,
+    "total_toffoli": 8224495739,
+    "average_toffoli": 911402.453,
+    "rounded_toffoli": 911402,
+    "total_clifford": 93481768174,
+    "average_clifford": 10359238.494,
+    "score": 1153834932,
+    "exit": 0
+  },
+  "frontier": {
+    "refreshed_utc": "2026-08-24T15:55:34Z",
+    "status": "open",
+    "source_commit": "67524171baaf568dc3dc606f38515745f70804ff",
+    "score": 1154731130,
+    "candidate_edge": 896198
+  },
+  "isolation": {
+    "remote_host": "owned_vast_ephemeral_pod_redacted",
+    "candidate_and_evaluator_sources_separate": true,
+    "per_run_workspace": true,
+    "shared_search_artifacts": false,
+    "trusted_replays": 1,
+    "alternate_candidate_shopping": false
+  },
+  "search": {
+    "completed_nonces": 370143232,
+    "gpu_survivors": 3,
+    "first_two_exact_postfilter_clean": false,
+    "third_exact_postfilter_clean": true,
+    "new_slices_after_clean": 0
+  },
+  "preserved_artifact": {
+    "local_path": "/Users/odin/Documents/coding with codin/q1266-official-replay-82505456522172.tar.gz",
+    "bytes": 46528217,
+    "sha256": "116fdedba7e40386efe3dcb5bbe757030b8269bf64c699903e8aeb39a602f4ae",
+    "embedded_sha256_manifest": "PASS"
+  },
+  "authority": {
+    "no_submit_ack": "yes",
+    "submit": "CLOSED",
+    "queue": "CLOSED",
+    "public_note": "CLOSED"
+  }
+}
