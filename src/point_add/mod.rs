@@ -2457,12 +2457,14 @@ pub fn build() -> Vec<Op> {
     set_default_env("TLM_SQUARE_F_RAMP10_DIRECT32_TAGS", "");
     set_default_env("TLM_SQUARE_F_SHIFTED_LOW", "1");
 
-    // Freeze the source-baked Q1265 campaign composition while keeping each
-    // knob externally overridable for focused reliability experiments. The
-    // tail nonce is inherited only as a known-dirty negative control.
+    // Freeze the source-baked Q1264 campaign composition while keeping each
+    // knob externally overridable for focused reliability experiments. Lazy
+    // odd passengers remove the first wire and the baked round-zero a0
+    // elision removes the second. The tail nonce is inherited only as a
+    // known-dirty negative control.
     set_default_env("SUB4_PINGPONG_LOW56_FOLD", "1");
     set_default_env("SUB4_PP_ROUNDS", "694");
-    // Keep multiply one round below divide in the exact Q1265 campaign
+    // Keep multiply one round below divide in the exact Q1264 campaign
     // geometry; the lazy odd-passenger path keeps both replay families under
     // the same reviewed peak.
     set_default_env("SUB4_PP_ROUNDS_MUL", "693");
@@ -2571,6 +2573,10 @@ pub fn build() -> Vec<Op> {
         return Vec::new();
     }
     if std::env::var_os("SUB4_LEGACY_POINT_ADD").is_none() {
+        if std::env::var_os("SUB4_PP_ROUND0_A0_SELFTEST").is_some() {
+            pingpong_div::round0_a0_elision_selfcheck();
+            return Vec::new();
+        }
         if std::env::var_os("SUB4_PP_LAZY_ODD_SELFTEST").is_some() {
             pingpong_div::implicit_odd_passenger_walk_roundtrip_selfcheck();
             return Vec::new();
@@ -2581,8 +2587,8 @@ pub fn build() -> Vec<Op> {
         }
         let mut ops = pingpong_div::build_pingpong_point_add();
         // Inherited from the exact-clean Q1267/M697 stream only as a negative
-        // control. It is NOT clean for this baked Q1265 artifact (trusted
-        // 9,024-shot result: 28 classical / 17 phase / 0 ancilla failures).
+        // control. It is NOT clean for this baked Q1264 artifact (trusted
+        // 9,024-shot result: 23 classical / 13 phase / 0 ancilla failures).
         // A source-bound grind must replace it before candidate admission.
         let nonce = std::env::var("SUB4_PINGPONG_TAIL_NONCE")
             .unwrap_or_default()
