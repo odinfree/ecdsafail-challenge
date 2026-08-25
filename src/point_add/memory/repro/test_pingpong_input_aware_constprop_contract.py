@@ -18,10 +18,14 @@ class PingpongInputAwareConstpropContractTest(unittest.TestCase):
 
     def test_constprop_api_accepts_explicit_public_bits(self) -> None:
         source = CONSTPROP.read_text()
+        start = source.index("fn analyze(")
+        end = source.index("let mut decisions", start)
+        constant_analyzer_setup = source[start:end]
         self.assertIn("pub(crate) fn run_with_inputs", source)
         self.assertIn("input_bits: &[BitId]", source)
-        self.assertIn("for &bit in input_bits", source)
-        self.assertIn("b: vec![Unknown; num_b]", source)
+        self.assertIn("b: vec![Zero; num_b]", constant_analyzer_setup)
+        self.assertIn("for &bit in input_bits", constant_analyzer_setup)
+        self.assertIn("a.b[bit.0 as usize] = Unknown", constant_analyzer_setup)
 
     def test_f11_hook_binds_exact_public_register_geometry(self) -> None:
         block = self.pingpong_return_block()
@@ -52,6 +56,12 @@ class PingpongInputAwareConstpropContractTest(unittest.TestCase):
         source = (ROOT / "dirtyscan.rs").read_text()
         self.assertIn("executed_t", source)
         self.assertIn("cond.count_ones()", source)
+
+    def test_profile_binds_full_state_and_authoritative_t_counter(self) -> None:
+        source = (ROOT / "dirtyscan.rs").read_text()
+        self.assertIn("outcome_digest", source)
+        self.assertIn("sim.stats.toffoli_gates", source)
+        self.assertIn("mirror executed-T counter diverged", source)
 
     def test_transform_trace_binds_each_source_condition(self) -> None:
         source = CONSTPROP.read_text()
