@@ -2,7 +2,7 @@
 
 ## Current status
 
-`ALIVE_DIRTY_HOST_CONJUGATION_GAP`
+`ALIVE_GLOBAL_MIXED_ENCODING_GAP`
 
 Commit `e885a164fa92b3c33ae5da7fb89327d8b1700e09` claimed
 `HARD_NACK_CARRY_HANDOFF_FAMILY`. Independent REFUTE sustained multiple faults,
@@ -89,3 +89,75 @@ GREEN to RED. Only a surviving construction may proceed to an exact Rust diff,
 locked offline build, and static proof of Q<=1266 plus at least 1,500 net
 average-T reduction. No provider or full evaluator is authorized before that
 local admission gate.
+
+## Constructive-extension checkpoint
+
+The independent primitive-gate oracle now exists in
+`src/point_add/memory/repro/final_carry_gate_oracle.py`. It does not import the
+withdrawn arithmetic model. At widths 5 through 9 it executes:
+
+- the `n-2` phase-AND construction on all 992 basis inputs and every independent
+  HMR arm, with zero phase or ancilla mismatch;
+- a source-shaped delayed-carry forward circuit, actual inverse gates, and HMR
+  cleanup on 698,368 cases, with zero value, restore, phase, or ancilla mismatch;
+- the four fold digits `-1,0,+1,+2` on 3,968 cases, including the distinct
+  negative orientation, with zero value, selector, phase, or ancilla mismatch.
+
+Nine nontrivial mutations independently turn GREEN to RED: dropping the
+terminal CCZ, changing a prefix control, skipping a prefix HMR correction,
+dropping the carry top restore, changing the carry HMR control, skipping the
+delayed inverse, dropping the fold terminal carry, reversing the `-f`
+orientation, and skipping a fold HMR correction. These are valid primitive
+oracles, not a composed handoff candidate. No exact 54/53 candidate miter or
+Rust diff exists, so they cannot support ADMIT.
+
+### Source-bound information and synthesis results
+
+- Every current local selector arm has an exact canonical secp256k1 witness.
+  The fold operand functions have rank 3; operand plus first carry has rank 4;
+  adding the raw final carry has rank 5. Divide has no affine wire reclaim and
+  multiply has at most one. This closes zero-T affine publication only, not a
+  nonlinear selector code.
+- Exhaustive widths 5 through 9 show that raw and adjacent-difference carry
+  banks each add their full width in Boolean-function rank modulo the actual
+  live source and finished-sum wires. The exact transfer executes 513
+  canonical coordinate-axis witnesses plus zero/all/alternating/every-unit
+  carry words: 131 patterns for the 127-bit divide chunk and 132 for the
+  128-bit multiply chunk, with zero canonical or recurrence mismatch after
+  the multiply cell's actual left shift. These witnesses eliminate the live
+  interface coefficients and then each carry coefficient. This is
+  information/lifetime rank, not nonlinear cost by itself.
+- A single dirty product `xy` cannot become an independent fold product `pa`
+  with one affine-conjugated product update: all 4,096 affine control pairs
+  fail, while clear-then-create succeeds with two.
+- For two dirty and two fold products, the earlier envelope-preserving search
+  found no two-gate path. A new search removes the envelope assumption at
+  quadratic degree: all 10,795 decomposable quadratic forms on eight variables,
+  all six dirty-to-fold graph isomorphisms, and 64,770 three-generator coset
+  candidates contain zero three-generator solution. Four pure clear/create
+  generators work. This is exact for two quadratic banks, but it is not a
+  larger-bank direct-sum or HMR-assisted theorem.
+
+### Economics and unresolved loophole
+
+For the three-saved-CCX route, an intentionally impossible-favorable relaxation
+credits 18 remaining phase gates with 43 unretained carry factors and grants one
+free selector wire at both sites. Even then 1,170 cells need at least one host
+release/reuse. The checked separable/source-shaped dichotomy charges one
+depth-one event on each such cell: 585.0 average T added against a 574.5 ceiling,
+so this subfamily is capped at 1,489.5 net and is killed.
+
+That is not a whole-family verdict. At four saved CCX, the same one-event-per-
+affected-cell argument still leaves more than 1,500 net, and no checked theorem
+yet scales the extra cost with every reused rank. Higher-degree, larger-bank,
+globally mixed nonlinear codes and HMR-assisted amortization therefore remain a
+real loophole. An earlier 82.95-second “no three-gate path” result was restricted
+to intermediates inside the dirty-plus-fold envelope and is superseded; it is
+not used here.
+
+Current status is consequently `ALIVE_GLOBAL_MIXED_ENCODING_GAP`. There is no
+candidate sequence, no Rust modification, no exact candidate census, no ADMIT,
+and no defensible whole-family HARD_NACK. The next local gate is either a
+larger-bank/HMR direct-sum proof with source transfer and full savings sweep, or
+an explicit globally mixed construction that then enters the exact 54/53 miter
+and Rust/Q/T gates.

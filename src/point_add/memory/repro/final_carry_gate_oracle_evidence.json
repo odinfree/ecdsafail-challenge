@@ -1,0 +1,143 @@
+{
+  "admission": false,
+  "binding": {
+    "fold_widths": {
+      "divide": 54,
+      "multiply": 53
+    },
+    "peak_limit": 1266,
+    "pingpong_div_blob": "f4399563b1fe8c4beee568027ebf52df252e7555",
+    "rounds": {
+      "divide": 694,
+      "multiply": 693
+    },
+    "source_commit": "522d00296ab014b0f4d128915b53851516f17f4d",
+    "source_tree": "eab2326ce33549eceeb5c10aa64eae33f148b0ac"
+  },
+  "carry_quotient_rank": {
+    "basis_cases_by_width": {
+      "5": 1024,
+      "6": 4096,
+      "7": 16384,
+      "8": 65536,
+      "9": 262144
+    },
+    "exact_axis_source_valid_patterns": 513,
+    "exact_canonical_mismatches": 0,
+    "exact_recurrence_mismatches": 0,
+    "exact_transfer": {
+      "divide": {
+        "maximum_final_chunk_width": 127,
+        "quotient_rank": 127,
+        "source_valid_patterns": 131
+      },
+      "multiply": {
+        "maximum_final_chunk_width": 128,
+        "quotient_rank": 128,
+        "source_valid_patterns": 132
+      }
+    },
+    "rank_mismatches": 0,
+    "reduced_raw_carry_quotient_rank": {
+      "5": 5,
+      "6": 6,
+      "7": 7,
+      "8": 8,
+      "9": 9
+    },
+    "reduced_transformed_carry_quotient_rank": {
+      "5": 5,
+      "6": 6,
+      "7": 7,
+      "8": 8,
+      "9": 9
+    },
+    "reduced_widths": [
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "schema": "final-carry-checkpoint-quotient-rank-v2",
+    "scope": "Boolean-function rank modulo source plus finished-sum wires; this is an information/lifetime rank, not a nonlinear gate lower bound"
+  },
+  "higher_savings_loophole_s4": {
+    "added_if_one_depth1_gate_per_affected_cell": 601.0,
+    "cells": 1383,
+    "cells_still_requiring_host_reuse": 1202,
+    "free_selector_wires": 1,
+    "gross_average_t": 2766.0,
+    "maximum_reused_hosts": 12,
+    "minimum_reused_hosts": 0,
+    "net_upper_bound_after_one_depth1_gate": 2165.0,
+    "phase_terminal_discount": 25,
+    "remaining_phase_toffoli_class_per_cell": 17,
+    "schema": "final-carry-optimistic-phase-host-v1",
+    "scope": "optimistic relaxation, not a phase construction; it intentionally overcredits terminal phase and selector savings",
+    "unretained_bits_at_same_phase_cost": 42
+  },
+  "primitive_oracles": {
+    "delayed_carry_basis_cases": 698368,
+    "fused_fold_basis_cases": 3968,
+    "mutation_reds": 9,
+    "phase_and_basis_cases": 992,
+    "widths": [
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "zero_ancilla_mismatches": true,
+    "zero_phase_mismatches": true,
+    "zero_value_mismatches": true
+  },
+  "reference_operation_artifact": {
+    "emitted_ops": 12553305,
+    "sha256": "a4995dc4be4b7b314853d379941141b3b5753110412c07e8a2bc5d097d218ed1"
+  },
+  "remaining_gap": "Savings above three and globally mixed nonlinear or HMR-assisted encodings are not excluded; no Rust candidate exists.",
+  "schema": "final-carry-gate-oracle-evidence-v1",
+  "separable_s3_cost": {
+    "allowed_added_average_t": 574.5,
+    "cells": 1383,
+    "cells_requiring_release_or_reuse": 1170,
+    "covered": [
+      "direct dirty-target substitution",
+      "arbitrary Clifford pre/post conjugation of an independent host",
+      "HMR release followed by source-shaped checkpoint reconstruction"
+    ],
+    "economics_can_reach_target": false,
+    "extra_gate_condition_depth_lower_bound": 1,
+    "gross_average_t": 2074.5,
+    "is_terminal_whole_family_proof": false,
+    "measured_checkpoint_extra_phase_gates_per_affected_cell": 1,
+    "minimum_added_average_t": 585.0,
+    "net_average_t_upper_bound": 1489.5,
+    "optimistic_reused_hosts": {
+      "maximum": 11,
+      "minimum": 0
+    },
+    "remaining_gap": "exclude a globally mixed nonlinear encoding that amortizes its cross-term cancellation over multiple fold stages",
+    "schema": "final-carry-separable-handoff-cost-v1",
+    "target_net_average_t": 1500.0,
+    "unitary_dirty_swap_extra_gates_per_affected_cell": 1
+  },
+  "status": "ALIVE_GLOBAL_MIXED_ENCODING_GAP",
+  "two_bank_quadratic_catalysts": {
+    "decomposable_generator_lower_bound": 4,
+    "decomposable_quadratic_forms": 10795,
+    "dirty_to_fold_graph_isomorphisms": 6,
+    "first_solution": null,
+    "four_generator_clear_create_witness": true,
+    "is_larger_bank_direct_sum_proof": false,
+    "logical_variables": 8,
+    "mutation_allow_rank_four_direct_solutions": 6,
+    "schema": "final-carry-two-bank-quadratic-catalyst-v1",
+    "scope": "two dirty quadratic products versus two fold quadratic products; arbitrary mixed quadratic catalysts allowed, higher-degree and larger-bank/HMR amortization not closed",
+    "three_decomposable_generator_solutions": 0,
+    "three_generator_coset_candidates": 64770
+  },
+  "whole_family_hard_nack": false
+}
