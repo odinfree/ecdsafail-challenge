@@ -95,7 +95,13 @@ fn merge(old: Val, new: Val) -> Val {
     if old == new { old } else { Unknown }
 }
 
-fn analyze(ops: &[Op], num_q: usize, num_b: usize, input_qubits: &[QubitId]) -> (Vec<Decision>, ConstPropStats) {
+fn analyze(
+    ops: &[Op],
+    num_q: usize,
+    num_b: usize,
+    input_qubits: &[QubitId],
+    input_bits: &[BitId],
+) -> (Vec<Decision>, ConstPropStats) {
     let mut a = Analyzer {
         q: vec![Zero; num_q],
         b: vec![Zero; num_b],
@@ -103,6 +109,9 @@ fn analyze(ops: &[Op], num_q: usize, num_b: usize, input_qubits: &[QubitId]) -> 
     };
     for &q in input_qubits {
         a.q[q.0 as usize] = Unknown;
+    }
+    for &bit in input_bits {
+        a.b[bit.0 as usize] = Unknown;
     }
 
     let mut decisions = vec![Decision::Keep; ops.len()];
@@ -1149,6 +1158,36 @@ pub(crate) fn ccx_final_cancel(ops: Vec<Op>) -> Vec<Op> {
 }
 
 pub fn run(ops: Vec<Op>, input_qubits: &[QubitId]) -> Vec<Op> {
+    run_with_inputs(ops, input_qubits, &[])
+}
+
+fn trace_decisions(label: &str, ops: &[Op], decisions: &[Decision]) {
+    if std::env::var_os("CONSTPROP_TRANSFORM_TRACE").is_none() {
+        return;
+    }
+    for (index, decision) in decisions.iter().enumerate() {
+        if !matches!(decision, Decision::Keep) {
+            let op = ops[index];
+            eprintln!(
+                "CONSTPROP_TRANSFORM label={} index={} decision={:?} kind={:?} controls=({}, {}) target={} condition={}",
+                label,
+                index,
+                decision,
+                op.kind,
+                op.q_control1.0,
+                op.q_control2.0,
+                op.q_target.0,
+                op.c_condition.0,
+            );
+        }
+    }
+}
+
+pub(crate) fn run_with_inputs(
+    ops: Vec<Op>,
+    input_qubits: &[QubitId],
+    input_bits: &[BitId],
+) -> Vec<Op> {
     let (num_q, num_b) = dims(&ops);
     let nonces_verify = std::env::var("CONSTPROP_VERIFY")
         .ok()
@@ -1177,7 +1216,7 @@ pub fn run(ops: Vec<Op>, input_qubits: &[QubitId]) -> Vec<Op> {
     loop {
         iter += 1;
 
-        let (mut decisions, stats) = analyze(&cur, num_q, num_b, input_qubits);
+        let (mut decisions, stats) = analyze(&cur, num_q, num_b, input_qubits, input_bits);
 
         if let Some(nonces) = nonces_verify {
             if stats.dropped + stats.folded_cx + stats.folded_x > 0
@@ -1214,6 +1253,7 @@ pub fn run(ops: Vec<Op>, input_qubits: &[QubitId]) -> Vec<Op> {
         if let Some(sites) = cur_sites.as_mut() {
             *sites = apply_site_decisions(sites, &decisions);
         }
+        trace_decisions("constant", &cur, &decisions);
         cur = apply_decisions(&cur, &decisions);
 
         let (nq2, nb2) = dims(&cur);
@@ -1312,6 +1352,7 @@ pub fn run(ops: Vec<Op>, input_qubits: &[QubitId]) -> Vec<Op> {
                 if let Some(sites) = cur_sites.as_mut() {
                     *sites = apply_site_decisions(sites, &adec);
                 }
+                trace_decisions("affine", &cur, &adec);
                 cur = apply_decisions(&cur, &adec);
             }
             let _ = (fold_eq, drop_comp);

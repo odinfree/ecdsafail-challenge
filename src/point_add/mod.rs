@@ -2576,6 +2576,24 @@ pub fn build() -> Vec<Op> {
             return Vec::new();
         }
         let mut ops = pingpong_div::build_pingpong_point_add();
+        if std::env::var_os("SUB4_PINGPONG_INPUT_AWARE_CONSTPROP").is_some() {
+            assert_eq!(
+                std::env::var("TLM_CASCADE_DISABLE").ok().as_deref(),
+                Some("1"),
+                "F20 exact constprop requires TLM_CASCADE_DISABLE=1",
+            );
+            assert!(
+                std::env::var_os("TLM_CONSTPROP_STRADDLE").is_none(),
+                "F20 exact constprop requires TLM_CONSTPROP_STRADDLE absent",
+            );
+            let input_qubits: Vec<QubitId> = (0..512).map(QubitId).collect();
+            let input_bits: Vec<BitId> = (0..512).map(BitId).collect();
+            ops = trailmix_ludicrous::constprop::run_with_inputs(
+                ops,
+                &input_qubits,
+                &input_bits,
+            );
+        }
         // Exact-clean nonce for the Q1267/M697 stream, verified by the optimized
         // and reference evaluators over all 9,024 shots.
         let nonce = std::env::var("SUB4_PINGPONG_TAIL_NONCE")
@@ -2587,6 +2605,9 @@ pub fn build() -> Vec<Op> {
         x.q_target = QubitId(0);
         ops.extend(std::iter::repeat_n(x, 96));
         ops = apply_tail_nonce(ops, nonce);
+        if std::env::var_os("SUB4_PINGPONG_F20_PROFILE").is_some() {
+            dirtyscan::scan(&ops, &[]);
+        }
         return ops;
     }
     let mut ops = trailmix_ludicrous::build_trailmix_ludicrous_ops();

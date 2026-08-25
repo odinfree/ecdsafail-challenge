@@ -44,11 +44,12 @@ fn mirrored_run(
     xof: &mut impl XofReader,
     hits: &mut Vec<Hit>,
     max_hits: usize,
-) -> (Vec<u64>, Vec<u64>, u64) {
+) -> (Vec<u64>, Vec<u64>, u64, u64) {
     let include_hmr = std::env::var_os("TLM_DIRTY_SCAN_HMR").is_some();
     let mut qubits = q0.to_vec();
     let mut bits = b0.to_vec();
     let mut phase = 0u64;
+    let mut executed_t = 0u64;
     let mut condition_stack: Vec<u64> = Vec::new();
     let mut base = u64::MAX;
     // Ring of the last TRAIL writers per qubit.
@@ -65,6 +66,9 @@ fn mirrored_run(
         let mut cond = base;
         if op.c_condition != NO_BIT {
             cond &= bits[op.c_condition.0 as usize];
+        }
+        if matches!(op.kind, OperationType::CCX | OperationType::CCZ) {
+            executed_t += cond.count_ones() as u64;
         }
         match op.kind {
             OperationType::CCX => {
@@ -156,7 +160,7 @@ fn mirrored_run(
             }
         }
     }
-    (qubits, bits, phase)
+    (qubits, bits, phase, executed_t)
 }
 
 fn measure_xof() -> impl XofReader {
@@ -222,6 +226,7 @@ pub(crate) fn scan(ops: &[Op], transitions: &[(usize, &'static str)]) {
     let mut phase_bad = 0usize;
     let mut ancilla_bad = 0usize;
     let mut last_phase = 0u64;
+    let mut executed_t = 0u64;
     for round in 0..rounds {
         let mut seed_xof = measure_xof();
         let mut seeder = Simulator::new(num_q as usize, num_b as usize, &mut seed_xof);
@@ -231,8 +236,9 @@ pub(crate) fn scan(ops: &[Op], transitions: &[(usize, &'static str)]) {
         drop(seeder);
 
         let mut mirror_xof = measure_xof();
-        let (mq, mb, mphase) =
+        let (mq, mb, mphase, round_executed_t) =
             mirrored_run(ops, &q0, &b0, &mut mirror_xof, &mut hits, max_hits);
+        executed_t += round_executed_t;
 
         // Prove the mirror against the frozen simulator on the same xof stream.
         let mut ref_xof = measure_xof();
@@ -303,8 +309,9 @@ pub(crate) fn scan(ops: &[Op], transitions: &[(usize, &'static str)]) {
     // unit the nonce grind is priced in: P(ground nonce) = exp(-lambda_total).
     let lambda = 9024.0 * any_fault as f64 / lanes as f64;
     eprintln!(
-        "DIRTY_SCAN rounds={rounds} lanes={lanes} ops={} classical={classical} phase_shots={phase_shots} any_fault_shots={any_fault} lambda_total_per_9024={lambda:.2} phase_bad_rounds={phase_bad}/{rounds} ancilla_bad_rounds={ancilla_bad}/{rounds} dirty_free_events={} (cap {max_hits}) attributable={attributable} last_phase={last_phase:#018x}",
+        "DIRTY_SCAN rounds={rounds} lanes={lanes} ops={} executed_t={executed_t} average_t={:.8} classical={classical} phase_shots={phase_shots} any_fault_shots={any_fault} lambda_total_per_9024={lambda:.2} phase_bad_rounds={phase_bad}/{rounds} ancilla_bad_rounds={ancilla_bad}/{rounds} dirty_free_events={} (cap {max_hits}) attributable={attributable} last_phase={last_phase:#018x}",
         ops.len(),
+        executed_t as f64 / lanes as f64,
         hits.len(),
     );
     let show: usize = std::env::var("TLM_DIRTY_SCAN_SHOW")
