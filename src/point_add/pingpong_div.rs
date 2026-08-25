@@ -1,4 +1,5 @@
 use super::*;
+use crate::circuit::NO_QUBIT;
 
 /// Fixed-depth ping-pong division.  The value walk records one sign qubit per
 /// round; the coefficient pass consumes that log once, then the reverse value
@@ -14,19 +15,30 @@ fn rounds_for(direction: PingPongDirection) -> usize {
     match direction {
         PingPongDirection::Divide => rounds(),
         PingPongDirection::Multiply => {
+            // BAKE (2026-08-25): exact Q1264 campaign geometry.  This is the
+            // independently profiled 694/693 route, now made reproducible by
+            // the zero-environment official benchmark.
             // One round fewer on the multiply traversal: its fused doubling
             // cell holds one more wire (the shifted-out top bit) during the
             // chunked add than the divide cell does, so a one-bit shorter
             // tape puts both replay peaks at the same width.  Convergence
             // exposure of one round on one traversal is ~+0.05 lambda.
             static SLOT: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
-            tuned_window("SUB4_PP_ROUNDS_MUL", &SLOT, 696)
+            tuned_window("SUB4_PP_ROUNDS_MUL", &SLOT, 693)
         }
     }
 }
 
 fn rounds() -> usize {
     static SLOT: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    // BAKE (2026-08-25): exact Q1264 campaign geometry.  Keep the override for
+    // controlled experiments, but make the reviewed 694-round route the
+    // zero-environment benchmark path.
+    //
+    // SUPERSEDED HISTORY: the 2026-08-23 notes below describe earlier
+    // 704/700 and 696-era defaults. They remain as measurement provenance,
+    // but neither their automatic multiply tracking nor their frontier
+    // arithmetic describes the current independent 694/693 defaults.
     // BAKE (2026-08-23, this rebase): 704, not 700 -- spends this base's
     // frontier margin buying down lambda_CF instead of banking it as unused
     // score headroom. The "700, not 704" rationale below (T/peak savings
@@ -85,13 +97,14 @@ fn rounds() -> usize {
     // (rescale ON by default, `WIDTH_REPAIR` sparse correction, `wsched_
     // override` file loader) is kept as-is here rather than force-merged,
     // since the two tables are alternate fits to the same problem, not
-    // additive. `SUB4_PP_ROUNDS` remains swept post-rebase against the new
+    // additive. `SUB4_PP_ROUNDS` was swept post-rebase against that historical
     // 696 default -- see the rebase report for the result.
-    tuned_window("SUB4_PP_ROUNDS", &SLOT, 696)
+    tuned_window("SUB4_PP_ROUNDS", &SLOT, 694)
 }
 
-/// The width schedule is compressed so it still reaches its floor on the
-/// final round at the reduced 698-round depth, instead of stopping short:
+/// The 704-entry source width schedule is compressed so it still reaches its
+/// floor on the final round of the baked 694-round traversal, instead of
+/// stopping short:
 /// every walk and replay add above the floor gets its scheduled width from a
 /// slightly earlier point of the sampled curve, which removes the dead
 /// bit-rounds the four-round depth cut had left at the tail.  On this draw
@@ -227,6 +240,9 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
 ) {
     assert_eq!(denominator.len(), N);
     assert_eq!(numerator.len(), N);
+    // Parse and validate the baked elision even when an incompatible geometry
+    // would otherwise bypass round zero's fused-cell wrappers entirely.
+    let _ = round0_a0_elision_enabled();
 
     let mut u = load_const(b, N, SECP256K1_P);
     u.extend(b.alloc_qubits(VALUE_WIDTH - N));
@@ -254,6 +270,11 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
     };
 
     let rounds = rounds_for(direction);
+    let lazy_odd = lazy_interleaved_odd_restore_enabled();
+    assert!(
+        !(lazy_odd && std::env::var_os("SUB4_PP_LOAN_ONE").is_some()),
+        "SUB4_PP_LAZY_ODD_RESTORE is incompatible with SUB4_PP_LOAN_ONE"
+    );
     let phase = |b: &mut B, name_div: &'static str, name_mul: &'static str| {
         b.set_phase(match direction {
             PingPongDirection::Divide => name_div,
@@ -297,6 +318,35 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
             }
         }
     };
+    let restore_except_implicit_odd =
+        |b: &mut B,
+         loans: &[(QubitId, Option<QubitId>)],
+         u: &mut [QubitId],
+         v: &mut [QubitId]| {
+            let low_u = u[0];
+            let low_v = v[0];
+            assert_ne!(low_u, low_v);
+            let mut skipped = 0usize;
+            for &(q, sign) in loans.iter().rev() {
+                if q == low_u || q == low_v {
+                    assert!(sign.is_none(), "odd terminal passenger carried a sign");
+                    assert!(
+                        b.free_qubits.iter().any(|&free| u64::from(free) == q.0),
+                        "implicit terminal passenger is not free"
+                    );
+                    skipped += 1;
+                    continue;
+                }
+                b.reacquire(q);
+                match sign {
+                    Some(sign) => b.cx(sign, q),
+                    None => b.x(q),
+                }
+            }
+            assert_eq!(skipped, 2);
+            u[0] = NO_QUBIT;
+            v[0] = NO_QUBIT;
+        };
     let cell_extra = match direction {
         // The signed cell's bit-256 wire also lives across the add.
         PingPongDirection::Divide => usize::from(signed_frame()),
@@ -322,7 +372,12 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
 
     let coefficient: Vec<QubitId>;
     let mut tape: Vec<QubitId>;
-    match (direction, plan(direction, rounds)) {
+    let selected_plan = plan(direction, rounds);
+    assert!(
+        !generic_s2_elision_enabled() || selected_plan.is_some(),
+        "SUB4_PP_ELIDE_GENERIC_S2 requires the interleaved replay schedule"
+    );
+    match (direction, selected_plan) {
         (_, None) => {
             phase(b, "pp_div_walk", "pp_mul_walk");
             tape = value_walk(b, &mut u, &mut v, rounds);
@@ -361,7 +416,12 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
             phase(b, "pp_div_walk", "pp_mul_walk");
             tape = Vec::with_capacity(rounds);
             for r in 0..plan.r1.min(rounds) {
-                tape.push(walk_round(b, &mut u, &mut v, r, rounds));
+                if r == 2 && generic_s2_elision_enabled() {
+                    walk_round2_with_s1_host(b, &mut u, &mut v, tape[1], rounds);
+                    tape.push(NO_QUBIT);
+                } else {
+                    tape.push(walk_round(b, &mut u, &mut v, r, rounds));
+                }
             }
             phase(b, "pp_div_replay", "pp_mul_replay");
             // `walk_round(r1)` would shrink to `value_width(r1)` anyway; doing
@@ -372,26 +432,51 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
             }
             coefficient = b.alloc_qubits(N);
             set_walk_peak(walk_peak(&plan));
+            assert!(!lazy_odd || plan.r1 >= 2, "lazy odd restore requires r1 >= 2");
             set_chunks(pick_chunks(&plan, plan.r1.min(rounds), u.len()));
-            let odd_passengers = loan_interleaved_odd_passengers(b, &u, &v);
+            let odd_passengers = if lazy_odd {
+                loan_interleaved_odd_passengers_implicit(b, &mut u, &mut v);
+                None
+            } else {
+                Some(loan_interleaved_odd_passengers(b, &u, &v))
+            };
             for r in 0..plan.r1.min(rounds) {
-                replay_halving_round(b, r, tape[r], &coefficient, numerator);
+                if r == 2 && generic_s2_elision_enabled() {
+                    let host = toggle_checkpoint_s2_host(b, &tape, &u, &v);
+                    replay_halving_round(b, r, host, &coefficient, numerator);
+                    assert_eq!(toggle_checkpoint_s2_host(b, &tape, &u, &v), host);
+                } else {
+                    replay_halving_round(b, r, tape[r], &coefficient, numerator);
+                }
             }
-            restore_interleaved_odd_passengers(b, odd_passengers);
+            if let Some(odd_passengers) = odd_passengers {
+                restore_interleaved_odd_passengers(b, odd_passengers);
+            }
             clear_chunks();
             for r in plan.r1..=plan.r2.min(rounds - 1) {
                 if r >= rounds {
                     break;
                 }
-                tape.push(walk_round(b, &mut u, &mut v, r, rounds));
+                tape.push(if lazy_odd {
+                    walk_round_implicit(b, &mut u, &mut v, r, rounds)
+                } else {
+                    walk_round(b, &mut u, &mut v, r, rounds)
+                });
                 if r + 1 < rounds {
                     shrink_to(b, &mut u, &mut v, value_width(r + 1));
                 }
                 set_chunks(pick_chunks(&plan, tape.len(), u.len()));
-                let odd_passengers = loan_interleaved_odd_passengers(b, &u, &v);
-                replay_halving_round(b, r, tape[r], &coefficient, numerator);
-                restore_interleaved_odd_passengers(b, odd_passengers);
+                if lazy_odd {
+                    replay_halving_round(b, r, tape[r], &coefficient, numerator);
+                } else {
+                    let odd_passengers = loan_interleaved_odd_passengers(b, &u, &v);
+                    replay_halving_round(b, r, tape[r], &coefficient, numerator);
+                    restore_interleaved_odd_passengers(b, odd_passengers);
+                }
                 clear_chunks();
+            }
+            if lazy_odd {
+                restore_interleaved_odd_passengers_implicit(b, &mut u, &mut v);
             }
             for r in (plan.r2 + 1).max(plan.r1)..rounds {
                 tape.push(walk_round(b, &mut u, &mut v, r, rounds));
@@ -434,37 +519,90 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
                 replay_doubling_round(b, r, tape[r], &coefficient, numerator);
             }
             clear_chunks();
-            restore(b, &loans);
+            if lazy_odd {
+                restore_except_implicit_odd(b, &loans, &mut u, &mut v);
+            } else {
+                restore(b, &loans);
+            }
             phase(b, "pp_div_walkback", "pp_mul_walkback");
             set_walk_peak(walk_peak(&plan));
             for r in ((plan.r2 + 1).max(plan.r1)..rounds).rev() {
                 let sign = tape.pop().expect("tape has round r");
                 assert_eq!(tape.len(), r);
-                walk_back_round(b, &mut u, &mut v, r, sign, rounds);
+                if lazy_odd {
+                    walk_back_round_implicit(b, &mut u, &mut v, r, sign, rounds);
+                } else {
+                    walk_back_round(b, &mut u, &mut v, r, sign, rounds);
+                }
             }
+            assert!(!lazy_odd || plan.r1 >= 2, "lazy odd restore requires r1 >= 2");
             for r in (plan.r1..=plan.r2.min(rounds - 1)).rev() {
                 set_chunks(pick_chunks(&plan, r + 1, u.len()));
-                let odd_passengers = loan_interleaved_odd_passengers(b, &u, &v);
-                replay_doubling_round(b, r, tape[r], &coefficient, numerator);
-                restore_interleaved_odd_passengers(b, odd_passengers);
+                if lazy_odd {
+                    replay_doubling_round(b, r, tape[r], &coefficient, numerator);
+                } else {
+                    let odd_passengers = loan_interleaved_odd_passengers(b, &u, &v);
+                    replay_doubling_round(b, r, tape[r], &coefficient, numerator);
+                    restore_interleaved_odd_passengers(b, odd_passengers);
+                }
                 clear_chunks();
                 let sign = tape.pop().expect("tape has round r");
                 assert_eq!(tape.len(), r);
-                walk_back_round(b, &mut u, &mut v, r, sign, rounds);
+                if lazy_odd {
+                    walk_back_round_implicit(b, &mut u, &mut v, r, sign, rounds);
+                } else {
+                    walk_back_round(b, &mut u, &mut v, r, sign, rounds);
+                }
             }
             set_chunks(pick_chunks(&plan, plan.r1.min(rounds), u.len()));
-            let odd_passengers = loan_interleaved_odd_passengers(b, &u, &v);
+            let lower_odd_passengers = if lazy_odd {
+                None
+            } else {
+                Some(loan_interleaved_odd_passengers(b, &u, &v))
+            };
             for r in (0..plan.r1.min(rounds)).rev() {
-                replay_doubling_round(b, r, tape[r], &coefficient, numerator);
+                if r == 2 && generic_s2_elision_enabled() {
+                    let host = toggle_checkpoint_s2_host(b, &tape, &u, &v);
+                    replay_doubling_round(b, r, host, &coefficient, numerator);
+                    assert_eq!(toggle_checkpoint_s2_host(b, &tape, &u, &v), host);
+                } else {
+                    replay_doubling_round(b, r, tape[r], &coefficient, numerator);
+                }
             }
-            restore_interleaved_odd_passengers(b, odd_passengers);
+            if let Some(odd_passengers) = lower_odd_passengers {
+                restore_interleaved_odd_passengers(b, odd_passengers);
+            }
             clear_chunks();
             b.free_vec(&coefficient);
             clear_walk_peak();
+            let mut implicit_odd = lazy_odd;
             for r in (0..plan.r1.min(rounds)).rev() {
                 let sign = tape.pop().expect("tape has round r");
                 assert_eq!(tape.len(), r);
-                walk_back_round(b, &mut u, &mut v, r, sign, rounds);
+                if r == 2 && generic_s2_elision_enabled() {
+                    assert_eq!(sign, NO_QUBIT);
+                    let host = tape[1];
+                    if implicit_odd {
+                        walk_back_round2_implicit_with_s1_host(
+                            b, &mut u, &mut v, host, rounds,
+                        );
+                    } else {
+                        walk_back_round2_with_s1_host(b, &mut u, &mut v, host, rounds);
+                    }
+                    continue;
+                }
+                if implicit_odd && r < 2 {
+                    restore_interleaved_odd_passengers_implicit(b, &mut u, &mut v);
+                    implicit_odd = false;
+                }
+                if implicit_odd {
+                    walk_back_round_implicit(b, &mut u, &mut v, r, sign, rounds);
+                } else {
+                    walk_back_round(b, &mut u, &mut v, r, sign, rounds);
+                }
+            }
+            if implicit_odd {
+                restore_interleaved_odd_passengers_implicit(b, &mut u, &mut v);
             }
             grow_to(b, &mut u, &mut v, VALUE_WIDTH);
         }
@@ -703,6 +841,103 @@ fn mux_round0_correction_enabled() -> bool {
     std::env::var_os("SUB4_PINGPONG_SPLIT_ROUND0").is_none()
 }
 
+/// Release round zero's retained input-low-bit tape wire after the baked
+/// sparse forward cell.  The sparse cell's truncated carry reaches only bit
+/// `replay_fold_window() - 1`; with the admitted window below bit 255, the
+/// complement sandwich leaves `v[255]` unchanged and the final
+/// `CX(a0, v[255])` makes that output bit an exact copy of `a0`.
+///
+/// This identity does not hold for the ideal full-carry round-zero map on
+/// `(2^31 + 488)` canonical inputs, so fail closed if an incompatible dense
+/// or full-width cell is selected.  Baked default ON; exact `0` restores the
+/// retained Q1265 tape wire, exact `1` enables elision, and no other value is
+/// accepted.
+fn round0_a0_elision_enabled() -> bool {
+    let enabled = match std::env::var_os("SUB4_PP_ELIDE_ROUND0_A0") {
+        None => true,
+        Some(value) if value == "0" => false,
+        Some(value) if value == "1" => true,
+        Some(value) => panic!(
+            "SUB4_PP_ELIDE_ROUND0_A0 must be 0 or 1, got {:?}",
+            value.to_string_lossy()
+        ),
+    };
+    if enabled {
+        assert!(
+            fused_lift_round0_enabled()
+                && mux_round0_correction_enabled()
+                && round0_sparse_fwd_enabled(),
+            "SUB4_PP_ELIDE_ROUND0_A0 requires the sparse fused round-zero forward cell"
+        );
+        assert!(
+            replay_fold_window() <= N - 1,
+            "SUB4_PP_ELIDE_ROUND0_A0 requires SUB4_PP_REPLAY_FOLD_WINDOW <= {}",
+            N - 1
+        );
+    }
+    enabled
+}
+
+/// Omit generic round two's tape qubit and borrow the retained round-one sign
+/// as a temporary host whenever round two is consumed.  The exact identity is
+///
+///     s_r = source_r[1] ^ source_{r-1}[1]
+///
+/// because the target at round `r` is the unchanged source from round `r-1`.
+/// Telescoping from the classical `source_0 = p` gives, at a checkpoint after
+/// `R` rounds,
+///
+///     s_1 ^ ... ^ s_{R-1} = p[1] ^ old_operand[1].
+///
+/// Both materialization paths below are Clifford-only and restore the host.
+/// Exact `0` preserves the sealed Q1264 stream; unset or exact `1` selects the
+/// Q1263 prototype.  Other values fail closed.
+fn generic_s2_elision_enabled() -> bool {
+    match std::env::var_os("SUB4_PP_ELIDE_GENERIC_S2") {
+        None => true,
+        Some(value) if value == "0" => false,
+        Some(value) if value == "1" => true,
+        Some(value) => panic!(
+            "SUB4_PP_ELIDE_GENERIC_S2 must be 0 or 1, got {:?}",
+            value.to_string_lossy()
+        ),
+    }
+}
+
+fn toggle_local_s2_host(b: &mut B, host: QubitId, source: &[QubitId]) {
+    assert_ne!(host, NO_QUBIT, "round-one host must be materialized");
+    assert!(source.len() > 1);
+    if SECP256K1_P.bit(1) {
+        b.x(host);
+    }
+    b.cx(source[1], host);
+}
+
+/// Toggle the retained `s1` wire into `s2` at a frozen walk checkpoint.  The
+/// identical call restores `s1`, provided replay has not changed the walk or
+/// the other retained signs.
+fn toggle_checkpoint_s2_host(
+    b: &mut B,
+    tape: &[QubitId],
+    u: &[QubitId],
+    v: &[QubitId],
+) -> QubitId {
+    assert!(tape.len() >= 3, "round-two host requires a three-round checkpoint");
+    assert_eq!(tape[2], NO_QUBIT, "round two must be the omitted tape entry");
+    let host = tape[1];
+    assert_ne!(host, NO_QUBIT, "round-one host must be materialized");
+    let old_operand = if tape.len().is_multiple_of(2) { v } else { u };
+    if SECP256K1_P.bit(1) {
+        b.x(host);
+    }
+    b.cx(old_operand[1], host);
+    for &sign in &tape[3..] {
+        assert_ne!(sign, NO_QUBIT, "only generic round two may be omitted");
+        b.cx(sign, host);
+    }
+    host
+}
+
 /// REPORT5 §2: BAKED default ON (2026-08-23; -404 T, peak-neutral, CF-neutral
 /// on the frozen 72,192-shot population). `SUB4_PP_ROUND0_SPARSE_FWD=0`
 /// selects the old dense forward round-0 lift; any other value (or unset)
@@ -890,6 +1125,19 @@ fn fused_lift_round0_forward(b: &mut B, v: &[QubitId]) -> QubitId {
     a0
 }
 
+/// Emit fused round zero and return its replay-tape entry.  In the baked
+/// elided form, clear and release the redundant `a0` wire and store the
+/// fail-closed sentinel; replay round zero is sign-independent.
+fn walk_round0_forward_tape(b: &mut B, v: &[QubitId]) -> QubitId {
+    let a0 = fused_lift_round0_forward(b, v);
+    if !round0_a0_elision_enabled() {
+        return a0;
+    }
+    b.cx(v[N - 1], a0);
+    b.release_clean(a0);
+    NO_QUBIT
+}
+
 /// W3: walk round 1 against the still-classical `u = p`.
 ///
 /// Round 0 is already fused (`fused_lift_round0_forward`); round 1 was missed.
@@ -1073,6 +1321,20 @@ fn fused_lift_round0_reverse_sparse(b: &mut B, v: &[QubitId], a0: QubitId) {
     b.free(a0);
 }
 
+/// Materialize the elided round-zero tape bit immediately before its inverse
+/// cell.  No replay operation may consume the `NO_QUBIT` tape sentinel.
+fn walk_round0_reverse_tape(b: &mut B, v: &[QubitId], tape0: QubitId) {
+    if !round0_a0_elision_enabled() {
+        assert_ne!(tape0, NO_QUBIT);
+        fused_lift_round0_reverse(b, v, tape0);
+        return;
+    }
+    assert_eq!(tape0, NO_QUBIT);
+    let a0 = b.alloc_qubit();
+    b.cx(v[N - 1], a0);
+    fused_lift_round0_reverse(b, v, a0);
+}
+
 thread_local! {
     /// Total width budget for a walk round whose add runs while the replay
     /// coefficient is live.  `None` = the walk owns the machine and keeps its
@@ -1136,13 +1398,15 @@ fn signed_add_wrapping_sigma_split(
     target0_is_one: bool,
     low: usize,
     top_skip: bool,
+    implicit_odd_low: bool,
 ) {
     let n = source.len();
     debug_assert_eq!(n, target.len());
     debug_assert!(low >= 3 && low + 2 <= n);
     let top_skip = top_skip && n >= 6;
 
-    for &q in target {
+    debug_assert!(!implicit_odd_low || (source[0] == NO_QUBIT && target[0] == NO_QUBIT));
+    for &q in &target[usize::from(implicit_odd_low)..] {
         b.cx(sign, q);
     }
 
@@ -1183,7 +1447,9 @@ fn signed_add_wrapping_sigma_split(
         b.x(c_lo[0]);
     }
     b.cx(sign, c_lo[0]);
-    b.cx(source[0], target[0]);
+    if !implicit_odd_low {
+        b.cx(source[0], target[0]);
+    }
     b.free_vec(&c_lo[..low - 1]);
 
     // High chunk: positions low..n, carry-in `boundary`. REPORT5 §3: on a
@@ -1298,7 +1564,7 @@ fn signed_add_wrapping_sigma_split(
     b.free_vec(&compare_carries);
     b.free(boundary);
 
-    for &q in target {
+    for &q in &target[usize::from(implicit_odd_low)..] {
         b.cx(sign, q);
     }
 }
@@ -1316,10 +1582,12 @@ fn signed_add_wrapping_sigma(
     target: &[QubitId],
     target0_is_one: bool,
     top_skip: bool,
+    implicit_odd_low: bool,
 ) {
     let n = source.len();
     assert_eq!(n, target.len());
     if n < 4 {
+        assert!(!implicit_odd_low, "implicit odd low bit requires width >= 4");
         for &q in target {
             b.cx(sign, q);
         }
@@ -1337,8 +1605,9 @@ fn signed_add_wrapping_sigma(
     // erasure at all. Guard `n >= 6` matches the report's build spec; the
     // schedule floor (8) keeps every qualifying round well clear of it.
     let top_skip = top_skip && n >= 6;
+    debug_assert!(!implicit_odd_low || (source[0] == NO_QUBIT && target[0] == NO_QUBIT));
 
-    for &q in target {
+    for &q in &target[usize::from(implicit_odd_low)..] {
         b.cx(sign, q);
     }
 
@@ -1451,10 +1720,12 @@ fn signed_add_wrapping_sigma(
         b.x(source[1]);
     }
     b.cx(source[1], target[1]);
-    b.cx(source[0], target[0]);
+    if !implicit_odd_low {
+        b.cx(source[0], target[0]);
+    }
     b.free_vec(&carries);
 
-    for &q in target {
+    for &q in &target[usize::from(implicit_odd_low)..] {
         b.cx(sign, q);
     }
 }
@@ -1468,7 +1739,15 @@ fn signed_add_wrapping(
     top_skip: bool,
 ) {
     if std::env::var_os("SUB4_PINGPONG_GENERIC_WALK").is_none() {
-        return signed_add_wrapping_sigma(b, sign, source, target, target0_is_one, top_skip);
+        return signed_add_wrapping_sigma(
+            b,
+            sign,
+            source,
+            target,
+            target0_is_one,
+            top_skip,
+            false,
+        );
     }
     for &q in target {
         b.cx(sign, q);
@@ -1650,6 +1929,35 @@ fn grow_to(b: &mut B, u: &mut Vec<QubitId>, v: &mut Vec<QubitId>, width: usize) 
     }
 }
 
+/// Execute generic round two with `s1` temporarily transformed into `s2`.
+/// The source operand is unchanged by the wrapped add, so the same Clifford
+/// transform restores the retained host after the halving rotation.
+fn walk_round2_with_s1_host(
+    b: &mut B,
+    u: &mut Vec<QubitId>,
+    v: &mut Vec<QubitId>,
+    host: QubitId,
+    rounds: usize,
+) {
+    let round = 2usize;
+    let width = value_width(round);
+    shrink_to(b, u, v, width);
+    let (source, target) = (&u[..width], &v[..width]);
+    toggle_local_s2_host(b, host, source);
+    let top_skip = walk_top_skip(round, rounds);
+    match walk_low_chunk(round, width) {
+        Some(low) => signed_add_wrapping_sigma_split(
+            b, host, source, target, true, low, top_skip, false,
+        ),
+        None => signed_add_wrapping(b, host, source, target, true, top_skip),
+    }
+    for i in 0..width - 1 {
+        b.swap(target[i], target[i + 1]);
+    }
+    b.cx(target[width - 2], target[width - 1]);
+    toggle_local_s2_host(b, host, source);
+}
+
 /// One forward walk round; returns the sign qubit to append to the tape.
 /// `rounds` is the calling traversal's own round count (see
 /// [`walk_top_skip`]).
@@ -1663,7 +1971,7 @@ fn walk_round(
     let width = value_width(round);
     shrink_to(b, u, v, width);
     if round == 0 && fused_lift_round0_enabled() {
-        return fused_lift_round0_forward(b, v);
+        return walk_round0_forward_tape(b, v);
     }
     if round == 1 && fuse_round1_enabled() {
         return fused_round1_forward(b, &u[..width], &v[..width]);
@@ -1678,7 +1986,9 @@ fn walk_round(
     b.cx(source[1], sign);
     let top_skip = walk_top_skip(round, rounds);
     match walk_low_chunk(round, width) {
-        Some(low) => signed_add_wrapping_sigma_split(b, sign, source, target, true, low, top_skip),
+        Some(low) => signed_add_wrapping_sigma_split(
+            b, sign, source, target, true, low, top_skip, false,
+        ),
         None => signed_add_wrapping(b, sign, source, target, true, top_skip),
     }
     for i in 0..width - 1 {
@@ -1702,7 +2012,7 @@ fn walk_back_round(
     let width = value_width(round);
     grow_to(b, u, v, width);
     if round == 0 && fused_lift_round0_enabled() {
-        fused_lift_round0_reverse(b, v, sign);
+        walk_round0_reverse_tape(b, v, sign);
         return;
     }
     if round == 1 && fuse_round1_enabled() {
@@ -1721,13 +2031,228 @@ fn walk_back_round(
     b.x(sign);
     let top_skip = walk_top_skip(round, rounds);
     match walk_low_chunk(round, width) {
-        Some(low) => signed_add_wrapping_sigma_split(b, sign, source, target, false, low, top_skip),
+        Some(low) => signed_add_wrapping_sigma_split(
+            b, sign, source, target, false, low, top_skip, false,
+        ),
         None => signed_add_wrapping(b, sign, source, target, false, top_skip),
     }
     b.x(sign);
     b.cx(target[1], sign);
     b.cx(source[1], sign);
     b.free(sign);
+}
+
+/// Reverse generic round two while borrowing `s1` as the sign wire.  Unlike
+/// [`walk_back_round`], this restores the host instead of clearing/freeing it.
+fn walk_back_round2_with_s1_host(
+    b: &mut B,
+    u: &mut Vec<QubitId>,
+    v: &mut Vec<QubitId>,
+    host: QubitId,
+    rounds: usize,
+) {
+    let round = 2usize;
+    let width = value_width(round);
+    grow_to(b, u, v, width);
+    let (source, target) = (&u[..width], &v[..width]);
+    toggle_local_s2_host(b, host, source);
+    b.cx(target[width - 2], target[width - 1]);
+    for i in (0..width - 1).rev() {
+        b.swap(target[i], target[i + 1]);
+    }
+    b.x(host);
+    let top_skip = walk_top_skip(round, rounds);
+    match walk_low_chunk(round, width) {
+        Some(low) => signed_add_wrapping_sigma_split(
+            b, host, source, target, false, low, top_skip, false,
+        ),
+        None => signed_add_wrapping(b, host, source, target, false, top_skip),
+    }
+    b.x(host);
+    toggle_local_s2_host(b, host, source);
+    // The retained tape path resets its now-clean `s2` at this exact cell
+    // boundary.  Preserve that reset event on a clean scratch so HMR/R share
+    // the same logical randomness schedule in paired executions.
+    let reset_scratch = b.alloc_qubit();
+    b.free(reset_scratch);
+}
+
+/// Forward walk with both proven-one low bits represented implicitly.
+///
+/// The wrapped add consumes the low-bit values algebraically. Its target low
+/// bit is known zero immediately before the halving rotation, so a temporary
+/// clean wire is needed only for that rotation and is released again after the
+/// exact low-two-bit recurrence proves the new target is one.
+fn walk_round_implicit(
+    b: &mut B,
+    u: &mut Vec<QubitId>,
+    v: &mut Vec<QubitId>,
+    round: usize,
+    rounds: usize,
+) -> QubitId {
+    assert!(round >= 2, "rounds 0 and 1 require materialized low bits");
+    assert_eq!(u[0], NO_QUBIT);
+    assert_eq!(v[0], NO_QUBIT);
+    let width = value_width(round);
+    shrink_to(b, u, v, width);
+    let (source, target): (&[QubitId], &mut Vec<QubitId>) = if round.is_multiple_of(2) {
+        (&u[..width], v)
+    } else {
+        (&v[..width], u)
+    };
+    let sign = b.alloc_qubit();
+    b.cx(target[1], sign);
+    b.cx(source[1], sign);
+    let top_skip = walk_top_skip(round, rounds);
+    match walk_low_chunk(round, width) {
+        Some(low) => signed_add_wrapping_sigma_split(
+            b,
+            sign,
+            source,
+            &target[..width],
+            true,
+            low,
+            top_skip,
+            true,
+        ),
+        None => signed_add_wrapping_sigma(
+            b,
+            sign,
+            source,
+            &target[..width],
+            true,
+            top_skip,
+            true,
+        ),
+    }
+
+    let low_wire = b.alloc_qubit();
+    target[0] = low_wire;
+    for i in 0..width - 1 {
+        b.swap(target[i], target[i + 1]);
+    }
+    b.cx(target[width - 2], target[width - 1]);
+    b.x(target[0]);
+    b.release_clean(target[0]);
+    target[0] = NO_QUBIT;
+    sign
+}
+
+/// Reverse of [`walk_round_implicit`]. The current target low bit is known
+/// one. Undoing the halving rotation makes it known zero, so it can be
+/// released before the wrapped inverse add restores the implicit one.
+fn walk_back_round_implicit(
+    b: &mut B,
+    u: &mut Vec<QubitId>,
+    v: &mut Vec<QubitId>,
+    round: usize,
+    sign: QubitId,
+    rounds: usize,
+) {
+    assert!(round >= 2, "rounds 0 and 1 require materialized low bits");
+    assert_eq!(u[0], NO_QUBIT);
+    assert_eq!(v[0], NO_QUBIT);
+    let width = value_width(round);
+    grow_to(b, u, v, width);
+    let (source, target): (&[QubitId], &mut Vec<QubitId>) = if round.is_multiple_of(2) {
+        (&u[..width], v)
+    } else {
+        (&v[..width], u)
+    };
+
+    let low_wire = b.alloc_qubit();
+    b.x(low_wire);
+    target[0] = low_wire;
+    b.cx(target[width - 2], target[width - 1]);
+    for i in (0..width - 1).rev() {
+        b.swap(target[i], target[i + 1]);
+    }
+    b.release_clean(target[0]);
+    target[0] = NO_QUBIT;
+
+    b.x(sign);
+    let top_skip = walk_top_skip(round, rounds);
+    match walk_low_chunk(round, width) {
+        Some(low) => signed_add_wrapping_sigma_split(
+            b,
+            sign,
+            source,
+            &target[..width],
+            false,
+            low,
+            top_skip,
+            true,
+        ),
+        None => signed_add_wrapping_sigma(
+            b,
+            sign,
+            source,
+            &target[..width],
+            false,
+            top_skip,
+            true,
+        ),
+    }
+    b.x(sign);
+    b.cx(target[1], sign);
+    b.cx(source[1], sign);
+    b.free(sign);
+}
+
+/// Implicit-low-bit counterpart of [`walk_back_round2_with_s1_host`].
+fn walk_back_round2_implicit_with_s1_host(
+    b: &mut B,
+    u: &mut Vec<QubitId>,
+    v: &mut Vec<QubitId>,
+    host: QubitId,
+    rounds: usize,
+) {
+    let round = 2usize;
+    assert_eq!(u[0], NO_QUBIT);
+    assert_eq!(v[0], NO_QUBIT);
+    let width = value_width(round);
+    grow_to(b, u, v, width);
+    let (source, target): (&[QubitId], &mut Vec<QubitId>) = (&u[..width], v);
+    toggle_local_s2_host(b, host, source);
+
+    let low_wire = b.alloc_qubit();
+    b.x(low_wire);
+    target[0] = low_wire;
+    b.cx(target[width - 2], target[width - 1]);
+    for i in (0..width - 1).rev() {
+        b.swap(target[i], target[i + 1]);
+    }
+    b.release_clean(target[0]);
+    target[0] = NO_QUBIT;
+
+    b.x(host);
+    let top_skip = walk_top_skip(round, rounds);
+    match walk_low_chunk(round, width) {
+        Some(low) => signed_add_wrapping_sigma_split(
+            b,
+            host,
+            source,
+            &target[..width],
+            false,
+            low,
+            top_skip,
+            true,
+        ),
+        None => signed_add_wrapping_sigma(
+            b,
+            host,
+            source,
+            &target[..width],
+            false,
+            top_skip,
+            true,
+        ),
+    }
+    b.x(host);
+    toggle_local_s2_host(b, host, source);
+    // Match the retained path's clean `s2` reset without retaining its wire.
+    let reset_scratch = b.alloc_qubit();
+    b.free(reset_scratch);
 }
 
 fn replay_halving_round(b: &mut B, round: usize, sign: QubitId, x: &[QubitId], y: &[QubitId]) {
@@ -1877,11 +2402,16 @@ fn value_walk(b: &mut B, u: &mut Vec<QubitId>, v: &mut Vec<QubitId>, rounds: usi
         }
 
         if round == 0 && fused_lift_round0_enabled() {
-            tape.push(fused_lift_round0_forward(b, v));
+            tape.push(walk_round0_forward_tape(b, v));
             continue;
         }
         if round == 1 && fuse_round1_enabled() {
             tape.push(fused_round1_forward(b, &u[..width], &v[..width]));
+            continue;
+        }
+        if round == 2 && generic_s2_elision_enabled() {
+            walk_round2_with_s1_host(b, u, v, tape[1], rounds);
+            tape.push(NO_QUBIT);
             continue;
         }
 
@@ -1925,11 +2455,16 @@ fn value_walk_back(b: &mut B, u: &mut Vec<QubitId>, v: &mut Vec<QubitId>, tape: 
 
 
         if round == 0 && fused_lift_round0_enabled() {
-            fused_lift_round0_reverse(b, v, tape[round]);
+            walk_round0_reverse_tape(b, v, tape[round]);
             continue;
         }
         if round == 1 && fuse_round1_enabled() {
             fused_round1_reverse(b, &u[..width], &v[..width], tape[round]);
+            continue;
+        }
+        if round == 2 && generic_s2_elision_enabled() {
+            assert_eq!(tape[round], NO_QUBIT);
+            walk_back_round2_with_s1_host(b, u, v, tape[1], rounds);
             continue;
         }
 
@@ -3307,18 +3842,19 @@ pub(crate) fn pingpong_simulator_selfcheck() {
 fn divide_and_multiply_preserve_the_abi_and_clean_ancillas() {
     pingpong_simulator_selfcheck();
 }
-/// Diagnostic: print the per-round value-width schedule for both the base
-/// (identity index, `SUB4_PP_WIDTH_RESCALE=0`) and rescaled (default-on
-/// `round*697/697` compression) traversals, through the real `value_width`
-/// code path.  Gated by `SUB4_DUMP_WSCHED` in `build`, so it never runs in
-/// the shipped stream.
+/// Diagnostic: print the per-round value-width schedule for both the source
+/// table (identity index, `SUB4_PP_WIDTH_RESCALE=0`) and the default rescaling
+/// `round * (ROUNDS_DEFAULT - 1) / (rounds - 1)`, through the real
+/// `value_width` code path and over the baked traversal length. Gated by
+/// `SUB4_DUMP_WSCHED` in `build`, so it never runs in the shipped stream.
 pub(crate) fn dump_width_schedule() {
+    let diagnostic_rounds = rounds();
     std::env::set_var("SUB4_PP_WIDTH_RESCALE", "0");
-    let base: Vec<usize> = (0..700).map(value_width).collect();
+    let base: Vec<usize> = (0..diagnostic_rounds).map(value_width).collect();
     std::env::remove_var("SUB4_PP_WIDTH_RESCALE");
-    let resc: Vec<usize> = (0..700).map(value_width).collect();
+    let resc: Vec<usize> = (0..diagnostic_rounds).map(value_width).collect();
     println!("round,base,rescale");
-    for r in 0..700 {
+    for r in 0..diagnostic_rounds {
         println!("{},{},{}", r, base[r], resc[r]);
     }
 }
@@ -3352,4 +3888,621 @@ fn sigma_split_low_two_compare_reduction_is_exact() {
             }
         }
     }
+}
+
+fn lazy_interleaved_odd_restore_enabled() -> bool {
+    match std::env::var_os("SUB4_PP_LAZY_ODD_RESTORE") {
+        None => true,
+        Some(value) if value == "0" => false,
+        Some(value) if value == "1" => true,
+        Some(value) => panic!(
+            "SUB4_PP_LAZY_ODD_RESTORE must be 0 or 1, got {:?}",
+            value.to_string_lossy()
+        ),
+    }
+}
+
+/// Drop both proven-one low bits from the semantic walk registers. Their
+/// former wire ids may be reused immediately by replay or walk scratch; the
+/// `NO_QUBIT` entries make any accidental physical access fail closed.
+fn loan_interleaved_odd_passengers_implicit(
+    b: &mut B,
+    u: &mut [QubitId],
+    v: &mut [QubitId],
+) {
+    assert!(!u.is_empty() && !v.is_empty());
+    assert_ne!(u[0], v[0]);
+    for slot in [&mut u[0], &mut v[0]] {
+        assert_ne!(*slot, NO_QUBIT);
+        let q = *slot;
+        b.x(q);
+        b.release_clean(q);
+        *slot = NO_QUBIT;
+    }
+}
+
+/// Materialize the two implicit proven-one low bits on any currently free
+/// allocator wires. `restore_wire_layout` later returns the full walk state to
+/// its original ABI identities.
+fn restore_interleaved_odd_passengers_implicit(
+    b: &mut B,
+    u: &mut [QubitId],
+    v: &mut [QubitId],
+) {
+    assert_eq!(u[0], NO_QUBIT);
+    assert_eq!(v[0], NO_QUBIT);
+    for slot in [&mut v[0], &mut u[0]] {
+        let q = b.alloc_qubit();
+        b.x(q);
+        *slot = q;
+    }
+    assert_ne!(u[0], v[0]);
+}
+
+pub(crate) fn implicit_odd_passenger_walk_roundtrip_selfcheck() {
+    use crate::circuit::QubitOrBit;
+    use sha3::{
+        digest::{ExtendableOutput, Update},
+        Shake256,
+    };
+
+    struct BuiltForward {
+        ops: Vec<Op>,
+        input_u: Vec<QubitId>,
+        input_v: Vec<QubitId>,
+        output_u: Vec<QubitId>,
+        output_v: Vec<QubitId>,
+        sign: QubitId,
+        num_qubits: usize,
+        num_bits: usize,
+        peak_qubits: u32,
+    }
+
+    let build_forward = |round: usize, split: bool, implicit: bool| {
+        let rounds = 16usize;
+        let width = value_width(round);
+        let mut b = B::new();
+        let mut u = b.alloc_qubits(width);
+        let mut v = b.alloc_qubits(width);
+        let wanted_u = u.clone();
+        let wanted_v = v.clone();
+
+        if split {
+            let held = (round + 1) + 2 * N + 2 * width;
+            set_walk_peak(held + width.div_ceil(2));
+            assert!(walk_low_chunk(round, width).is_some());
+        } else {
+            clear_walk_peak();
+            assert!(walk_low_chunk(round, width).is_none());
+        }
+
+        let sign = if implicit {
+            loan_interleaved_odd_passengers_implicit(&mut b, &mut u, &mut v);
+            let sign = walk_round_implicit(&mut b, &mut u, &mut v, round, rounds);
+            restore_interleaved_odd_passengers_implicit(&mut b, &mut u, &mut v);
+            sign
+        } else {
+            walk_round(&mut b, &mut u, &mut v, round, rounds)
+        };
+        clear_walk_peak();
+
+        assert!(u.iter().all(|&q| q != NO_QUBIT));
+        assert!(v.iter().all(|&q| q != NO_QUBIT));
+        if !implicit {
+            assert_eq!(u, wanted_u);
+            assert_eq!(v, wanted_v);
+        }
+        assert_eq!(b.active_qubits as usize, 2 * width + 1);
+        let num_qubits = b.next_qubit as usize;
+        let num_bits = b.next_bit as usize;
+        let peak_qubits = b.peak_qubits;
+        BuiltForward {
+            ops: b.take_ops(),
+            input_u: wanted_u,
+            input_v: wanted_v,
+            output_u: u,
+            output_v: v,
+            sign,
+            num_qubits,
+            num_bits,
+            peak_qubits,
+        }
+    };
+
+    let evaluate_forward = |built: &BuiltForward, round: usize, split: bool| {
+        let input_u_reg: Vec<QubitOrBit> = built
+            .input_u
+            .iter()
+            .copied()
+            .map(QubitOrBit::Qubit)
+            .collect();
+        let input_v_reg: Vec<QubitOrBit> = built
+            .input_v
+            .iter()
+            .copied()
+            .map(QubitOrBit::Qubit)
+            .collect();
+        let output_u_reg: Vec<QubitOrBit> = built
+            .output_u
+            .iter()
+            .copied()
+            .map(QubitOrBit::Qubit)
+            .collect();
+        let output_v_reg: Vec<QubitOrBit> = built
+            .output_v
+            .iter()
+            .copied()
+            .map(QubitOrBit::Qubit)
+            .collect();
+        let mut seed = Shake256::default();
+        seed.update(b"implicit odd passenger forward equivalence");
+        seed.update(&round.to_le_bytes());
+        seed.update(&[u8::from(split)]);
+        let mut reader = seed.finalize_xof();
+        let mut sim = Simulator::new(built.num_qubits, built.num_bits, &mut reader);
+        for shot in 0..64 {
+            sim.set_register(&input_u_reg, U256::from(1 + 2 * shot as u64), shot);
+            sim.set_register(&input_v_reg, U256::from(3 + 4 * shot as u64), shot);
+        }
+        sim.apply_iter(built.ops.iter());
+        let values: Vec<(U256, U256)> = (0..64)
+            .map(|shot| {
+                (
+                    sim.get_register(&output_u_reg, shot),
+                    sim.get_register(&output_v_reg, shot),
+                )
+            })
+            .collect();
+        for q in 0..built.num_qubits as u64 {
+            let q = QubitId(q);
+            if built.output_u.contains(&q) || built.output_v.contains(&q) || q == built.sign {
+                continue;
+            }
+            assert_eq!(
+                sim.qubit(q),
+                0,
+                "forward round {round} split={split} left dirty ancilla {q:?}"
+            );
+        }
+        (values, sim.qubit(built.sign), sim.phase)
+    };
+
+    for (round, split) in [(2usize, false), (3, false), (2, true), (3, true)] {
+        let explicit = build_forward(round, split, false);
+        let implicit = build_forward(round, split, true);
+        assert!(implicit.peak_qubits <= explicit.peak_qubits);
+        assert_eq!(implicit.num_bits, explicit.num_bits);
+        assert_eq!(
+            evaluate_forward(&implicit, round, split),
+            evaluate_forward(&explicit, round, split),
+            "implicit forward state/sign disagreed at round {round} split={split}"
+        );
+    }
+
+    struct BuiltRoundtrip {
+        ops: Vec<Op>,
+        wanted_u: Vec<QubitId>,
+        wanted_v: Vec<QubitId>,
+        num_qubits: usize,
+        num_bits: usize,
+        peak_qubits: u32,
+    }
+
+    let build = |implicit: bool| {
+        let round = 2usize;
+        let rounds = 16usize;
+        let width = value_width(round);
+        let mut b = B::new();
+        let mut u = b.alloc_qubits(width);
+        let mut v = b.alloc_qubits(width);
+        let wanted_u = u.clone();
+        let wanted_v = v.clone();
+
+        if implicit {
+            loan_interleaved_odd_passengers_implicit(&mut b, &mut u, &mut v);
+            let sign = walk_round_implicit(&mut b, &mut u, &mut v, round, rounds);
+            walk_back_round_implicit(&mut b, &mut u, &mut v, round, sign, rounds);
+            restore_interleaved_odd_passengers_implicit(&mut b, &mut u, &mut v);
+            restore_wire_layout(&mut b, &mut u, &mut v, &wanted_u, &wanted_v);
+        } else {
+            let sign = walk_round(&mut b, &mut u, &mut v, round, rounds);
+            walk_back_round(&mut b, &mut u, &mut v, round, sign, rounds);
+        }
+
+        assert_eq!(u, wanted_u);
+        assert_eq!(v, wanted_v);
+        assert_eq!(b.active_qubits as usize, 2 * width);
+        let num_qubits = b.next_qubit as usize;
+        let num_bits = b.next_bit as usize;
+        let peak_qubits = b.peak_qubits;
+        BuiltRoundtrip {
+            ops: b.take_ops(),
+            wanted_u,
+            wanted_v,
+            num_qubits,
+            num_bits,
+            peak_qubits,
+        }
+    };
+
+    let explicit = build(false);
+    let implicit = build(true);
+    assert!(
+        implicit.peak_qubits < explicit.peak_qubits,
+        "implicit low bits did not reduce the round peak: explicit={} implicit={}",
+        explicit.peak_qubits,
+        implicit.peak_qubits
+    );
+    assert!(implicit.num_qubits <= explicit.num_qubits);
+
+    for (label, built) in [("explicit", explicit), ("implicit", implicit)] {
+        let u_reg: Vec<QubitOrBit> = built
+            .wanted_u
+            .iter()
+            .copied()
+            .map(QubitOrBit::Qubit)
+            .collect();
+        let v_reg: Vec<QubitOrBit> = built
+            .wanted_v
+            .iter()
+            .copied()
+            .map(QubitOrBit::Qubit)
+            .collect();
+        let mut seed = Shake256::default();
+        seed.update(b"implicit odd passenger walk roundtrip");
+        seed.update(label.as_bytes());
+        let mut reader = seed.finalize_xof();
+        let mut sim = Simulator::new(built.num_qubits, built.num_bits, &mut reader);
+        for shot in 0..64 {
+            let u_value = U256::from(1 + 2 * shot as u64);
+            let v_value = U256::from(3 + 4 * shot as u64);
+            sim.set_register(&u_reg, u_value, shot);
+            sim.set_register(&v_reg, v_value, shot);
+        }
+        sim.apply_iter(built.ops.iter());
+        for shot in 0..64 {
+            assert_eq!(
+                sim.get_register(&u_reg, shot),
+                U256::from(1 + 2 * shot as u64),
+                "{label} u mismatch in shot {shot}"
+            );
+            assert_eq!(
+                sim.get_register(&v_reg, shot),
+                U256::from(3 + 4 * shot as u64),
+                "{label} v mismatch in shot {shot}"
+            );
+        }
+        assert_eq!(sim.phase, 0, "{label} left phase garbage");
+        for q in 0..built.num_qubits as u64 {
+            let q = QubitId(q);
+            if built.wanted_u.contains(&q) || built.wanted_v.contains(&q) {
+                continue;
+            }
+            assert_eq!(sim.qubit(q), 0, "{label} left dirty ancilla {q:?}");
+        }
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn implicit_odd_passenger_walk_roundtrip_is_clean_and_narrower() {
+    implicit_odd_passenger_walk_roundtrip_selfcheck();
+}
+
+pub(crate) fn round0_a0_elision_selfcheck() {
+    use crate::circuit::QubitOrBit;
+    use sha3::{
+        digest::{ExtendableOutput, Update},
+        Shake256,
+    };
+
+    assert!(
+        round0_a0_elision_enabled(),
+        "round0 a0 selftest requires baked elision (unset or SUB4_PP_ELIDE_ROUND0_A0=1)"
+    );
+    let f = U256::MAX
+        .wrapping_sub(SECP256K1_P)
+        .wrapping_add(U256::from(1));
+    let h: U256 = f.wrapping_sub(U256::from(1)) >> 1;
+    let high_first = U256::ZERO
+        .wrapping_sub(f.wrapping_add(f))
+        .wrapping_add(U256::from(2));
+    let low_last = f.wrapping_sub(U256::from(2));
+    let mut values = vec![
+        U256::from(0),
+        U256::from(1),
+        U256::from(2),
+        U256::from(3),
+        low_last,
+        f.wrapping_add(U256::from(2)),
+        high_first.wrapping_sub(U256::from(4)),
+        high_first,
+        SECP256K1_P.wrapping_sub(U256::from(4)),
+        SECP256K1_P.wrapping_sub(U256::from(3)),
+        SECP256K1_P.wrapping_sub(U256::from(2)),
+        SECP256K1_P.wrapping_sub(U256::from(1)),
+    ];
+    let mut state = 0x243f_6a88_85a3_08d3u64;
+    while values.len() < 64 {
+        let mut limbs = [0u64; 4];
+        for limb in &mut limbs {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            *limb = state;
+        }
+        values.push(U256::from_limbs(limbs) % SECP256K1_P);
+    }
+    assert_eq!(values.len(), 64);
+
+    let ideal_exception = |a: U256| {
+        let q: U256 = a >> 1;
+        match a.as_limbs()[0] & 3 {
+            3 => q < h,
+            0 => q.wrapping_add(f).bit(N - 1),
+            _ => false,
+        }
+    };
+    let ideal_v255 = |a: U256| {
+        let q: U256 = a >> 1;
+        let a0 = a.bit(0);
+        let a1 = a.bit(1);
+        let k = (SECP256K1_P.wrapping_add(U256::from(1))) >> 1;
+        let mut w = q.wrapping_sub(SECP256K1_P);
+        if a1 {
+            w = w.wrapping_add(SECP256K1_P);
+        }
+        if a0 {
+            w = w.wrapping_add(k);
+        }
+        w.bit(N - 1)
+    };
+    for &a in &values[..12] {
+        assert_eq!(
+            ideal_v255(a) != a.bit(0),
+            ideal_exception(a),
+            "ideal exceptional-support predicate disagreed at a={a:#x}"
+        );
+    }
+    for &a in &[values[0], values[1], values[2], values[5], values[6], values[8], values[10], values[11]] {
+        assert!(!ideal_exception(a), "expected ideal boundary match at a={a:#x}");
+    }
+    for &a in &[values[3], values[4], values[7], values[9]] {
+        assert!(ideal_exception(a), "expected ideal boundary exception at a={a:#x}");
+    }
+    let h_count = h.as_limbs()[0];
+    assert_eq!(h_count, 2_147_484_136);
+    let low_span: U256 = low_last.wrapping_sub(U256::from(3)) >> 2;
+    let low_arm_count = low_span.wrapping_add(U256::from(1)).as_limbs()[0];
+    let high_last = SECP256K1_P.wrapping_sub(U256::from(3));
+    let high_span: U256 = high_last.wrapping_sub(high_first) >> 2;
+    let high_arm_count = high_span.wrapping_add(U256::from(1)).as_limbs()[0];
+    assert_eq!(low_arm_count, h_count / 2);
+    assert_eq!(high_arm_count, h_count / 2);
+    assert_eq!(low_arm_count + high_arm_count, h_count);
+
+    let run_explicit_forward = |sparse: bool| {
+        std::env::set_var("SUB4_PP_ROUND0_SPARSE_FWD", if sparse { "1" } else { "0" });
+        let mut b = B::new();
+        let v = b.alloc_qubits(VALUE_WIDTH);
+        let input = v[..N].to_vec();
+        let a0 = fused_lift_round0_forward(&mut b, &v);
+        let num_qubits = b.next_qubit as usize;
+        let num_bits = b.next_bit as usize;
+        let ops = b.take_ops();
+        let input_reg: Vec<QubitOrBit> = input.iter().copied().map(QubitOrBit::Qubit).collect();
+        let mut seed = Shake256::default();
+        seed.update(if sparse {
+            b"round0 a0 sparse forward".as_slice()
+        } else {
+            b"round0 a0 dense control".as_slice()
+        });
+        let mut reader = seed.finalize_xof();
+        let mut sim = Simulator::new(num_qubits, num_bits, &mut reader);
+        for (shot, value) in values.iter().copied().enumerate() {
+            sim.set_register(&input_reg, value, shot);
+        }
+        sim.apply_iter(ops.iter());
+        for (shot, value) in values.iter().copied().enumerate() {
+            let mask = 1u64 << shot;
+            let mismatch = (sim.qubit(a0) ^ sim.qubit(v[N - 1])) & mask != 0;
+            assert_eq!(
+                mismatch,
+                if sparse { false } else { ideal_exception(value) },
+                "{} relation mismatch at a={value:#x}",
+                if sparse { "baked sparse" } else { "dense control" }
+            );
+        }
+        assert_eq!(sim.phase, 0, "round0 forward left phase garbage");
+        for q in 0..num_qubits as u64 {
+            let q = QubitId(q);
+            if v.contains(&q) || q == a0 {
+                continue;
+            }
+            assert_eq!(sim.qubit(q), 0, "round0 forward left dirty ancilla {q:?}");
+        }
+    };
+    run_explicit_forward(false);
+    run_explicit_forward(true);
+
+    std::env::set_var("SUB4_PP_ROUND0_SPARSE_FWD", "1");
+    let run_roundtrip = |elided: bool| {
+        std::env::set_var("SUB4_PP_ELIDE_ROUND0_A0", if elided { "1" } else { "0" });
+        let mut b = B::new();
+        let v = b.alloc_qubits(VALUE_WIDTH);
+        let input = v[..N].to_vec();
+        let tape0 = walk_round0_forward_tape(&mut b, &v);
+        assert_eq!(tape0 == NO_QUBIT, elided);
+        assert_eq!(
+            b.active_qubits as usize,
+            VALUE_WIDTH + usize::from(!elided)
+        );
+        walk_round0_reverse_tape(&mut b, &v, tape0);
+        assert_eq!(b.active_qubits as usize, VALUE_WIDTH);
+        let num_qubits = b.next_qubit as usize;
+        let num_bits = b.next_bit as usize;
+        let ops = b.take_ops();
+        let input_reg: Vec<QubitOrBit> = input.iter().copied().map(QubitOrBit::Qubit).collect();
+        let mut seed = Shake256::default();
+        seed.update(b"round0 a0 roundtrip differential");
+        let mut reader = seed.finalize_xof();
+        let mut sim = Simulator::new(num_qubits, num_bits, &mut reader);
+        for (shot, value) in values.iter().copied().enumerate() {
+            sim.set_register(&input_reg, value, shot);
+        }
+        sim.apply_iter(ops.iter());
+        let outputs: Vec<(U256, [bool; VALUE_WIDTH - N])> = (0..64)
+            .map(|shot| {
+                (
+                    sim.get_register(&input_reg, shot),
+                    std::array::from_fn(|i| sim.qubit(v[N + i]) & (1u64 << shot) != 0),
+                )
+            })
+            .collect();
+        assert_eq!(sim.phase, 0, "round0 roundtrip left phase garbage");
+        for q in 0..num_qubits as u64 {
+            let q = QubitId(q);
+            if v.contains(&q) {
+                continue;
+            }
+            assert_eq!(sim.qubit(q), 0, "round0 roundtrip left dirty ancilla {q:?}");
+        }
+        outputs
+    };
+    let retained = run_roundtrip(false);
+    let elided = run_roundtrip(true);
+    assert_eq!(elided, retained, "a0 elision changed the sparse round0 lifecycle");
+    for (shot, &value) in values[..12].iter().enumerate() {
+        let (output, high) = &retained[shot];
+        let mismatch = *output != value || high.iter().any(|&bit| bit);
+        assert_eq!(
+            mismatch,
+            ideal_exception(value),
+            "retained sparse lifecycle support disagreed at a={value:#x}"
+        );
+    }
+
+    let run_walk_lifecycle = |elided: bool| {
+        std::env::set_var("SUB4_PP_ELIDE_ROUND0_A0", if elided { "1" } else { "0" });
+        let mut b = B::new();
+        let mut u = b.alloc_qubits(VALUE_WIDTH);
+        let mut v = b.alloc_qubits(VALUE_WIDTH);
+        let input_u = u[..N].to_vec();
+        let input_v = v[..N].to_vec();
+        let tape = value_walk(&mut b, &mut u, &mut v, rounds());
+        value_walk_back(&mut b, &mut u, &mut v, tape);
+        assert_eq!(b.active_qubits as usize, 2 * VALUE_WIDTH);
+        let num_qubits = b.next_qubit as usize;
+        let num_bits = b.next_bit as usize;
+        let ops = b.take_ops();
+        let input_u_reg: Vec<QubitOrBit> = input_u.iter().copied().map(QubitOrBit::Qubit).collect();
+        let input_v_reg: Vec<QubitOrBit> = input_v.iter().copied().map(QubitOrBit::Qubit).collect();
+        let output_u_reg: Vec<QubitOrBit> = u[..N].iter().copied().map(QubitOrBit::Qubit).collect();
+        let output_v_reg: Vec<QubitOrBit> = v[..N].iter().copied().map(QubitOrBit::Qubit).collect();
+        let mut seed = Shake256::default();
+        seed.update(b"round0 a0 full-walk differential");
+        let mut reader = seed.finalize_xof();
+        let mut sim = Simulator::new(num_qubits, num_bits, &mut reader);
+        for (shot, value) in values.iter().copied().enumerate() {
+            sim.set_register(&input_u_reg, SECP256K1_P, shot);
+            sim.set_register(&input_v_reg, value, shot);
+        }
+        sim.apply_iter(ops.iter());
+        let outputs: Vec<(U256, U256, [bool; 2 * (VALUE_WIDTH - N)])> = (0..64)
+            .map(|shot| {
+                (
+                    sim.get_register(&output_u_reg, shot),
+                    sim.get_register(&output_v_reg, shot),
+                    std::array::from_fn(|i| {
+                        let q = if i < VALUE_WIDTH - N {
+                            u[N + i]
+                        } else {
+                            v[N + i - (VALUE_WIDTH - N)]
+                        };
+                        sim.qubit(q) & (1u64 << shot) != 0
+                    }),
+                )
+            })
+            .collect();
+        assert_eq!(sim.phase, 0, "full value walk left phase garbage");
+        for q in 0..num_qubits as u64 {
+            let q = QubitId(q);
+            if u.contains(&q) || v.contains(&q) {
+                continue;
+            }
+            assert_eq!(sim.qubit(q), 0, "full value walk left dirty ancilla {q:?}");
+        }
+        outputs
+    };
+    let retained_walk = run_walk_lifecycle(false);
+    let elided_walk = run_walk_lifecycle(true);
+    assert_eq!(
+        elided_walk, retained_walk,
+        "a0 elision changed the full shrink/regrow walk lifecycle"
+    );
+
+    std::env::set_var("SUB4_PP_ELIDE_ROUND0_A0", "1");
+    pingpong_simulator_selfcheck();
+    eprintln!(
+        "SUB4_PP_ROUND0_A0_SELFTEST: PASS (ideal exceptions={h_count}, baked sparse exceptions=0; roundtrip and Divide/Multiply clean)"
+    );
+}
+
+/// Exhaustive reduced-width gate for the alternating-source sign invariant,
+/// followed by a production-builder assertion that generic round two owns no
+/// tape wire when the prototype is selected.
+pub(crate) fn generic_s2_host_selfcheck() {
+    for width in 4..=10usize {
+        let p = (1i64 << width) - 5;
+        let p1 = ((p >> 1) & 1) != 0;
+        for denominator in 1..p {
+            let mut u = p;
+            let mut v = if denominator & 1 == 1 {
+                denominator
+            } else {
+                denominator - p
+            };
+            let mut signs = Vec::new();
+            for round in 0..3 * width {
+                let (source, target) = if round.is_multiple_of(2) {
+                    (u, v)
+                } else {
+                    (v, u)
+                };
+                let sign = (((source >> 1) ^ (target >> 1)) & 1) != 0;
+                if round >= 2 {
+                    let prior_parity = signs[1..].iter().fold(false, |acc, &bit| acc ^ bit);
+                    assert_eq!(
+                        sign,
+                        p1 ^ (((source >> 1) & 1) != 0) ^ prior_parity,
+                        "generic sign invariant failed at width={width} denominator={denominator} round={round}"
+                    );
+                }
+                let next = if sign {
+                    (target - source) / 2
+                } else {
+                    (target + source) / 2
+                };
+                if round.is_multiple_of(2) {
+                    v = next;
+                } else {
+                    u = next;
+                }
+                signs.push(sign);
+            }
+        }
+    }
+
+    std::env::set_var("SUB4_PP_ELIDE_GENERIC_S2", "1");
+    let mut b = B::new();
+    let mut u = b.alloc_qubits(VALUE_WIDTH);
+    let mut v = b.alloc_qubits(VALUE_WIDTH);
+    let tape = value_walk(&mut b, &mut u, &mut v, 8);
+    assert_eq!(
+        tape[2], NO_QUBIT,
+        "generic round two still owns a physical tape wire"
+    );
+    eprintln!(
+        "SUB4_PP_GENERIC_S2_SELFTEST: PASS (widths=4..10 exhaustive; production round-two tape entry elided)"
+    );
 }

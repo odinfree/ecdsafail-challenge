@@ -2457,15 +2457,17 @@ pub fn build() -> Vec<Op> {
     set_default_env("TLM_SQUARE_F_RAMP10_DIRECT32_TAGS", "");
     set_default_env("TLM_SQUARE_F_SHIFTED_LOW", "1");
 
-    // Freeze the Q1267 fallback composition while keeping each knob
-    // externally overridable for focused reliability experiments. The
-    // pingpong tail nonce intentionally remains at the frontier fallback.
+    // Freeze the source-baked Q1263 campaign composition while keeping each
+    // knob externally overridable for focused reliability experiments. Lazy
+    // odd passengers remove the first wire and the baked round-zero a0
+    // elision removes the second. The tail nonce is inherited from the
+    // official parent only as a control; it is not presumed clean on Q1263.
     set_default_env("SUB4_PINGPONG_LOW56_FOLD", "1");
     set_default_env("SUB4_PP_ROUNDS", "694");
-    // Keep one additional multiply traversal round as a bounded reliability
-    // purchase. The extra tape wire raises this composition from Q1267 to
-    // Q1268 while retaining a projected score improvement above 0.1%.
-    set_default_env("SUB4_PP_ROUNDS_MUL", "694");
+    // Keep multiply one round below divide in the exact Q1263 campaign
+    // geometry; the lazy odd-passenger path keeps both replay families under
+    // the same reviewed peak.
+    set_default_env("SUB4_PP_ROUNDS_MUL", "693");
     set_default_env("SUB4_PP_R1", "335");
     set_default_env("SUB4_PP_R1_MUL", "315");
     set_default_env("SUB4_PP_R2", "645");
@@ -2571,13 +2573,26 @@ pub fn build() -> Vec<Op> {
         return Vec::new();
     }
     if std::env::var_os("SUB4_LEGACY_POINT_ADD").is_none() {
+        if std::env::var_os("SUB4_PP_GENERIC_S2_SELFTEST").is_some() {
+            pingpong_div::generic_s2_host_selfcheck();
+            return Vec::new();
+        }
+        if std::env::var_os("SUB4_PP_ROUND0_A0_SELFTEST").is_some() {
+            pingpong_div::round0_a0_elision_selfcheck();
+            return Vec::new();
+        }
+        if std::env::var_os("SUB4_PP_LAZY_ODD_SELFTEST").is_some() {
+            pingpong_div::implicit_odd_passenger_walk_roundtrip_selfcheck();
+            return Vec::new();
+        }
         if std::env::var_os("SUB4_PINGPONG_POINT_ADD_SELFTEST").is_some() {
             pingpong_div::pingpong_point_add_simulator_selfcheck();
             return Vec::new();
         }
         let mut ops = pingpong_div::build_pingpong_point_add();
-        // Exact-clean nonce for the Q1267/M697 stream, verified by the optimized
-        // and reference evaluators over all 9,024 shots.
+        // Inherited from the official-parent Q1266 stream only as a control.
+        // It is not presumed clean for this baked Q1263 artifact. A trusted
+        // 9,024-shot diagnostic must disposition it before candidate admission.
         let nonce = std::env::var("SUB4_PINGPONG_TAIL_NONCE")
             .unwrap_or_default()
             .parse::<u64>()
