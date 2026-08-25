@@ -227,6 +227,7 @@ pub(crate) fn scan(ops: &[Op], transitions: &[(usize, &'static str)]) {
     let mut ancilla_bad = 0usize;
     let mut last_phase = 0u64;
     let mut executed_t = 0u64;
+    let mut outcome_digest = Shake256::default();
     for round in 0..rounds {
         let mut seed_xof = measure_xof();
         let mut seeder = Simulator::new(num_q as usize, num_b as usize, &mut seed_xof);
@@ -250,6 +251,19 @@ pub(crate) fn scan(ops: &[Op], transitions: &[(usize, &'static str)]) {
             sim.qubits == mq && sim.bits == mb && sim.phase == mphase,
             "dirty-scan mirror diverged from crate::sim::Simulator"
         );
+        assert_eq!(
+            round_executed_t,
+            sim.stats.toffoli_gates,
+            "mirror executed-T counter diverged from crate::sim::Simulator",
+        );
+        outcome_digest.update(&round.to_le_bytes());
+        for &value in &sim.qubits {
+            outcome_digest.update(&value.to_le_bytes());
+        }
+        for &value in &sim.bits {
+            outcome_digest.update(&value.to_le_bytes());
+        }
+        outcome_digest.update(&sim.phase.to_le_bytes());
         last_phase = sim.phase;
         if sim.phase != 0 {
             phase_bad += 1;
@@ -308,8 +322,16 @@ pub(crate) fn scan(ops: &[Op], transitions: &[(usize, &'static str)]) {
     // Scale the per-shot fault rate to the harness's 9024-shot eval, which is the
     // unit the nonce grind is priced in: P(ground nonce) = exp(-lambda_total).
     let lambda = 9024.0 * any_fault as f64 / lanes as f64;
+    let mut outcome_digest_bytes = [0u8; 32];
+    outcome_digest
+        .finalize_xof()
+        .read(&mut outcome_digest_bytes);
+    let outcome_digest = outcome_digest_bytes
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
     eprintln!(
-        "DIRTY_SCAN rounds={rounds} lanes={lanes} ops={} executed_t={executed_t} average_t={:.8} classical={classical} phase_shots={phase_shots} any_fault_shots={any_fault} lambda_total_per_9024={lambda:.2} phase_bad_rounds={phase_bad}/{rounds} ancilla_bad_rounds={ancilla_bad}/{rounds} dirty_free_events={} (cap {max_hits}) attributable={attributable} last_phase={last_phase:#018x}",
+        "DIRTY_SCAN rounds={rounds} lanes={lanes} ops={} executed_t={executed_t} average_t={:.8} classical={classical} phase_shots={phase_shots} any_fault_shots={any_fault} lambda_total_per_9024={lambda:.2} phase_bad_rounds={phase_bad}/{rounds} ancilla_bad_rounds={ancilla_bad}/{rounds} dirty_free_events={} (cap {max_hits}) attributable={attributable} last_phase={last_phase:#018x} outcome_digest={outcome_digest}",
         ops.len(),
         executed_t as f64 / lanes as f64,
         hits.len(),
