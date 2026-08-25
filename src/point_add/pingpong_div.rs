@@ -372,7 +372,12 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
 
     let coefficient: Vec<QubitId>;
     let mut tape: Vec<QubitId>;
-    match (direction, plan(direction, rounds)) {
+    let selected_plan = plan(direction, rounds);
+    assert!(
+        !generic_s2_elision_enabled() || selected_plan.is_some(),
+        "SUB4_PP_ELIDE_GENERIC_S2 requires the interleaved replay schedule"
+    );
+    match (direction, selected_plan) {
         (_, None) => {
             phase(b, "pp_div_walk", "pp_mul_walk");
             tape = value_walk(b, &mut u, &mut v, rounds);
@@ -411,7 +416,12 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
             phase(b, "pp_div_walk", "pp_mul_walk");
             tape = Vec::with_capacity(rounds);
             for r in 0..plan.r1.min(rounds) {
-                tape.push(walk_round(b, &mut u, &mut v, r, rounds));
+                if r == 2 && generic_s2_elision_enabled() {
+                    walk_round2_with_s1_host(b, &mut u, &mut v, tape[1], rounds);
+                    tape.push(NO_QUBIT);
+                } else {
+                    tape.push(walk_round(b, &mut u, &mut v, r, rounds));
+                }
             }
             phase(b, "pp_div_replay", "pp_mul_replay");
             // `walk_round(r1)` would shrink to `value_width(r1)` anyway; doing
@@ -431,7 +441,13 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
                 Some(loan_interleaved_odd_passengers(b, &u, &v))
             };
             for r in 0..plan.r1.min(rounds) {
-                replay_halving_round(b, r, tape[r], &coefficient, numerator);
+                if r == 2 && generic_s2_elision_enabled() {
+                    let host = toggle_checkpoint_s2_host(b, &tape, &u, &v);
+                    replay_halving_round(b, r, host, &coefficient, numerator);
+                    assert_eq!(toggle_checkpoint_s2_host(b, &tape, &u, &v), host);
+                } else {
+                    replay_halving_round(b, r, tape[r], &coefficient, numerator);
+                }
             }
             if let Some(odd_passengers) = odd_passengers {
                 restore_interleaved_odd_passengers(b, odd_passengers);
@@ -545,7 +561,13 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
                 Some(loan_interleaved_odd_passengers(b, &u, &v))
             };
             for r in (0..plan.r1.min(rounds)).rev() {
-                replay_doubling_round(b, r, tape[r], &coefficient, numerator);
+                if r == 2 && generic_s2_elision_enabled() {
+                    let host = toggle_checkpoint_s2_host(b, &tape, &u, &v);
+                    replay_doubling_round(b, r, host, &coefficient, numerator);
+                    assert_eq!(toggle_checkpoint_s2_host(b, &tape, &u, &v), host);
+                } else {
+                    replay_doubling_round(b, r, tape[r], &coefficient, numerator);
+                }
             }
             if let Some(odd_passengers) = lower_odd_passengers {
                 restore_interleaved_odd_passengers(b, odd_passengers);
@@ -557,6 +579,18 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
             for r in (0..plan.r1.min(rounds)).rev() {
                 let sign = tape.pop().expect("tape has round r");
                 assert_eq!(tape.len(), r);
+                if r == 2 && generic_s2_elision_enabled() {
+                    assert_eq!(sign, NO_QUBIT);
+                    let host = tape[1];
+                    if implicit_odd {
+                        walk_back_round2_implicit_with_s1_host(
+                            b, &mut u, &mut v, host, rounds,
+                        );
+                    } else {
+                        walk_back_round2_with_s1_host(b, &mut u, &mut v, host, rounds);
+                    }
+                    continue;
+                }
                 if implicit_odd && r < 2 {
                     restore_interleaved_odd_passengers_implicit(b, &mut u, &mut v);
                     implicit_odd = false;
@@ -842,6 +876,66 @@ fn round0_a0_elision_enabled() -> bool {
         );
     }
     enabled
+}
+
+/// Omit generic round two's tape qubit and borrow the retained round-one sign
+/// as a temporary host whenever round two is consumed.  The exact identity is
+///
+///     s_r = source_r[1] ^ source_{r-1}[1]
+///
+/// because the target at round `r` is the unchanged source from round `r-1`.
+/// Telescoping from the classical `source_0 = p` gives, at a checkpoint after
+/// `R` rounds,
+///
+///     s_1 ^ ... ^ s_{R-1} = p[1] ^ old_operand[1].
+///
+/// Both materialization paths below are Clifford-only and restore the host.
+/// Exact `0` preserves the sealed Q1264 stream; unset or exact `1` selects the
+/// Q1263 prototype.  Other values fail closed.
+fn generic_s2_elision_enabled() -> bool {
+    match std::env::var_os("SUB4_PP_ELIDE_GENERIC_S2") {
+        None => true,
+        Some(value) if value == "0" => false,
+        Some(value) if value == "1" => true,
+        Some(value) => panic!(
+            "SUB4_PP_ELIDE_GENERIC_S2 must be 0 or 1, got {:?}",
+            value.to_string_lossy()
+        ),
+    }
+}
+
+fn toggle_local_s2_host(b: &mut B, host: QubitId, source: &[QubitId]) {
+    assert_ne!(host, NO_QUBIT, "round-one host must be materialized");
+    assert!(source.len() > 1);
+    if SECP256K1_P.bit(1) {
+        b.x(host);
+    }
+    b.cx(source[1], host);
+}
+
+/// Toggle the retained `s1` wire into `s2` at a frozen walk checkpoint.  The
+/// identical call restores `s1`, provided replay has not changed the walk or
+/// the other retained signs.
+fn toggle_checkpoint_s2_host(
+    b: &mut B,
+    tape: &[QubitId],
+    u: &[QubitId],
+    v: &[QubitId],
+) -> QubitId {
+    assert!(tape.len() >= 3, "round-two host requires a three-round checkpoint");
+    assert_eq!(tape[2], NO_QUBIT, "round two must be the omitted tape entry");
+    let host = tape[1];
+    assert_ne!(host, NO_QUBIT, "round-one host must be materialized");
+    let old_operand = if tape.len().is_multiple_of(2) { v } else { u };
+    if SECP256K1_P.bit(1) {
+        b.x(host);
+    }
+    b.cx(old_operand[1], host);
+    for &sign in &tape[3..] {
+        assert_ne!(sign, NO_QUBIT, "only generic round two may be omitted");
+        b.cx(sign, host);
+    }
+    host
 }
 
 /// REPORT5 §2: BAKED default ON (2026-08-23; -404 T, peak-neutral, CF-neutral
@@ -1835,6 +1929,35 @@ fn grow_to(b: &mut B, u: &mut Vec<QubitId>, v: &mut Vec<QubitId>, width: usize) 
     }
 }
 
+/// Execute generic round two with `s1` temporarily transformed into `s2`.
+/// The source operand is unchanged by the wrapped add, so the same Clifford
+/// transform restores the retained host after the halving rotation.
+fn walk_round2_with_s1_host(
+    b: &mut B,
+    u: &mut Vec<QubitId>,
+    v: &mut Vec<QubitId>,
+    host: QubitId,
+    rounds: usize,
+) {
+    let round = 2usize;
+    let width = value_width(round);
+    shrink_to(b, u, v, width);
+    let (source, target) = (&u[..width], &v[..width]);
+    toggle_local_s2_host(b, host, source);
+    let top_skip = walk_top_skip(round, rounds);
+    match walk_low_chunk(round, width) {
+        Some(low) => signed_add_wrapping_sigma_split(
+            b, host, source, target, true, low, top_skip, false,
+        ),
+        None => signed_add_wrapping(b, host, source, target, true, top_skip),
+    }
+    for i in 0..width - 1 {
+        b.swap(target[i], target[i + 1]);
+    }
+    b.cx(target[width - 2], target[width - 1]);
+    toggle_local_s2_host(b, host, source);
+}
+
 /// One forward walk round; returns the sign qubit to append to the tape.
 /// `rounds` is the calling traversal's own round count (see
 /// [`walk_top_skip`]).
@@ -1917,6 +2040,41 @@ fn walk_back_round(
     b.cx(target[1], sign);
     b.cx(source[1], sign);
     b.free(sign);
+}
+
+/// Reverse generic round two while borrowing `s1` as the sign wire.  Unlike
+/// [`walk_back_round`], this restores the host instead of clearing/freeing it.
+fn walk_back_round2_with_s1_host(
+    b: &mut B,
+    u: &mut Vec<QubitId>,
+    v: &mut Vec<QubitId>,
+    host: QubitId,
+    rounds: usize,
+) {
+    let round = 2usize;
+    let width = value_width(round);
+    grow_to(b, u, v, width);
+    let (source, target) = (&u[..width], &v[..width]);
+    toggle_local_s2_host(b, host, source);
+    b.cx(target[width - 2], target[width - 1]);
+    for i in (0..width - 1).rev() {
+        b.swap(target[i], target[i + 1]);
+    }
+    b.x(host);
+    let top_skip = walk_top_skip(round, rounds);
+    match walk_low_chunk(round, width) {
+        Some(low) => signed_add_wrapping_sigma_split(
+            b, host, source, target, false, low, top_skip, false,
+        ),
+        None => signed_add_wrapping(b, host, source, target, false, top_skip),
+    }
+    b.x(host);
+    toggle_local_s2_host(b, host, source);
+    // The retained tape path resets its now-clean `s2` at this exact cell
+    // boundary.  Preserve that reset event on a clean scratch so HMR/R share
+    // the same logical randomness schedule in paired executions.
+    let reset_scratch = b.alloc_qubit();
+    b.free(reset_scratch);
 }
 
 /// Forward walk with both proven-one low bits represented implicitly.
@@ -2039,6 +2197,62 @@ fn walk_back_round_implicit(
     b.cx(target[1], sign);
     b.cx(source[1], sign);
     b.free(sign);
+}
+
+/// Implicit-low-bit counterpart of [`walk_back_round2_with_s1_host`].
+fn walk_back_round2_implicit_with_s1_host(
+    b: &mut B,
+    u: &mut Vec<QubitId>,
+    v: &mut Vec<QubitId>,
+    host: QubitId,
+    rounds: usize,
+) {
+    let round = 2usize;
+    assert_eq!(u[0], NO_QUBIT);
+    assert_eq!(v[0], NO_QUBIT);
+    let width = value_width(round);
+    grow_to(b, u, v, width);
+    let (source, target): (&[QubitId], &mut Vec<QubitId>) = (&u[..width], v);
+    toggle_local_s2_host(b, host, source);
+
+    let low_wire = b.alloc_qubit();
+    b.x(low_wire);
+    target[0] = low_wire;
+    b.cx(target[width - 2], target[width - 1]);
+    for i in (0..width - 1).rev() {
+        b.swap(target[i], target[i + 1]);
+    }
+    b.release_clean(target[0]);
+    target[0] = NO_QUBIT;
+
+    b.x(host);
+    let top_skip = walk_top_skip(round, rounds);
+    match walk_low_chunk(round, width) {
+        Some(low) => signed_add_wrapping_sigma_split(
+            b,
+            host,
+            source,
+            &target[..width],
+            false,
+            low,
+            top_skip,
+            true,
+        ),
+        None => signed_add_wrapping_sigma(
+            b,
+            host,
+            source,
+            &target[..width],
+            false,
+            top_skip,
+            true,
+        ),
+    }
+    b.x(host);
+    toggle_local_s2_host(b, host, source);
+    // Match the retained path's clean `s2` reset without retaining its wire.
+    let reset_scratch = b.alloc_qubit();
+    b.free(reset_scratch);
 }
 
 fn replay_halving_round(b: &mut B, round: usize, sign: QubitId, x: &[QubitId], y: &[QubitId]) {
@@ -2195,6 +2409,11 @@ fn value_walk(b: &mut B, u: &mut Vec<QubitId>, v: &mut Vec<QubitId>, rounds: usi
             tape.push(fused_round1_forward(b, &u[..width], &v[..width]));
             continue;
         }
+        if round == 2 && generic_s2_elision_enabled() {
+            walk_round2_with_s1_host(b, u, v, tape[1], rounds);
+            tape.push(NO_QUBIT);
+            continue;
+        }
 
         let (source, target) = if round.is_multiple_of(2) {
             (&u[..width], &v[..width])
@@ -2241,6 +2460,11 @@ fn value_walk_back(b: &mut B, u: &mut Vec<QubitId>, v: &mut Vec<QubitId>, tape: 
         }
         if round == 1 && fuse_round1_enabled() {
             fused_round1_reverse(b, &u[..width], &v[..width], tape[round]);
+            continue;
+        }
+        if round == 2 && generic_s2_elision_enabled() {
+            assert_eq!(tape[round], NO_QUBIT);
+            walk_back_round2_with_s1_host(b, u, v, tape[1], rounds);
             continue;
         }
 
@@ -4221,5 +4445,64 @@ pub(crate) fn round0_a0_elision_selfcheck() {
     pingpong_simulator_selfcheck();
     eprintln!(
         "SUB4_PP_ROUND0_A0_SELFTEST: PASS (ideal exceptions={h_count}, baked sparse exceptions=0; roundtrip and Divide/Multiply clean)"
+    );
+}
+
+/// Exhaustive reduced-width gate for the alternating-source sign invariant,
+/// followed by a production-builder assertion that generic round two owns no
+/// tape wire when the prototype is selected.
+pub(crate) fn generic_s2_host_selfcheck() {
+    for width in 4..=10usize {
+        let p = (1i64 << width) - 5;
+        let p1 = ((p >> 1) & 1) != 0;
+        for denominator in 1..p {
+            let mut u = p;
+            let mut v = if denominator & 1 == 1 {
+                denominator
+            } else {
+                denominator - p
+            };
+            let mut signs = Vec::new();
+            for round in 0..3 * width {
+                let (source, target) = if round.is_multiple_of(2) {
+                    (u, v)
+                } else {
+                    (v, u)
+                };
+                let sign = (((source >> 1) ^ (target >> 1)) & 1) != 0;
+                if round >= 2 {
+                    let prior_parity = signs[1..].iter().fold(false, |acc, &bit| acc ^ bit);
+                    assert_eq!(
+                        sign,
+                        p1 ^ (((source >> 1) & 1) != 0) ^ prior_parity,
+                        "generic sign invariant failed at width={width} denominator={denominator} round={round}"
+                    );
+                }
+                let next = if sign {
+                    (target - source) / 2
+                } else {
+                    (target + source) / 2
+                };
+                if round.is_multiple_of(2) {
+                    v = next;
+                } else {
+                    u = next;
+                }
+                signs.push(sign);
+            }
+        }
+    }
+
+    std::env::set_var("SUB4_PP_ELIDE_GENERIC_S2", "1");
+    let mut b = B::new();
+    let mut u = b.alloc_qubits(VALUE_WIDTH);
+    let mut v = b.alloc_qubits(VALUE_WIDTH);
+    let tape = value_walk(&mut b, &mut u, &mut v, 8);
+    assert_eq!(
+        tape[2], NO_QUBIT,
+        "generic round two still owns a physical tape wire"
+    );
+    eprintln!(
+        "SUB4_PP_GENERIC_S2_SELFTEST: PASS (widths=4..10 exhaustive; production round-two tape entry elided)"
     );
 }

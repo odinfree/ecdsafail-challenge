@@ -2573,6 +2573,10 @@ pub fn build() -> Vec<Op> {
         return Vec::new();
     }
     if std::env::var_os("SUB4_LEGACY_POINT_ADD").is_none() {
+        if std::env::var_os("SUB4_PP_GENERIC_S2_SELFTEST").is_some() {
+            pingpong_div::generic_s2_host_selfcheck();
+            return Vec::new();
+        }
         if std::env::var_os("SUB4_PP_ROUND0_A0_SELFTEST").is_some() {
             pingpong_div::round0_a0_elision_selfcheck();
             return Vec::new();
@@ -2587,8 +2591,8 @@ pub fn build() -> Vec<Op> {
         }
         let mut ops = pingpong_div::build_pingpong_point_add();
         // Inherited from the exact-clean Q1267/M697 stream only as a negative
-        // control. It is NOT clean for this baked Q1264 artifact (trusted
-        // 9,024-shot result: 23 classical / 13 phase / 0 ancilla failures).
+        // control. It is NOT clean for this baked Q1263 artifact (trusted
+        // 9,024-shot result: 28 classical / 12 phase / 0 ancilla failures).
         // A source-bound grind must replace it before candidate admission.
         let nonce = std::env::var("SUB4_PINGPONG_TAIL_NONCE")
             .unwrap_or_default()
