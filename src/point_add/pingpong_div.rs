@@ -15,19 +15,30 @@ fn rounds_for(direction: PingPongDirection) -> usize {
     match direction {
         PingPongDirection::Divide => rounds(),
         PingPongDirection::Multiply => {
+            // BAKE (2026-08-25): exact Q1265 campaign geometry.  This is the
+            // independently profiled 694/693 route, now made reproducible by
+            // the zero-environment official benchmark.
             // One round fewer on the multiply traversal: its fused doubling
             // cell holds one more wire (the shifted-out top bit) during the
             // chunked add than the divide cell does, so a one-bit shorter
             // tape puts both replay peaks at the same width.  Convergence
             // exposure of one round on one traversal is ~+0.05 lambda.
             static SLOT: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
-            tuned_window("SUB4_PP_ROUNDS_MUL", &SLOT, 696)
+            tuned_window("SUB4_PP_ROUNDS_MUL", &SLOT, 693)
         }
     }
 }
 
 fn rounds() -> usize {
     static SLOT: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    // BAKE (2026-08-25): exact Q1265 campaign geometry.  Keep the override for
+    // controlled experiments, but make the reviewed 694-round route the
+    // zero-environment benchmark path.
+    //
+    // SUPERSEDED HISTORY: the 2026-08-23 notes below describe earlier
+    // 704/700 and 696-era defaults. They remain as measurement provenance,
+    // but neither their automatic multiply tracking nor their frontier
+    // arithmetic describes the current independent 694/693 defaults.
     // BAKE (2026-08-23, this rebase): 704, not 700 -- spends this base's
     // frontier margin buying down lambda_CF instead of banking it as unused
     // score headroom. The "700, not 704" rationale below (T/peak savings
@@ -86,13 +97,14 @@ fn rounds() -> usize {
     // (rescale ON by default, `WIDTH_REPAIR` sparse correction, `wsched_
     // override` file loader) is kept as-is here rather than force-merged,
     // since the two tables are alternate fits to the same problem, not
-    // additive. `SUB4_PP_ROUNDS` remains swept post-rebase against the new
+    // additive. `SUB4_PP_ROUNDS` was swept post-rebase against that historical
     // 696 default -- see the rebase report for the result.
-    tuned_window("SUB4_PP_ROUNDS", &SLOT, 696)
+    tuned_window("SUB4_PP_ROUNDS", &SLOT, 694)
 }
 
-/// The width schedule is compressed so it still reaches its floor on the
-/// final round at the reduced 698-round depth, instead of stopping short:
+/// The 704-entry source width schedule is compressed so it still reaches its
+/// floor on the final round of the baked 694-round traversal, instead of
+/// stopping short:
 /// every walk and replay add above the floor gets its scheduled width from a
 /// slightly earlier point of the sampled curve, which removes the dead
 /// bit-rounds the four-round depth cut had left at the tail.  On this draw
@@ -3539,18 +3551,19 @@ pub(crate) fn pingpong_simulator_selfcheck() {
 fn divide_and_multiply_preserve_the_abi_and_clean_ancillas() {
     pingpong_simulator_selfcheck();
 }
-/// Diagnostic: print the per-round value-width schedule for both the base
-/// (identity index, `SUB4_PP_WIDTH_RESCALE=0`) and rescaled (default-on
-/// `round*697/697` compression) traversals, through the real `value_width`
-/// code path.  Gated by `SUB4_DUMP_WSCHED` in `build`, so it never runs in
-/// the shipped stream.
+/// Diagnostic: print the per-round value-width schedule for both the source
+/// table (identity index, `SUB4_PP_WIDTH_RESCALE=0`) and the default rescaling
+/// `round * (ROUNDS_DEFAULT - 1) / (rounds - 1)`, through the real
+/// `value_width` code path and over the baked traversal length. Gated by
+/// `SUB4_DUMP_WSCHED` in `build`, so it never runs in the shipped stream.
 pub(crate) fn dump_width_schedule() {
+    let diagnostic_rounds = rounds();
     std::env::set_var("SUB4_PP_WIDTH_RESCALE", "0");
-    let base: Vec<usize> = (0..700).map(value_width).collect();
+    let base: Vec<usize> = (0..diagnostic_rounds).map(value_width).collect();
     std::env::remove_var("SUB4_PP_WIDTH_RESCALE");
-    let resc: Vec<usize> = (0..700).map(value_width).collect();
+    let resc: Vec<usize> = (0..diagnostic_rounds).map(value_width).collect();
     println!("round,base,rescale");
-    for r in 0..700 {
+    for r in 0..diagnostic_rounds {
         println!("{},{},{}", r, base[r], resc[r]);
     }
 }
@@ -3587,7 +3600,15 @@ fn sigma_split_low_two_compare_reduction_is_exact() {
 }
 
 fn lazy_interleaved_odd_restore_enabled() -> bool {
-    std::env::var("SUB4_PP_LAZY_ODD_RESTORE").ok().as_deref() == Some("1")
+    match std::env::var_os("SUB4_PP_LAZY_ODD_RESTORE") {
+        None => true,
+        Some(value) if value == "0" => false,
+        Some(value) if value == "1" => true,
+        Some(value) => panic!(
+            "SUB4_PP_LAZY_ODD_RESTORE must be 0 or 1, got {:?}",
+            value.to_string_lossy()
+        ),
+    }
 }
 
 /// Drop both proven-one low bits from the semantic walk registers. Their

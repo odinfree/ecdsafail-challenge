@@ -1,13 +1,14 @@
 # Lazy odd passengers at Q1265
 
-Status: **local structural prototype; not an admitted candidate**.
+Status: **source-baked structural candidate; not admission-validated**.
 
 This experiment is bound to official source
 `522d00296ab014b0f4d128915b53851516f17f4d`.  It keeps the two proven-one
 low bits of the ping-pong value registers implicit across the interleaved
 replay/walk region instead of restoring their physical wires at every replay
-boundary.  The feature is opt-in with `SUB4_PP_LAZY_ODD_RESTORE=1`; the default
-path is unchanged.
+boundary.  The reviewed 694/693 geometry and lazy restoration are now the
+zero-environment source defaults required by the official benchmark.
+`SUB4_PP_LAZY_ODD_RESTORE=0` retains the exact pre-change control path.
 
 ## Why the transform is exact
 
@@ -28,22 +29,22 @@ implicit forward/reverse roundtrip and checks the returned registers, global
 phase, every non-register ancilla, and that the implicit construction has a
 lower peak.  This passed locally.
 
-The opt-in path rejects `SUB4_PP_LOAN_ONE=1` immediately with an explicit
+The default lazy path rejects `SUB4_PP_LOAN_ONE=1` immediately with an explicit
 incompatibility message.  That diagnostic mode does not provide the two
 proven-one low-wire loans required by this transform.
 
 ## Bound artifacts and measurements
 
-Exact build parameters are `SUB4_PP_ROUNDS=694` and
-`SUB4_PP_ROUNDS_MUL=693`.
+The exact build uses the baked divide/multiply round defaults `694/693`.
 
 | path | Q | emitted ops | compressed bytes | SHA-256 |
 |---|---:|---:|---:|---|
-| feature disabled | 1266 | 12,553,305 | 45,725,252 | `a4995dc4be4b7b314853d379941141b3b5753110412c07e8a2bc5d097d218ed1` |
-| lazy odd feature | 1265 | 12,548,730 | 45,628,312 | `482b4f2b6f62973b0cdc20139006ae57583a9c230d329bace751a516a34c2a26` |
+| `SUB4_PP_LAZY_ODD_RESTORE=0` | 1266 | 12,553,305 | 45,725,252 | `a4995dc4be4b7b314853d379941141b3b5753110412c07e8a2bc5d097d218ed1` |
+| zero environment (lazy odd baked) | 1265 | 12,548,730 | 45,628,312 | `482b4f2b6f62973b0cdc20139006ae57583a9c230d329bace751a516a34c2a26` |
 
-The disabled artifact is byte-identical to the exact pre-change reference,
-which establishes that the environment gate is inert when absent.
+The explicit opt-out artifact is byte-identical to the exact pre-change
+694/693 reference.  The zero-environment artifact is byte-identical to the
+independently reviewed opt-in prototype.
 
 Four independent 64-lane profile seeds all reported zero classical
 mismatches, zero phase, and zero dirty qubits.  The executed-Toffoli estimates

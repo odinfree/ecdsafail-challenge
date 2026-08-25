@@ -2457,15 +2457,15 @@ pub fn build() -> Vec<Op> {
     set_default_env("TLM_SQUARE_F_RAMP10_DIRECT32_TAGS", "");
     set_default_env("TLM_SQUARE_F_SHIFTED_LOW", "1");
 
-    // Freeze the Q1267 fallback composition while keeping each knob
-    // externally overridable for focused reliability experiments. The
-    // pingpong tail nonce intentionally remains at the frontier fallback.
+    // Freeze the source-baked Q1265 campaign composition while keeping each
+    // knob externally overridable for focused reliability experiments. The
+    // tail nonce is inherited only as a known-dirty negative control.
     set_default_env("SUB4_PINGPONG_LOW56_FOLD", "1");
-    set_default_env("SUB4_PP_ROUNDS", "696");
-    // Keep one additional multiply traversal round as a bounded reliability
-    // purchase. The extra tape wire raises this composition from Q1267 to
-    // Q1268 while retaining a projected score improvement above 0.1%.
-    set_default_env("SUB4_PP_ROUNDS_MUL", "694");
+    set_default_env("SUB4_PP_ROUNDS", "694");
+    // Keep multiply one round below divide in the exact Q1265 campaign
+    // geometry; the lazy odd-passenger path keeps both replay families under
+    // the same reviewed peak.
+    set_default_env("SUB4_PP_ROUNDS_MUL", "693");
     set_default_env("SUB4_PP_R1", "335");
     set_default_env("SUB4_PP_R1_MUL", "315");
     set_default_env("SUB4_PP_R2", "645");
@@ -2580,8 +2580,10 @@ pub fn build() -> Vec<Op> {
             return Vec::new();
         }
         let mut ops = pingpong_div::build_pingpong_point_add();
-        // Exact-clean nonce for the Q1267/M697 stream, verified by the optimized
-        // and reference evaluators over all 9,024 shots.
+        // Inherited from the exact-clean Q1267/M697 stream only as a negative
+        // control. It is NOT clean for this baked Q1265 artifact (trusted
+        // 9,024-shot result: 28 classical / 17 phase / 0 ancilla failures).
+        // A source-bound grind must replace it before candidate admission.
         let nonce = std::env::var("SUB4_PINGPONG_TAIL_NONCE")
             .unwrap_or_default()
             .parse::<u64>()
