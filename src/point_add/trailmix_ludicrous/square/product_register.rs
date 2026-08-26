@@ -189,6 +189,96 @@ fn tri_corr(circ: &mut B, x: &[QubitId], product: &[QubitId], inverse: bool) {
     }
 }
 
+/// Add or subtract a shorter read-only operand after padding its high end with
+/// clean zeroes.  Keeping the extension local makes the arithmetic width (and
+/// therefore the carry propagation contract) explicit at every call site.
+fn addsub_zero_extended(
+    circ: &mut B,
+    value: &[QubitId],
+    acc: &[QubitId],
+    inverse: bool,
+) {
+    assert!(value.len() <= acc.len());
+    let pads = circ.alloc_qubits(acc.len() - value.len());
+    let mut value_wide = Vec::with_capacity(acc.len());
+    value_wide.extend_from_slice(value);
+    value_wide.extend_from_slice(&pads);
+    if inverse {
+        sub_full(circ, &value_wide, acc);
+    } else {
+        add_full(circ, &value_wide, acc);
+    }
+    circ.free_vec(&pads);
+}
+
+struct LocalKaratsubaSquare {
+    sum: Vec<QubitId>,
+    cross: Vec<QubitId>,
+}
+
+/// Materialise a 128-bit square in its existing 256-bit product register with
+/// one 65-bit sum and one 130-bit cross-product workspace:
+///
+///     x^2 = a^2 + 2^64 * ((a + b)^2 - a^2 - b^2) + 2^128 * b^2.
+///
+/// The full 192-bit add into `product[64..]` is intentional: the carry from
+/// the cross term must be allowed to propagate all the way through `b^2`.
+/// The returned workspace remains live while callers read/fold `product`, then
+/// `uncompute_local_karatsuba_square` reverses the construction exactly.
+fn compute_local_karatsuba_square(
+    circ: &mut B,
+    x: &[QubitId],
+    product: &[QubitId],
+) -> LocalKaratsubaSquare {
+    assert_eq!(x.len(), 128);
+    assert_eq!(product.len(), 256);
+    let split = x.len() / 2;
+
+    tri_square(circ, &x[..split], &product[..2 * split], false);
+    tri_square(circ, &x[split..], &product[2 * split..], false);
+
+    let sum = circ.alloc_qubits(split + 1);
+    for i in 0..split {
+        circ.cx(x[i], sum[i]);
+    }
+    addsub_zero_extended(circ, &x[split..], &sum, false);
+
+    let cross = circ.alloc_qubits(2 * sum.len());
+    tri_square(circ, &sum, &cross, false);
+    addsub_zero_extended(circ, &product[..2 * split], &cross, true);
+    addsub_zero_extended(circ, &product[2 * split..], &cross, true);
+    addsub_zero_extended(circ, &cross, &product[split..], false);
+
+    LocalKaratsubaSquare { sum, cross }
+}
+
+fn uncompute_local_karatsuba_square(
+    circ: &mut B,
+    x: &[QubitId],
+    product: &[QubitId],
+    workspace: LocalKaratsubaSquare,
+) {
+    assert_eq!(x.len(), 128);
+    assert_eq!(product.len(), 256);
+    let split = x.len() / 2;
+    let LocalKaratsubaSquare { sum, cross } = workspace;
+
+    addsub_zero_extended(circ, &cross, &product[split..], true);
+    addsub_zero_extended(circ, &product[2 * split..], &cross, false);
+    addsub_zero_extended(circ, &product[..2 * split], &cross, false);
+    tri_square(circ, &sum, &cross, true);
+    circ.free_vec(&cross);
+
+    addsub_zero_extended(circ, &x[split..], &sum, true);
+    for i in 0..split {
+        circ.cx(x[i], sum[i]);
+    }
+    circ.free_vec(&sum);
+
+    tri_square(circ, &x[split..], &product[2 * split..], true);
+    tri_square(circ, &x[..split], &product[..2 * split], true);
+}
+
 fn clear_overflow_phase(circ: &mut B, overflow: QubitId, acc: &[QubitId], addend: &[QubitId]) {
     let bit = circ.alloc_bit();
     circ.hmr(overflow, bit);
@@ -392,6 +482,18 @@ fn karatsuba2_enabled() -> bool {
     })
 }
 
+/// Experimental branch-B product-register Karatsuba.  Default-off keeps the
+/// official stream byte-for-byte unchanged until the route clears its value,
+/// peak, full-profile, and trusted-replay gates.
+fn square_b_local_k2_enabled() -> bool {
+    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ENABLED.get_or_init(|| {
+        std::env::var_os("SUB4_SQUARE_B_LOCAL_K2")
+            .map(|v| v == "1")
+            .unwrap_or(false)
+    })
+}
+
 /// Generalises `apply_shift_half`/`apply_shift_full` to an arbitrary shift and
 /// product width, folding `+/- product * 2^shift` (sign chosen by `sign` XOR
 /// `negate`) straight into the persistent mod-p accumulator `out`.
@@ -521,12 +623,21 @@ pub(super) fn square_sub(circ: &mut B, y: &[QubitId], out: &[QubitId]) {
     }
 
     let product_b = circ.alloc_qubits(2 * h);
-    tri_square(circ, &y[h..], &product_b, false);
+    let product_b_workspace = if square_b_local_k2_enabled() {
+        Some(compute_local_karatsuba_square(circ, &y[h..], &product_b))
+    } else {
+        tri_square(circ, &y[h..], &product_b, false);
+        None
+    };
     circ.x(sign);
     apply_shift_half(circ, sign, &product_b, out, overflow);
     circ.x(sign);
     apply_shift_full(circ, sign, &product_b, out, overflow);
-    tri_square(circ, &y[h..], &product_b, true);
+    if let Some(workspace) = product_b_workspace {
+        uncompute_local_karatsuba_square(circ, &y[h..], &product_b, workspace);
+    } else {
+        tri_square(circ, &y[h..], &product_b, true);
+    }
     circ.free_vec(&product_b);
 
     // MERGE: hold a+b in the input's high half plus one carry wire (theirs).
