@@ -1,5 +1,9 @@
 use super::*;
 
+mod third_passenger_selector {
+    include!("pingpong_third_passenger_selector.rs");
+}
+
 /// Fixed-depth ping-pong division.  The value walk records one sign qubit per
 /// round; the coefficient pass consumes that log once, then the reverse value
 /// walk restores the denominator and clears the log.
@@ -377,6 +381,7 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
                 b,
                 &u,
                 &v,
+                PingPongDirection::Divide,
                 plan.r1.saturating_sub(1),
                 &tape,
             );
@@ -394,7 +399,14 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
                     shrink_to(b, &mut u, &mut v, value_width(r + 1));
                 }
                 set_chunks(pick_chunks(&plan, tape.len(), u.len()));
-                let odd_passengers = loan_interleaved_odd_passengers(b, &u, &v, r, &tape);
+                let odd_passengers = loan_interleaved_odd_passengers(
+                    b,
+                    &u,
+                    &v,
+                    PingPongDirection::Divide,
+                    r,
+                    &tape,
+                );
                 replay_halving_round(b, r, tape[r], &coefficient, numerator);
                 restore_interleaved_odd_passengers(b, odd_passengers);
                 clear_chunks();
@@ -450,7 +462,14 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
             }
             for r in (plan.r1..=plan.r2.min(rounds - 1)).rev() {
                 set_chunks(pick_chunks(&plan, r + 1, u.len()));
-                let odd_passengers = loan_interleaved_odd_passengers(b, &u, &v, r, &tape);
+                let odd_passengers = loan_interleaved_odd_passengers(
+                    b,
+                    &u,
+                    &v,
+                    PingPongDirection::Multiply,
+                    r,
+                    &tape,
+                );
                 replay_doubling_round(b, r, tape[r], &coefficient, numerator);
                 restore_interleaved_odd_passengers(b, odd_passengers);
                 clear_chunks();
@@ -463,6 +482,7 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
                 b,
                 &u,
                 &v,
+                PingPongDirection::Multiply,
                 plan.r1.saturating_sub(1),
                 &tape,
             );
@@ -1859,14 +1879,33 @@ struct InterleavedPassengerLoan {
     third: Option<(QubitId, QubitId, QubitId)>,
 }
 
-fn third_interleaved_passenger_enabled() -> bool {
+fn third_passenger_peak_binding_round(
+    direction: PingPongDirection,
+    after_round: usize,
+) -> bool {
+    match direction {
+        PingPongDirection::Divide => {
+            third_passenger_selector::divide_peak_binding_round(after_round)
+        }
+        PingPongDirection::Multiply => {
+            third_passenger_selector::multiply_peak_binding_round(after_round)
+        }
+    }
+}
+
+fn third_interleaved_passenger_enabled(
+    direction: PingPongDirection,
+    after_round: usize,
+) -> bool {
     std::env::var("SUB4_PP_THIRD_PASSENGER").ok().as_deref() == Some("1")
+        && third_passenger_peak_binding_round(direction, after_round)
 }
 
 fn loan_interleaved_odd_passengers(
     b: &mut B,
     u: &[QubitId],
     v: &[QubitId],
+    direction: PingPongDirection,
     after_round: usize,
     tape: &[QubitId],
 ) -> InterleavedPassengerLoan {
@@ -1883,7 +1922,7 @@ fn loan_interleaved_odd_passengers(
     // checkpoint, even r has v[1] = u[2] XOR tape[1], while odd r has
     // u[1] = v[2] XOR tape[1]. The replay reads but does not change either
     // control, so two Clifford gates clear one additional temporary host.
-    let third = if third_interleaved_passenger_enabled() {
+    let third = if third_interleaved_passenger_enabled(direction, after_round) {
         assert!(u.len() >= 3 && v.len() >= 3);
         assert!(tape.len() >= 2);
         let (passenger, source2) = if after_round % 2 == 0 {
@@ -3360,6 +3399,7 @@ pub(crate) fn pingpong_simulator_selfcheck() {
 fn divide_and_multiply_preserve_the_abi_and_clean_ancillas() {
     pingpong_simulator_selfcheck();
 }
+
 /// Diagnostic: print the per-round value-width schedule for both the base
 /// (identity index, `SUB4_PP_WIDTH_RESCALE=0`) and rescaled (default-on
 /// `round*697/697` compression) traversals, through the real `value_width`
