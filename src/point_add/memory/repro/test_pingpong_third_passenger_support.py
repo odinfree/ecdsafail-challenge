@@ -30,7 +30,7 @@ class SourceAndLifetimeContractTests(unittest.TestCase):
         self.assertEqual(contract.loaned_bits, ("u[0]", "v[0]"))
         self.assertEqual(
             contract.pingpong_sha256,
-            "a27ad6d4eb8d3840bfbf0c6576946d6ad4e9de5f0812a3ec2d6a4680a080571c",
+            "867a9a4354c521dc88cfce5ad2e90b0778f0c60934bd6ca3edac28fdb033c782",
         )
         self.assertEqual(
             contract.builder_sha256,

@@ -1877,6 +1877,7 @@ fn walk_peak(plan: &Plan) -> usize {
 struct InterleavedPassengerLoan {
     odd: [QubitId; 2],
     third: Option<(QubitId, QubitId, QubitId)>,
+    fourth: Option<(QubitId, Vec<QubitId>)>,
 }
 
 fn third_passenger_peak_binding_round(
@@ -1899,6 +1900,21 @@ fn third_interleaved_passenger_enabled(
 ) -> bool {
     std::env::var("SUB4_PP_THIRD_PASSENGER").ok().as_deref() == Some("1")
         && third_passenger_peak_binding_round(direction, after_round)
+}
+
+fn fourth_interleaved_passenger_enabled(
+    direction: PingPongDirection,
+    after_round: usize,
+) -> bool {
+    let fourth_flag = std::env::var("SUB4_PP_FOURTH_PASSENGER").ok();
+    let third_flag = std::env::var("SUB4_PP_THIRD_PASSENGER").ok();
+    third_passenger_selector::fourth_feature_enabled(
+        fourth_flag.as_deref(),
+        third_flag.as_deref(),
+        matches!(direction, PingPongDirection::Divide),
+        after_round,
+    )
+    .unwrap_or_else(|message| panic!("{message}"))
 }
 
 fn loan_interleaved_odd_passengers(
@@ -1941,10 +1957,52 @@ fn loan_interleaved_odd_passengers(
         None
     };
 
-    InterleavedPassengerLoan { odd, third }
+    // Exact source-bound certificate:
+    // fourth-passenger-support-89ecdce6-20260826T164315Z. The operand not
+    // updated by round r has bit 1 equal to one XOR the parity of tape[1..=r].
+    // Replay reads but does not change those signs, so a Clifford fan-in makes
+    // the opposite bit-1 wire available alongside the third passenger.
+    let fourth = if fourth_interleaved_passenger_enabled(direction, after_round) {
+        assert!(u.len() >= 2 && v.len() >= 2);
+        let passenger = match third_passenger_selector::fourth_passenger(after_round) {
+            third_passenger_selector::BitOnePassenger::U => u[1],
+            third_passenger_selector::BitOnePassenger::V => v[1],
+        };
+        let control_indices = third_passenger_selector::fourth_tape_control_indices(
+            after_round,
+            tape.len(),
+        )
+        .unwrap_or_else(|message| panic!("{message}"));
+        let controls: Vec<QubitId> = control_indices.clone().map(|index| tape[index]).collect();
+        assert!(!odd.contains(&passenger));
+        if let Some((third_passenger, _, _)) = third {
+            assert_ne!(passenger, third_passenger);
+        } else {
+            panic!("fourth passenger requires the selected third passenger loan");
+        }
+        assert!(controls.iter().all(|&control| control != passenger));
+
+        b.x(passenger);
+        for index in control_indices {
+            b.cx(tape[index], passenger);
+        }
+        b.release_clean(passenger);
+        Some((passenger, controls))
+    } else {
+        None
+    };
+
+    InterleavedPassengerLoan { odd, third, fourth }
 }
 
 fn restore_interleaved_odd_passengers(b: &mut B, loan: InterleavedPassengerLoan) {
+    if let Some((passenger, controls)) = loan.fourth {
+        b.reacquire(passenger);
+        for &control in controls.iter().rev() {
+            b.cx(control, passenger);
+        }
+        b.x(passenger);
+    }
     if let Some((passenger, source2, tape1)) = loan.third {
         b.reacquire(passenger);
         b.cx(tape1, passenger);
