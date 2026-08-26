@@ -373,7 +373,13 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
             coefficient = b.alloc_qubits(N);
             set_walk_peak(walk_peak(&plan));
             set_chunks(pick_chunks(&plan, plan.r1.min(rounds), u.len()));
-            let odd_passengers = loan_interleaved_odd_passengers(b, &u, &v);
+            let odd_passengers = loan_interleaved_odd_passengers(
+                b,
+                &u,
+                &v,
+                plan.r1.saturating_sub(1),
+                &tape,
+            );
             for r in 0..plan.r1.min(rounds) {
                 replay_halving_round(b, r, tape[r], &coefficient, numerator);
             }
@@ -388,7 +394,7 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
                     shrink_to(b, &mut u, &mut v, value_width(r + 1));
                 }
                 set_chunks(pick_chunks(&plan, tape.len(), u.len()));
-                let odd_passengers = loan_interleaved_odd_passengers(b, &u, &v);
+                let odd_passengers = loan_interleaved_odd_passengers(b, &u, &v, r, &tape);
                 replay_halving_round(b, r, tape[r], &coefficient, numerator);
                 restore_interleaved_odd_passengers(b, odd_passengers);
                 clear_chunks();
@@ -444,7 +450,7 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
             }
             for r in (plan.r1..=plan.r2.min(rounds - 1)).rev() {
                 set_chunks(pick_chunks(&plan, r + 1, u.len()));
-                let odd_passengers = loan_interleaved_odd_passengers(b, &u, &v);
+                let odd_passengers = loan_interleaved_odd_passengers(b, &u, &v, r, &tape);
                 replay_doubling_round(b, r, tape[r], &coefficient, numerator);
                 restore_interleaved_odd_passengers(b, odd_passengers);
                 clear_chunks();
@@ -453,7 +459,13 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
                 walk_back_round(b, &mut u, &mut v, r, sign, rounds);
             }
             set_chunks(pick_chunks(&plan, plan.r1.min(rounds), u.len()));
-            let odd_passengers = loan_interleaved_odd_passengers(b, &u, &v);
+            let odd_passengers = loan_interleaved_odd_passengers(
+                b,
+                &u,
+                &v,
+                plan.r1.saturating_sub(1),
+                &tape,
+            );
             for r in (0..plan.r1.min(rounds)).rev() {
                 replay_doubling_round(b, r, tape[r], &coefficient, numerator);
             }
@@ -1842,23 +1854,64 @@ fn walk_peak(plan: &Plan) -> usize {
 /// Loan the source-proven odd low bits while replay uses only the tape and
 /// coefficient registers. Terminal replay already applies this identity to
 /// the complete terminal walk state; this is its nonterminal counterpart.
+struct InterleavedPassengerLoan {
+    odd: [QubitId; 2],
+    third: Option<(QubitId, QubitId, QubitId)>,
+}
+
+fn third_interleaved_passenger_enabled() -> bool {
+    std::env::var("SUB4_PP_THIRD_PASSENGER").ok().as_deref() == Some("1")
+}
+
 fn loan_interleaved_odd_passengers(
     b: &mut B,
     u: &[QubitId],
     v: &[QubitId],
-) -> [QubitId; 2] {
+    after_round: usize,
+    tape: &[QubitId],
+) -> InterleavedPassengerLoan {
     assert!(!u.is_empty() && !v.is_empty());
-    let passengers = [u[0], v[0]];
-    assert_ne!(passengers[0], passengers[1]);
-    for &q in &passengers {
+    let odd = [u[0], v[0]];
+    assert_ne!(odd[0], odd[1]);
+    for &q in &odd {
         b.x(q);
         b.release_clean(q);
     }
-    passengers
+
+    // Exact source-bound certificate:
+    // memory/repro/PINGPONG_THIRD_PASSENGER_SUPPORT.md. At the post-round
+    // checkpoint, even r has v[1] = u[2] XOR tape[1], while odd r has
+    // u[1] = v[2] XOR tape[1]. The replay reads but does not change either
+    // control, so two Clifford gates clear one additional temporary host.
+    let third = if third_interleaved_passenger_enabled() {
+        assert!(u.len() >= 3 && v.len() >= 3);
+        assert!(tape.len() >= 2);
+        let (passenger, source2) = if after_round % 2 == 0 {
+            (v[1], u[2])
+        } else {
+            (u[1], v[2])
+        };
+        assert!(!odd.contains(&passenger));
+        assert_ne!(passenger, source2);
+        assert_ne!(passenger, tape[1]);
+        b.cx(source2, passenger);
+        b.cx(tape[1], passenger);
+        b.release_clean(passenger);
+        Some((passenger, source2, tape[1]))
+    } else {
+        None
+    };
+
+    InterleavedPassengerLoan { odd, third }
 }
 
-fn restore_interleaved_odd_passengers(b: &mut B, passengers: [QubitId; 2]) {
-    for &q in passengers.iter().rev() {
+fn restore_interleaved_odd_passengers(b: &mut B, loan: InterleavedPassengerLoan) {
+    if let Some((passenger, source2, tape1)) = loan.third {
+        b.reacquire(passenger);
+        b.cx(tape1, passenger);
+        b.cx(source2, passenger);
+    }
+    for &q in loan.odd.iter().rev() {
         b.reacquire(q);
         b.x(q);
     }

@@ -30,7 +30,7 @@ class SourceAndLifetimeContractTests(unittest.TestCase):
         self.assertEqual(contract.loaned_bits, ("u[0]", "v[0]"))
         self.assertEqual(
             contract.pingpong_sha256,
-            "67f6b692b1fed3641dad487b062ce0304958b312c4627355e772bc3954eea842",
+            "950997f008b472b14c7bf6d42f879014b71db166afd6e8094295e1bef86fb04d",
         )
         self.assertEqual(
             contract.builder_sha256,
@@ -59,6 +59,7 @@ class SourceAndLifetimeContractTests(unittest.TestCase):
             (
                 support.BindingConfig("q1265", 1267, 1266, 1265),
                 support.BindingConfig("q1264", 1266, 1265, 1264),
+                support.BindingConfig("q1264-hybrid", 1267, 1265, 1264),
             ),
         )
 

@@ -43,6 +43,7 @@ class BindingConfig:
 BINDING_CONFIGS = (
     BindingConfig("q1265", 1267, 1266, 1265),
     BindingConfig("q1264", 1266, 1265, 1264),
+    BindingConfig("q1264-hybrid", 1267, 1265, 1264),
 )
 
 
@@ -204,7 +205,7 @@ def load_source_contract(repo: Path) -> SourceContract:
         widths.append(max(8, min(MODEL_WIDTH, scheduled + (sampled in repair))))
 
     loan_match = re.search(
-        r"fn\s+loan_interleaved_odd_passengers\(.*?let\s+passengers\s*=\s*"
+        r"fn\s+loan_interleaved_odd_passengers\(.*?let\s+(?:passengers|odd)\s*=\s*"
         r"\[(.*?)\];",
         pingpong,
         re.DOTALL,
@@ -214,6 +215,37 @@ def load_source_contract(repo: Path) -> SourceContract:
     loaned_bits = tuple(part.strip() for part in loan_match.group(1).split(","))
     if loaned_bits != ("u[0]", "v[0]"):
         raise ValueError(f"unexpected current loan family: {loaned_bits}")
+
+    construction_patterns = {
+        "exact-value flag": (
+            r'std::env::var\("SUB4_PP_THIRD_PASSENGER"\)'
+            r'\.ok\(\)\.as_deref\(\)\s*==\s*Some\("1"\)'
+        ),
+        "parity mapping": (
+            r'if\s+after_round\s*%\s*2\s*==\s*0\s*\{\s*'
+            r'\(v\[1\],\s*u\[2\]\)\s*\}\s*else\s*\{\s*'
+            r'\(u\[1\],\s*v\[2\]\)'
+        ),
+        "clear sequence": (
+            r'b\.cx\(source2,\s*passenger\);\s*'
+            r'b\.cx\(tape\[1\],\s*passenger\);\s*'
+            r'b\.release_clean\(passenger\);'
+        ),
+        "reverse restore": (
+            r'b\.reacquire\(passenger\);\s*'
+            r'b\.cx\(tape1,\s*passenger\);\s*'
+            r'b\.cx\(source2,\s*passenger\);'
+        ),
+    }
+    for label, pattern in construction_patterns.items():
+        if re.search(pattern, pingpong, re.DOTALL) is None:
+            raise ValueError(f"missing third-passenger {label}")
+    if pingpong.count("loan_interleaved_odd_passengers(") != 5:
+        raise ValueError("expected four third-passenger call sites and one definition")
+    if pingpong.count("restore_interleaved_odd_passengers(") != 5:
+        raise ValueError("expected four third-passenger restores and one definition")
+    if pingpong.count("plan.r1.saturating_sub(1)") != 2:
+        raise ValueError("expected two safe prefix-round mappings")
 
     return SourceContract(
         repo=repo,
