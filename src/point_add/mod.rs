@@ -2496,7 +2496,7 @@ pub fn build() -> Vec<Op> {
     // wire, while the elided route independently fail-closes on the raw values.
     set_default_env("SUB4_PINGPONG_INPUT_AWARE_CONSTPROP", "1");
     set_default_env("SUB4_PP_THIRD_PASSENGER", "1");
-    set_default_env("SUB4_PP_FOURTH_PASSENGER", "1");
+    set_default_env("SUB4_PP_FOURTH_PASSENGER", "0");
     set_default_env("SUB4_PP_FUSE_ROUND1", "1");
     set_default_env("SUB4_PP_ROUND0_SPARSE_FWD", "1");
     set_default_env("SUB4_SQUARE_KARATSUBA2", "1");
@@ -2509,6 +2509,7 @@ pub fn build() -> Vec<Op> {
     set_default_env("TLM_CASCADE_DISABLE", "1");
     set_default_env("SUB4_PINGPONG_TAIL_NONCE", "12023044890526");
     set_default_env("SUB4_PP_ELIDE_ROUND0_A0", "1");
+    set_default_env("SUB4_PP_ELIDE_GENERIC_S2", "1");
 
     set_default_env("TLM_GRAD_FINAL_NO_COUT", "1");
     set_default_env("TLM_APPLY_FWD_FIRST_CSWAP_SKIP", "1");
@@ -2596,6 +2597,10 @@ pub fn build() -> Vec<Op> {
         return Vec::new();
     }
     if std::env::var_os("SUB4_LEGACY_POINT_ADD").is_none() {
+        if std::env::var_os("SUB4_PP_GENERIC_S2_SELFTEST").is_some() {
+            pingpong_div::generic_s2_host_selfcheck();
+            return Vec::new();
+        }
         if std::env::var_os("SUB4_PP_ROUND0_A0_SELFTEST").is_some() {
             pingpong_div::round0_a0_elision_selfcheck();
             return Vec::new();

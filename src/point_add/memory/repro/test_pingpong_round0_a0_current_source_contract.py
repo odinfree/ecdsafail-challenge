@@ -28,7 +28,7 @@ EXACT_ROUTE = {
     "SUB4_PINGPONG_LOW56_FOLD": "1",
     "SUB4_PINGPONG_INPUT_AWARE_CONSTPROP": "1",
     "SUB4_PP_THIRD_PASSENGER": "1",
-    "SUB4_PP_FOURTH_PASSENGER": "1",
+    "SUB4_PP_FOURTH_PASSENGER": "0",
     "SUB4_PP_FUSE_ROUND1": "1",
     "SUB4_PP_ROUND0_SPARSE_FWD": "1",
     "SUB4_APPLY_STRIP": "0",
@@ -181,6 +181,16 @@ class CurrentSourceRoundZeroA0ContractTests(unittest.TestCase):
                 re.DOTALL,
             ),
         )
+
+    def test_a0_differential_isolates_then_restores_generic_s2_host(self) -> None:
+        selfcheck = function_body(self.route, "round0_a0_elision_selfcheck")
+        disable = selfcheck.index('set_var("SUB4_PP_ELIDE_GENERIC_S2", "0")')
+        retained = selfcheck.index("let retained_walk = run_walk_lifecycle(false)")
+        restore = selfcheck.index('set_var("SUB4_PP_ELIDE_GENERIC_S2", "1")')
+        simulator = selfcheck.index("pingpong_simulator_selfcheck()")
+        self.assertLess(disable, retained)
+        self.assertLess(retained, restore)
+        self.assertLess(restore, simulator)
 
     def test_dense_exception_boundaries_are_exact(self) -> None:
         modulus = (1 << 256) - (1 << 32) - 977
