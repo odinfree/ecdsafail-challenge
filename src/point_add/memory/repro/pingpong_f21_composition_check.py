@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import struct
 import subprocess
@@ -353,6 +354,14 @@ def check_evidence(
             "executed-T per-lane delta does not equal unconditional transform removals"
         )
 
+    baseline_average_t = baseline_scan["executed_t"] / lanes
+    candidate_average_t = candidate_scan["executed_t"] / lanes
+    # eval_circuit.rs::write_score rounds a non-negative f64 average to the
+    # nearest integer before multiplying by Q. Derive that value from the paired
+    # integer totals so a report cannot accidentally reuse a stale profile.
+    baseline_rounded_t = math.floor(baseline_average_t + 0.5)
+    candidate_rounded_t = math.floor(candidate_average_t + 0.5)
+
     classes = Counter(row["label"] for row in transforms)
     decisions = Counter(row["decision"].split(" ", 1)[0] for row in transforms)
     return {
@@ -367,7 +376,18 @@ def check_evidence(
         ),
         "baseline_executed_t": baseline_scan["executed_t"],
         "candidate_executed_t": candidate_scan["executed_t"],
+        "executed_t_delta_total": executed_t_delta,
         "executed_t_delta_per_lane": per_lane,
+        "baseline_average_t": baseline_average_t,
+        "candidate_average_t": candidate_average_t,
+        "baseline_rounded_t": baseline_rounded_t,
+        "candidate_rounded_t": candidate_rounded_t,
+        "baseline_evaluator_style_score": (
+            baseline_rounded_t * baseline_fingerprint["qubits"]
+        ),
+        "candidate_evaluator_style_score": (
+            candidate_rounded_t * candidate_fingerprint["qubits"]
+        ),
         "transform_count": len(transforms),
         "transform_classes": dict(sorted(classes.items())),
         "transform_decisions": dict(sorted(decisions.items())),

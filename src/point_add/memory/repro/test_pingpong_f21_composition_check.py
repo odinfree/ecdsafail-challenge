@@ -93,6 +93,24 @@ class PingpongF21CompositionCheckTest(unittest.TestCase):
         self.assertEqual("ADMIT_TO_HUMAN_REVIEW_F21", verdict["verdict"])
         self.assertEqual(2, verdict["executed_t_delta_per_lane"])
         self.assertEqual(2, verdict["transform_count"])
+        self.assertEqual(11.0, verdict["baseline_average_t"])
+        self.assertEqual(9.0, verdict["candidate_average_t"])
+        self.assertEqual(11, verdict["baseline_rounded_t"])
+        self.assertEqual(9, verdict["candidate_rounded_t"])
+        self.assertEqual(13_915, verdict["baseline_evaluator_style_score"])
+        self.assertEqual(11_385, verdict["candidate_evaluator_style_score"])
+
+    def test_evaluator_metrics_round_half_up_from_exact_totals(self) -> None:
+        self.baseline_text = scan_line(ops=1000, executed_t=1472)
+        self.candidate_text = candidate_log().replace(
+            scan_line(ops=999, executed_t=1152),
+            scan_line(ops=999, executed_t=1216),
+        )
+        verdict = self.check()
+        self.assertEqual(11.5, verdict["baseline_average_t"])
+        self.assertEqual(9.5, verdict["candidate_average_t"])
+        self.assertEqual(12, verdict["baseline_rounded_t"])
+        self.assertEqual(10, verdict["candidate_rounded_t"])
 
     def test_rejects_unequal_full_state_digest(self) -> None:
         self.candidate_text = candidate_log().replace("ab" * 32, "cd" * 32)

@@ -20,7 +20,7 @@ evidence, not an untouched clean-nonce evaluation or an official score.
 
 ## TDD and controlled evidence
 
-The inherited F21 contract and composition-checker suites pass `16/16`.
+The inherited F21 suites plus the score-binding regression pass `17/17`.
 `cargo build --release --locked --bin build_circuit --bin eval_circuit`
 also passes (three pre-existing warnings only).
 
@@ -42,15 +42,26 @@ then on the full 141 x 64 = 9,024 controlled-lane gate. Both runs returned
   digest on all 9,024 controlled lanes:
   `f0860e3b6c995824367fd69de4d8be357a461f4c33fc028eb37c33ed5d1a8b8d`.
 - Phase, ancilla, classical, and dirty-free-event fields match exactly.
+- The full paired gate is deliberately not presented as clean: each artifact
+  reports `22` classical-fault lanes and `9` phase-fault lanes. This gate proves
+  transformation equivalence on the controlled population, not correctness.
 
-The N1 Q1265 64-lane profile is `906,761.45` executed Toffoli. Because the 51
-removed CCX operations are unconditional on every lane, the paired proxy is
-`906,710.45`, giving:
+The exact paired artifacts have baseline average `906,746.953125` and stacked
+average `906,695.953125` executed Toffoli on both the 2 x 64 and 141 x 64
+controlled-lane gates. The full-gate totals are respectively `8,182,484,505`
+and `8,182,024,281`; their difference is exactly `460,224 = 51 x 9,024`.
+
+The official evaluator rounds average Toffoli before multiplying by qubits
+(`eval_circuit.rs::write_score`). On that exact scoring rule, the current
+artifact projects:
 
 ```text
-Q1265 proxy score       1,146,988,719.25
-live score              1,150,873,758.00
-projected lead              3,885,038.75  (0.337573%)
+Q1265 raw proxy product  1,146,970,380.703125
+raw lead                     3,903,377.296875  (0.339166%)
+rounded Toffoli                        906,696
+evaluator-style score       1,146,970,440
+live score                  1,150,873,758
+evaluator-style lead            3,903,318       (0.339161%)
 ```
 
 This is a stronger local value candidate than N1 alone, but the official
@@ -58,6 +69,16 @@ This is a stronger local value candidate than N1 alone, but the official
 executed-Toffoli value and correctness therefore remain unclaimed until the
 candidate has a new source-bound prefilter/checkpoint, a clean nonce, and an
 untouched official evaluator run.
+
+Correction: report commit `2be2c72` incorrectly combined the older N1
+`906,761.45` profile with the new stacked artifact. That stale metric binding
+produced a `1,146,988,719.25` raw projection and is rejected. The values above
+are bound directly to stacked artifact SHA-256 `ea7e6f85a74cb2fab138c4f764f84fdc0a9fe2c6b5487944de009a8af28d82d0`
+and its paired full-gate log. The checker now derives both raw averages and
+evaluator-style rounded scores from the paired integer totals, preventing the
+same stale-profile substitution. This correction changes only the value packet;
+it does not turn the dirty controlled-lane gate into official correctness
+evidence.
 
 ## Remaining gates
 
