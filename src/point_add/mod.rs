@@ -2471,16 +2471,13 @@ pub fn build() -> Vec<Op> {
     // retired installer.
     std::env::set_var("TLM_FFG_MAX_G", "55");
     set_default_env("SUB4_PINGPONG_LOW56_FOLD", "1");
-    set_default_env("SUB4_PP_ROUNDS", "696");
-    // Keep one additional multiply traversal round as a bounded reliability
-    // purchase. The extra tape wire raises this composition from Q1267 to
-    // Q1268 while retaining a projected score improvement above 0.1%.
+    set_default_env("SUB4_PP_ROUNDS", "695");
     set_default_env("SUB4_PP_ROUNDS_MUL", "694");
     set_default_env("SUB4_PP_R1", "335");
     set_default_env("SUB4_PP_R1_MUL", "315");
     set_default_env("SUB4_PP_R2", "645");
     set_default_env("SUB4_PP_PEAK", "1267");
-    set_default_env("SUB4_PP_WALK_PEAK", "1267");
+    set_default_env("SUB4_PP_WALK_PEAK", "1265");
     set_default_env("SUB4_PP_REPLAY_CHUNK", "96");
     set_default_env("SUB4_PP_REPLAY_CHUNK_COMPARE", "22");
     set_default_env("SUB4_PP_REPLAY_FOLD_WINDOW", "54");
@@ -2494,6 +2491,24 @@ pub fn build() -> Vec<Op> {
     set_default_env("SUB4_PP_REPLAY_FLAG_COMPARE", "22");
     set_default_env("SUB4_SQUARE_CHUNK_MIN", "18446744073709551615");
     set_default_env("SUB4_SQUARE_LADDER", "243");
+    // Freeze the complete source-bound R695/W1265/CC22 candidate route. These
+    // remain defaults so explicit A/B controls can retain round zero's a0
+    // wire, while the elided route independently fail-closes on the raw values.
+    set_default_env("SUB4_PINGPONG_INPUT_AWARE_CONSTPROP", "1");
+    set_default_env("SUB4_PP_THIRD_PASSENGER", "1");
+    set_default_env("SUB4_PP_FOURTH_PASSENGER", "1");
+    set_default_env("SUB4_PP_FUSE_ROUND1", "1");
+    set_default_env("SUB4_PP_ROUND0_SPARSE_FWD", "1");
+    set_default_env("SUB4_SQUARE_KARATSUBA2", "1");
+    set_default_env("SUB4_SQUARE_BK2_MIN", "128");
+    set_default_env("SUB4_SQUARE_B_LOCAL_K2", "1");
+    set_default_env("SUB4_SQUARE_AMAT_MIN", "128");
+    set_default_env("SUB4_SQUARE_CMAT_MIN", "128");
+    set_default_env("SUB4_SQUARE_A_MAT", "1");
+    set_default_env("SUB4_SQUARE_C_MAT", "1");
+    set_default_env("TLM_CASCADE_DISABLE", "1");
+    set_default_env("SUB4_PINGPONG_TAIL_NONCE", "12023044890526");
+    set_default_env("SUB4_PP_ELIDE_ROUND0_A0", "1");
 
     set_default_env("TLM_GRAD_FINAL_NO_COUT", "1");
     set_default_env("TLM_APPLY_FWD_FIRST_CSWAP_SKIP", "1");
@@ -2581,6 +2596,10 @@ pub fn build() -> Vec<Op> {
         return Vec::new();
     }
     if std::env::var_os("SUB4_LEGACY_POINT_ADD").is_none() {
+        if std::env::var_os("SUB4_PP_ROUND0_A0_SELFTEST").is_some() {
+            pingpong_div::round0_a0_elision_selfcheck();
+            return Vec::new();
+        }
         if std::env::var_os("SUB4_PINGPONG_POINT_ADD_SELFTEST").is_some() {
             pingpong_div::pingpong_point_add_simulator_selfcheck();
             return Vec::new();

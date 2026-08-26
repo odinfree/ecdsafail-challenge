@@ -231,6 +231,9 @@ pub(crate) fn pingpong_mod_mul_div_in_place(
 ) {
     assert_eq!(denominator.len(), N);
     assert_eq!(numerator.len(), N);
+    // Validate the experimental route even if a future geometry bypasses the
+    // fused round-zero lifecycle sites below.
+    let _ = round0_a0_elision_enabled();
 
     let mut u = load_const(b, N, SECP256K1_P);
     u.extend(b.alloc_qubits(VALUE_WIDTH - N));
@@ -735,6 +738,110 @@ fn mux_round0_correction_enabled() -> bool {
     std::env::var_os("SUB4_PINGPONG_SPLIT_ROUND0").is_none()
 }
 
+const ROUND0_A0_EXACT_ROUTE: &[(&str, &str)] = &[
+    ("SUB4_PP_ROUNDS", "695"),
+    ("SUB4_PP_ROUNDS_MUL", "694"),
+    ("SUB4_PP_R1", "335"),
+    ("SUB4_PP_R1_MUL", "315"),
+    ("SUB4_PP_R2", "645"),
+    ("SUB4_PP_PEAK", "1267"),
+    ("SUB4_PP_WALK_PEAK", "1265"),
+    ("SUB4_PP_REPLAY_CHUNK", "96"),
+    ("SUB4_PP_REPLAY_CHUNK_COMPARE", "22"),
+    ("SUB4_PP_REPLAY_FOLD_WINDOW", "54"),
+    ("SUB4_PP_REPLAY_FOLD_WINDOW_MUL", "53"),
+    ("SUB4_PP_ENDPOINT_FOLD_WINDOW", "26"),
+    ("SUB4_PP_REPLAY_FLAG_COMPARE", "22"),
+    ("SUB4_PP_SIGNED_FRAME", "0"),
+    ("SUB4_PINGPONG_LOW56_FOLD", "1"),
+    ("SUB4_PINGPONG_INPUT_AWARE_CONSTPROP", "1"),
+    ("SUB4_PP_THIRD_PASSENGER", "1"),
+    ("SUB4_PP_FOURTH_PASSENGER", "1"),
+    ("SUB4_PP_FUSE_ROUND1", "1"),
+    ("SUB4_PP_ROUND0_SPARSE_FWD", "1"),
+    ("SUB4_APPLY_STRIP", "0"),
+    ("SUB4_SQUARE_CHUNK_MIN", "18446744073709551615"),
+    ("SUB4_SQUARE_LADDER", "243"),
+    ("SUB4_SQUARE_KARATSUBA2", "1"),
+    ("SUB4_SQUARE_BK2_MIN", "128"),
+    ("SUB4_SQUARE_B_LOCAL_K2", "1"),
+    ("SUB4_SQUARE_AMAT_MIN", "128"),
+    ("SUB4_SQUARE_CMAT_MIN", "128"),
+    ("SUB4_SQUARE_A_MAT", "1"),
+    ("SUB4_SQUARE_C_MAT", "1"),
+    ("TLM_CASCADE_DISABLE", "1"),
+    ("TLM_FFG_MAX_G", "55"),
+    ("SUB4_PINGPONG_TAIL_NONCE", "12023044890526"),
+    ("SUB4_PP_ELIDE_ROUND0_A0", "1"),
+];
+
+const ROUND0_A0_FORBIDDEN_ROUTE_ENV: &[&str] = &[
+    "SUB4_PP_SCHED_LINEAR",
+    "SUB4_PP_WSCHED_FILE",
+    "SUB4_PP_SCHED_BIAS",
+    "SUB4_PP_WIDTH_RESCALE",
+    "SUB4_PP_WIDTH_REPAIR",
+    "SUB4_PP_WALK_TOP_SKIP",
+    "SUB4_PP_NO_WALK_SPLIT",
+    "SUB4_PP_LEGACY_LADDER",
+    "SUB4_PP_NO_INTERLEAVE",
+    "SUB4_PP_LEGACY_CHUNK_ORDER",
+    "SUB4_PP_LOAN_ONE",
+    "SUB4_PP_SIGNED_REPAIR",
+    "SUB4_PINGPONG_SEPARATE_LIFT",
+    "SUB4_PINGPONG_SEPARATE_ENDPOINT",
+    "SUB4_PINGPONG_SPLIT_ROUND0",
+    "SUB4_PINGPONG_UNFUSED_INVERSE",
+    "SUB4_PINGPONG_GENERIC_WALK",
+    "SUB4_PINGPONG_KEEP_ODD_LIFT",
+    "SUB4_SQUARE_ACK2_MIN",
+    "TLM_CONSTPROP_STRADDLE",
+];
+
+fn require_round0_a0_exact_route() {
+    for &(name, want) in ROUND0_A0_EXACT_ROUTE {
+        let raw = std::env::var(name)
+            .unwrap_or_else(|_| panic!("SUB4_PP_ELIDE_ROUND0_A0 requires {name}={want}"));
+        assert_eq!(raw, want, "SUB4_PP_ELIDE_ROUND0_A0 requires raw {name}={want}");
+    }
+    for &name in ROUND0_A0_FORBIDDEN_ROUTE_ENV {
+        assert!(
+            std::env::var_os(name).is_none(),
+            "SUB4_PP_ELIDE_ROUND0_A0 requires {name} to be absent"
+        );
+    }
+}
+
+/// Release round zero's retained input-low-bit tape wire only on the exact
+/// source-baked sparse R695/W1265 route. The sparse correction's carry window
+/// ends below bit 255, so its output has the reversible identity v[255] = a0.
+/// The ideal dense cell has known boundary exceptions and is rejected here.
+fn round0_a0_elision_enabled() -> bool {
+    let enabled = match std::env::var_os("SUB4_PP_ELIDE_ROUND0_A0") {
+        None => false,
+        Some(value) if value == "0" => false,
+        Some(value) if value == "1" => true,
+        Some(value) => panic!(
+            "SUB4_PP_ELIDE_ROUND0_A0 must be 0 or 1, got {:?}",
+            value.to_string_lossy()
+        ),
+    };
+    if enabled {
+        require_round0_a0_exact_route();
+        assert!(
+            fused_lift_round0_enabled()
+                && mux_round0_correction_enabled()
+                && round0_sparse_fwd_enabled(),
+            "SUB4_PP_ELIDE_ROUND0_A0 requires the sparse fused round-zero cell"
+        );
+        assert!(
+            replay_fold_window() <= N - 1,
+            "SUB4_PP_ELIDE_ROUND0_A0 requires its carry window below v[255]"
+        );
+    }
+    enabled
+}
+
 /// REPORT5 §2: BAKED default ON (2026-08-23; -404 T, peak-neutral, CF-neutral
 /// on the frozen 72,192-shot population). `SUB4_PP_ROUND0_SPARSE_FWD=0`
 /// selects the old dense forward round-0 lift; any other value (or unset)
@@ -922,6 +1029,19 @@ fn fused_lift_round0_forward(b: &mut B, v: &[QubitId]) -> QubitId {
     a0
 }
 
+/// Emit the fused round-zero cell and return its replay-tape entry. In the
+/// elided route, clear and release the redundant a0 wire; no replay operation
+/// may consume the sentinel stored in its place.
+fn walk_round0_forward_tape(b: &mut B, v: &[QubitId]) -> QubitId {
+    let a0 = fused_lift_round0_forward(b, v);
+    if !round0_a0_elision_enabled() {
+        return a0;
+    }
+    b.cx(v[N - 1], a0);
+    b.release_clean(a0);
+    crate::circuit::NO_QUBIT
+}
+
 /// W3: walk round 1 against the still-classical `u = p`.
 ///
 /// Round 0 is already fused (`fused_lift_round0_forward`); round 1 was missed.
@@ -1103,6 +1223,21 @@ fn fused_lift_round0_reverse_sparse(b: &mut B, v: &[QubitId], a0: QubitId) {
     b.free(not_a1);
     b.cx(v[0], a0);
     b.free(a0);
+}
+
+/// Reconstruct the elided a0 immediately before the inverse round-zero cell.
+/// The caller has already restored the scheduled width, so v[255] exists and
+/// still equals the released tape value.
+fn walk_round0_reverse_tape(b: &mut B, v: &[QubitId], tape0: QubitId) {
+    if !round0_a0_elision_enabled() {
+        assert_ne!(tape0, crate::circuit::NO_QUBIT);
+        fused_lift_round0_reverse(b, v, tape0);
+        return;
+    }
+    assert_eq!(tape0, crate::circuit::NO_QUBIT);
+    let a0 = b.alloc_qubit();
+    b.cx(v[N - 1], a0);
+    fused_lift_round0_reverse(b, v, a0);
 }
 
 thread_local! {
@@ -1695,7 +1830,7 @@ fn walk_round(
     let width = value_width(round);
     shrink_to(b, u, v, width);
     if round == 0 && fused_lift_round0_enabled() {
-        return fused_lift_round0_forward(b, v);
+        return walk_round0_forward_tape(b, v);
     }
     if round == 1 && fuse_round1_enabled() {
         return fused_round1_forward(b, &u[..width], &v[..width]);
@@ -1734,7 +1869,7 @@ fn walk_back_round(
     let width = value_width(round);
     grow_to(b, u, v, width);
     if round == 0 && fused_lift_round0_enabled() {
-        fused_lift_round0_reverse(b, v, sign);
+        walk_round0_reverse_tape(b, v, sign);
         return;
     }
     if round == 1 && fuse_round1_enabled() {
@@ -2027,7 +2162,7 @@ fn value_walk(b: &mut B, u: &mut Vec<QubitId>, v: &mut Vec<QubitId>, rounds: usi
         }
 
         if round == 0 && fused_lift_round0_enabled() {
-            tape.push(fused_lift_round0_forward(b, v));
+            tape.push(walk_round0_forward_tape(b, v));
             continue;
         }
         if round == 1 && fuse_round1_enabled() {
@@ -2075,7 +2210,7 @@ fn value_walk_back(b: &mut B, u: &mut Vec<QubitId>, v: &mut Vec<QubitId>, tape: 
 
 
         if round == 0 && fused_lift_round0_enabled() {
-            fused_lift_round0_reverse(b, v, tape[round]);
+            walk_round0_reverse_tape(b, v, tape[round]);
             continue;
         }
         if round == 1 && fuse_round1_enabled() {
@@ -3457,6 +3592,312 @@ pub(crate) fn pingpong_simulator_selfcheck() {
 fn divide_and_multiply_preserve_the_abi_and_clean_ancillas() {
     pingpong_simulator_selfcheck();
 }
+
+pub(crate) fn round0_a0_elision_selfcheck() {
+    use crate::circuit::QubitOrBit;
+    use sha3::{
+        digest::{ExtendableOutput, Update},
+        Shake256,
+    };
+
+    assert!(
+        round0_a0_elision_enabled(),
+        "round0 a0 selftest requires SUB4_PP_ELIDE_ROUND0_A0=1"
+    );
+    let f = U256::MAX
+        .wrapping_sub(SECP256K1_P)
+        .wrapping_add(U256::from(1));
+    let h: U256 = f.wrapping_sub(U256::from(1)) >> 1;
+    let high_first = U256::ZERO
+        .wrapping_sub(f.wrapping_add(f))
+        .wrapping_add(U256::from(2));
+    let low_last = f.wrapping_sub(U256::from(2));
+    let mut values = vec![
+        U256::from(0),
+        U256::from(1),
+        U256::from(2),
+        U256::from(3),
+        low_last,
+        f.wrapping_add(U256::from(2)),
+        high_first.wrapping_sub(U256::from(4)),
+        high_first,
+        SECP256K1_P.wrapping_sub(U256::from(4)),
+        SECP256K1_P.wrapping_sub(U256::from(3)),
+        SECP256K1_P.wrapping_sub(U256::from(2)),
+        SECP256K1_P.wrapping_sub(U256::from(1)),
+    ];
+    let mut state = 0x243f_6a88_85a3_08d3u64;
+    while values.len() < 64 {
+        let mut limbs = [0u64; 4];
+        for limb in &mut limbs {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            *limb = state;
+        }
+        values.push(U256::from_limbs(limbs) % SECP256K1_P);
+    }
+    assert_eq!(values.len(), 64);
+
+    let ideal_exception = |a: U256| {
+        let q: U256 = a >> 1;
+        match a.as_limbs()[0] & 3 {
+            3 => q < h,
+            0 => q.wrapping_add(f).bit(N - 1),
+            _ => false,
+        }
+    };
+    let ideal_v255 = |a: U256| {
+        let q: U256 = a >> 1;
+        let a0 = a.bit(0);
+        let a1 = a.bit(1);
+        let k = (SECP256K1_P.wrapping_add(U256::from(1))) >> 1;
+        let mut w = q.wrapping_sub(SECP256K1_P);
+        if a1 {
+            w = w.wrapping_add(SECP256K1_P);
+        }
+        if a0 {
+            w = w.wrapping_add(k);
+        }
+        w.bit(N - 1)
+    };
+    for &a in &values[..12] {
+        assert_eq!(
+            ideal_v255(a) != a.bit(0),
+            ideal_exception(a),
+            "ideal exceptional-support predicate disagreed at a={a:#x}"
+        );
+    }
+    for &a in &[
+        values[0], values[1], values[2], values[5], values[6], values[8], values[10],
+        values[11],
+    ] {
+        assert!(
+            !ideal_exception(a),
+            "expected ideal boundary match at a={a:#x}"
+        );
+    }
+    for &a in &[values[3], values[4], values[7], values[9]] {
+        assert!(
+            ideal_exception(a),
+            "expected ideal boundary exception at a={a:#x}"
+        );
+    }
+    let h_count = h.as_limbs()[0];
+    assert_eq!(h_count, 2_147_484_136);
+    let low_span: U256 = low_last.wrapping_sub(U256::from(3)) >> 2;
+    let low_arm_count = low_span.wrapping_add(U256::from(1)).as_limbs()[0];
+    let high_last = SECP256K1_P.wrapping_sub(U256::from(3));
+    let high_span: U256 = high_last.wrapping_sub(high_first) >> 2;
+    let high_arm_count = high_span.wrapping_add(U256::from(1)).as_limbs()[0];
+    assert_eq!(low_arm_count, h_count / 2);
+    assert_eq!(high_arm_count, h_count / 2);
+    assert_eq!(low_arm_count + high_arm_count, h_count);
+
+    let run_explicit_forward = |sparse: bool| {
+        std::env::set_var(
+            "SUB4_PP_ROUND0_SPARSE_FWD",
+            if sparse { "1" } else { "0" },
+        );
+        let mut b = B::new();
+        let v = b.alloc_qubits(VALUE_WIDTH);
+        let input = v[..N].to_vec();
+        let a0 = fused_lift_round0_forward(&mut b, &v);
+        let num_qubits = b.next_qubit as usize;
+        let num_bits = b.next_bit as usize;
+        let ops = b.take_ops();
+        let input_reg: Vec<QubitOrBit> =
+            input.iter().copied().map(QubitOrBit::Qubit).collect();
+        let mut seed = Shake256::default();
+        seed.update(if sparse {
+            b"round0 a0 sparse forward".as_slice()
+        } else {
+            b"round0 a0 dense control".as_slice()
+        });
+        let mut reader = seed.finalize_xof();
+        let mut sim = Simulator::new(num_qubits, num_bits, &mut reader);
+        for (shot, value) in values.iter().copied().enumerate() {
+            sim.set_register(&input_reg, value, shot);
+        }
+        sim.apply_iter(ops.iter());
+        for (shot, value) in values.iter().copied().enumerate() {
+            let mask = 1u64 << shot;
+            let mismatch = (sim.qubit(a0) ^ sim.qubit(v[N - 1])) & mask != 0;
+            assert_eq!(
+                mismatch,
+                if sparse {
+                    false
+                } else {
+                    ideal_exception(value)
+                },
+                "{} relation mismatch at a={value:#x}",
+                if sparse {
+                    "baked sparse"
+                } else {
+                    "dense control"
+                }
+            );
+        }
+        assert_eq!(sim.phase, 0, "round0 forward left phase garbage");
+        for q in 0..num_qubits as u64 {
+            let q = QubitId(q);
+            if v.contains(&q) || q == a0 {
+                continue;
+            }
+            assert_eq!(
+                sim.qubit(q),
+                0,
+                "round0 forward left dirty ancilla {q:?}"
+            );
+        }
+    };
+    run_explicit_forward(false);
+    run_explicit_forward(true);
+
+    std::env::set_var("SUB4_PP_ROUND0_SPARSE_FWD", "1");
+    let run_roundtrip = |elided: bool| {
+        std::env::set_var(
+            "SUB4_PP_ELIDE_ROUND0_A0",
+            if elided { "1" } else { "0" },
+        );
+        let mut b = B::new();
+        let v = b.alloc_qubits(VALUE_WIDTH);
+        let input = v[..N].to_vec();
+        let tape0 = walk_round0_forward_tape(&mut b, &v);
+        assert_eq!(tape0 == crate::circuit::NO_QUBIT, elided);
+        assert_eq!(
+            b.active_qubits as usize,
+            VALUE_WIDTH + usize::from(!elided)
+        );
+        walk_round0_reverse_tape(&mut b, &v, tape0);
+        assert_eq!(b.active_qubits as usize, VALUE_WIDTH);
+        let num_qubits = b.next_qubit as usize;
+        let num_bits = b.next_bit as usize;
+        let ops = b.take_ops();
+        let input_reg: Vec<QubitOrBit> =
+            input.iter().copied().map(QubitOrBit::Qubit).collect();
+        let mut seed = Shake256::default();
+        seed.update(b"round0 a0 roundtrip differential");
+        let mut reader = seed.finalize_xof();
+        let mut sim = Simulator::new(num_qubits, num_bits, &mut reader);
+        for (shot, value) in values.iter().copied().enumerate() {
+            sim.set_register(&input_reg, value, shot);
+        }
+        sim.apply_iter(ops.iter());
+        let outputs: Vec<(U256, [bool; VALUE_WIDTH - N])> = (0..64)
+            .map(|shot| {
+                (
+                    sim.get_register(&input_reg, shot),
+                    std::array::from_fn(|i| sim.qubit(v[N + i]) & (1u64 << shot) != 0),
+                )
+            })
+            .collect();
+        assert_eq!(sim.phase, 0, "round0 roundtrip left phase garbage");
+        for q in 0..num_qubits as u64 {
+            let q = QubitId(q);
+            if v.contains(&q) {
+                continue;
+            }
+            assert_eq!(
+                sim.qubit(q),
+                0,
+                "round0 roundtrip left dirty ancilla {q:?}"
+            );
+        }
+        outputs
+    };
+    let retained = run_roundtrip(false);
+    let elided = run_roundtrip(true);
+    assert_eq!(
+        elided, retained,
+        "a0 elision changed the sparse round0 lifecycle"
+    );
+    for (shot, &value) in values[..12].iter().enumerate() {
+        let (output, high) = &retained[shot];
+        let mismatch = *output != value || high.iter().any(|&bit| bit);
+        assert_eq!(
+            mismatch,
+            ideal_exception(value),
+            "retained sparse lifecycle support disagreed at a={value:#x}"
+        );
+    }
+
+    let run_walk_lifecycle = |elided: bool| {
+        std::env::set_var(
+            "SUB4_PP_ELIDE_ROUND0_A0",
+            if elided { "1" } else { "0" },
+        );
+        let mut b = B::new();
+        let mut u = b.alloc_qubits(VALUE_WIDTH);
+        let mut v = b.alloc_qubits(VALUE_WIDTH);
+        let input_u = u[..N].to_vec();
+        let input_v = v[..N].to_vec();
+        let tape = value_walk(&mut b, &mut u, &mut v, rounds());
+        value_walk_back(&mut b, &mut u, &mut v, tape);
+        assert_eq!(b.active_qubits as usize, 2 * VALUE_WIDTH);
+        let num_qubits = b.next_qubit as usize;
+        let num_bits = b.next_bit as usize;
+        let ops = b.take_ops();
+        let input_u_reg: Vec<QubitOrBit> =
+            input_u.iter().copied().map(QubitOrBit::Qubit).collect();
+        let input_v_reg: Vec<QubitOrBit> =
+            input_v.iter().copied().map(QubitOrBit::Qubit).collect();
+        let output_u_reg: Vec<QubitOrBit> =
+            u[..N].iter().copied().map(QubitOrBit::Qubit).collect();
+        let output_v_reg: Vec<QubitOrBit> =
+            v[..N].iter().copied().map(QubitOrBit::Qubit).collect();
+        let mut seed = Shake256::default();
+        seed.update(b"round0 a0 full-walk differential");
+        let mut reader = seed.finalize_xof();
+        let mut sim = Simulator::new(num_qubits, num_bits, &mut reader);
+        for (shot, value) in values.iter().copied().enumerate() {
+            sim.set_register(&input_u_reg, SECP256K1_P, shot);
+            sim.set_register(&input_v_reg, value, shot);
+        }
+        sim.apply_iter(ops.iter());
+        let outputs: Vec<(U256, U256, [bool; 2 * (VALUE_WIDTH - N)])> = (0..64)
+            .map(|shot| {
+                (
+                    sim.get_register(&output_u_reg, shot),
+                    sim.get_register(&output_v_reg, shot),
+                    std::array::from_fn(|i| {
+                        let q = if i < VALUE_WIDTH - N {
+                            u[N + i]
+                        } else {
+                            v[N + i - (VALUE_WIDTH - N)]
+                        };
+                        sim.qubit(q) & (1u64 << shot) != 0
+                    }),
+                )
+            })
+            .collect();
+        for q in 0..num_qubits as u64 {
+            let q = QubitId(q);
+            if u.contains(&q) || v.contains(&q) {
+                continue;
+            }
+            assert_eq!(
+                sim.qubit(q),
+                0,
+                "full value walk left dirty ancilla {q:?}"
+            );
+        }
+        (outputs, sim.phase)
+    };
+    let retained_walk = run_walk_lifecycle(false);
+    let elided_walk = run_walk_lifecycle(true);
+    assert_eq!(
+        elided_walk, retained_walk,
+        "a0 elision changed full-walk outputs or phase"
+    );
+
+    std::env::set_var("SUB4_PP_ELIDE_ROUND0_A0", "1");
+    pingpong_simulator_selfcheck();
+    eprintln!(
+        "SUB4_PP_ROUND0_A0_SELFTEST: PASS (ideal exceptions={h_count}, baked sparse exceptions=0; roundtrip and Divide/Multiply clean)"
+    );
+}
+
 
 /// Diagnostic: print the per-round value-width schedule for both the base
 /// (identity index, `SUB4_PP_WIDTH_RESCALE=0`) and rescaled (default-on
