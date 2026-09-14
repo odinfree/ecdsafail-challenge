@@ -2529,6 +2529,8 @@ pub fn build() -> Vec<Op> {
     // Diagnostic-only peak probe: cancel-path quotient top lane borrows the
     // passenger's canonical-zero top lane. OFF in production.
     set_default_env("Q792_QUOTIENT_TOP_BORROW","0");
+    // Diagnostic-only peak probe: fourth omitted Work1 tail rail (Q792). OFF.
+    set_default_env("LOWQ_Q792_EEA","0");
     // Codex 10h isolated A12 experiments. Default generation remains A12.
     // PRODUCTION-FINAL configuration baking of the already-qualified build03
     // stack02 profile. Official upload carries no environment, so the seven

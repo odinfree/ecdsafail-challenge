@@ -6,16 +6,23 @@ const FIELD_WIDTH:usize=257;const VALUE_WIDTH:usize=256;const WORK_WIDTH:usize=2
 const HALF_PLUS_ONE_LE:[u8;33]={let mut b=[0xff;33];b[0]=0x18;b[1]=0xfe;b[3]=0x7f;b[31]=0x7f;b[32]=0;b};
 struct Core {rank:Vec<QReg>,a:Vec<QReg>,c:Vec<QReg>,sm:Vec<QReg>,phase1:QReg,phase2:QReg,iteration:QReg,work1:Vec<QReg>,work2:Vec<QReg>}
 struct Terminal {iteration:QReg,work2:Vec<QReg>,history:Vec<QReg>}
+/// Diagnostic Q792 probe: fourth omitted tail rail (work1 255 physical).
+/// OFF = canonical Q793. ON is an unmeasured override (count-only only).
+pub(crate) fn four_hole()->bool{std::env::var("LOWQ_Q792_EEA").ok().as_deref()==Some("1")}
 fn free_clean(circ: &mut Circuit, register: Vec<QReg>) {
     for lane in register {
         circ.zero_and_free(lane);
     }
 }
 fn allocate_work1(circ:&mut Circuit,name:&str)->Vec<QReg>{
-    assert!(super::q796_parity::enabled()&&dual_phase());let mut word=circ.alloc_qreg_bits(name,256);word.push(QReg::omitted_lane_marker());word.push(QReg::omitted_lane_marker());word.push(QReg::omitted_lane_marker());word
+    assert!(super::q796_parity::enabled()&&dual_phase());
+    let physical=if four_hole(){255}else{256};
+    let mut word=circ.alloc_qreg_bits(name,physical);
+    for _ in 0..(3+usize::from(four_hole())){word.push(QReg::omitted_lane_marker());}
+    word
 }
 fn free_work1(circ:&mut Circuit,mut word:Vec<QReg>){
-    for _ in 0..3{let hole=word.pop().unwrap();assert_eq!(hole.id(),u32::MAX);drop(hole);}assert_eq!(word.len(),256);free_clean(circ,word);
+    for _ in 0..(3+usize::from(four_hole())){let hole=word.pop().unwrap();assert_eq!(hole.id(),u32::MAX);drop(hole);}assert_eq!(word.len(),255+usize::from(!four_hole()));free_clean(circ,word);
 }
 
 fn toggle_constant(circ: &mut Circuit, register: &[QReg], value: usize) {
@@ -33,7 +40,7 @@ fn toggle_initial_work1(circ: &mut Circuit, work1: &[QReg]) {
     circ.x(&work1[0]);
     for bit in 0..VALUE_WIDTH {
         if (SECP256K1_P_LE[bit / 8] >> (bit % 8)) & 1 != 0 {
-            if bit>=3{circ.x(&work1[WORK_WIDTH - 1 - bit]);}
+            if bit>=3+usize::from(four_hole()){circ.x(&work1[WORK_WIDTH - 1 - bit]);}
         }
     }
 }
@@ -42,7 +49,7 @@ fn toggle_terminal_work1(circ: &mut Circuit, work1: &[QReg]) {
     use crate::point_add::trailmix_port::mod_arith::SECP256K1_P_LE;
 
     assert_eq!(work1.len(), WORK_WIDTH);
-    for bit in 0..VALUE_WIDTH {
+    for bit in 0..VALUE_WIDTH-usize::from(four_hole()) {
         if (SECP256K1_P_LE[bit / 8] >> (bit % 8)) & 1 != 0 {
             circ.x(&work1[bit]);
         }
@@ -117,7 +124,8 @@ pub(super) fn template(block:usize,j:usize)->Vec<Op> {
     let p1=circ.alloc_qreg("p1");let p2=circ.alloc_qreg("borrowed_phase");let iter=circ.alloc_qreg("iter");let w1=circ.alloc_qreg_bits("w1",259);let w2=circ.alloc_qreg_bits("w2",259);let helpers=circ.alloc_qreg_bits("other_borrowed",helper_count());assert_eq!(circ.b.next_qubit,565+2*u32::from(helpers_25()));
     assert!(dual_phase());super::q793_step_r03::step(&mut circ,&rank,&a,&c,&sm,&p1,&p2,&iter,&w1,&w2,&helpers,j,block);assert_eq!(circ.b.next_qubit,565+2*u32::from(helpers_25()));
     let b=circ.into_builder();assert!(b.ops.iter().all(|o|matches!(o.kind,OperationType::X|OperationType::CX|OperationType::CCX)));
-    for h in [256,257,258]{let hole=w1[h].id()as u64;assert!(b.ops.iter().all(|o|o.q_target.0!=hole&&o.q_control1.0!=hole&&o.q_control2.0!=hole),"omitted low residual rail still emitted");}b.ops
+    let holes=if four_hole(){[255usize,256,257,258].as_slice()}else{[256usize,257,258].as_slice()};
+    for &h in holes{let hole=w1[h].id()as u64;assert!(b.ops.iter().all(|o|o.q_target.0!=hole&&o.q_control1.0!=hole&&o.q_control2.0!=hole),"omitted low residual rail still emitted");}b.ops
 }
 pub fn sprint_census(){
  let mut total_ops=0usize;let mut total_t=0usize;let mut compressed=0u64;
@@ -136,8 +144,8 @@ fn compressed_sample(ops:&[Op])->u64{
 }
 fn remap(mut ops:Vec<Op>,core_ids:&[usize],passenger:&[QReg],inverse:bool)->Vec<Op> {
     assert_eq!(core_ids.len(),542);let first=if dual_phase(){assert_eq!(core_ids[21],passenger[1].id()as usize);2}else{1};assert!(passenger.len()>=first+helper_count());assert_eq!(core_ids[22],passenger[0].id()as usize);let mut mapping=core_ids.to_vec();mapping.extend(passenger[first..first+helper_count()].iter().map(|q|q.id()as usize));
-    assert_eq!(mapping.iter().filter(|&&q|q==u32::MAX as usize).count(),3);
-    let mut unique:Vec<_>=mapping.iter().copied().filter(|&q|q!=u32::MAX as usize).collect();assert_eq!(unique.len(),539+helper_count());unique.sort_unstable();unique.dedup();assert_eq!(unique.len(),539+helper_count());
+    assert_eq!(mapping.iter().filter(|&&q|q==u32::MAX as usize).count(),3+usize::from(four_hole()));
+    let mut unique:Vec<_>=mapping.iter().copied().filter(|&q|q!=u32::MAX as usize).collect();assert_eq!(unique.len(),539+helper_count()-usize::from(four_hole()));unique.sort_unstable();unique.dedup();assert_eq!(unique.len(),539+helper_count()-usize::from(four_hole()));
     for op in &mut ops {for q in [&mut op.q_control1,&mut op.q_control2,&mut op.q_target] {if *q!=NO_QUBIT{let physical=mapping[q.0 as usize];assert_ne!(physical,u32::MAX as usize,"omitted lane appeared in emitted stream");*q=QubitId(physical as u64);}}op.validate();}
     if inverse{ops.reverse();}ops
 }
@@ -212,7 +220,7 @@ fn restore_canonical_top(circ: &mut Circuit, register: &mut Vec<QReg>, mut loan:
 }
 
 
-pub fn enabled()->bool{std::env::var("LOWQ_Q793_EEA").ok().as_deref()==Some("1")}
+pub fn enabled()->bool{four_hole()||std::env::var("LOWQ_Q793_EEA").ok().as_deref()==Some("1")}
 // Exact count from the W45 source-default integrated stream (W4 A2/A4 plus
 // the W5 baked affine-frame winners; census 0/20/100/201, whole-count A/B
 // Q793_TABLE_AFFINE=0 vs 1, and 64-shot whole-stream gates in research/w5/).
@@ -226,7 +234,8 @@ pub(crate) fn codex10h_resources()->Option<(usize,usize)>{
         && !super::metadata_muxlease::active("Q793_A18")
         && !super::metadata_muxlease::active("Q793_A19_SM0")
         && !helpers_25()
-        && !quotient_top_borrow(){
+        && !quotient_top_borrow()
+        && !four_hole(){
         Some((1_243_369_959,692_077_100))
     }else{None}
 }
@@ -234,7 +243,7 @@ pub(crate) fn candidate_resources()->(usize,usize){
     codex10h_resources().unwrap_or((CANDIDATE_OPS,CANDIDATE_TOFFOLI))
 }
 pub(crate) fn candidate_configuration()->bool{
-    enabled() && CANDIDATE_OPS>0 && super::q794_lifecycle::candidate_configuration() && !helpers_25() && !quotient_top_borrow()
+    enabled() && CANDIDATE_OPS>0 && super::q794_lifecycle::candidate_configuration() && !helpers_25() && !quotient_top_borrow() && !four_hole()
         // Only baseline defaults or the exact measured Codex feature vector
         // can use ordinary generation. Other overrides remain diagnostic-only.
         && (["Q793_R01_A_SUPPORT_TERMS","Q793_T10_C1_P1","Q793_T10_SUM_MASK","Q793_T10_PREFIX_FREE","Q793_T10_PREFIX_TREE","Q793_T10_C1_SUM_LOAN","Q793_T10_MASK_SUM_LOAN"]

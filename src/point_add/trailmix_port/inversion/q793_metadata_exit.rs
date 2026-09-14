@@ -30,7 +30,15 @@ fn second(circ:&mut Circuit,rank:&[QReg],a:&[QReg],g:&QReg,passenger:&QReg,w1:&[
     // W4 lever A4 (Q793_A4_CMAX): restrict the selector to the block's
     // analytic A-support; A254->W2[256] is always retained.
     let (lo,hi)=if super::metadata_muxlease::active("Q793_A4_CMAX"){circ.q797_a_support.unwrap_or((0,256))}else{(0,256)};
-    let mut nodes:Vec<_>=(0..256).map(|v|match v{0..=253 if (lo..hi).contains(&v)=>Some(&w1[v+2]),254=>Some(&w2[256]),_=>None}).collect();
+    let four=super::q793_lifecycle_r03::four_hole();
+    let mut nodes:Vec<_>=(0..256).map(|v|match v{
+        0..=253 if (lo..hi).contains(&v)&&!four=>Some(&w1[v+2]),
+        0..=251 if (lo..hi).contains(&v)&&four=>Some(&w1[v+3]),
+        254 if !four=>Some(&w2[256]),
+        252 if four=>Some(&w2[256]),
+        253 if four=>Some(&w2[257]),
+        254 if four=>Some(&w2[258]),
+        _=>None}).collect();
     for level in 0..8{let mut next=Vec::new();for pair in nodes.chunks_exact(2){next.push(match(pair[0],pair[1]){
         (Some(l),Some(r))=>{if level<6{circ.cswap(&a[level],l,r);}else{super::metadata_muxlease::predicate_swap(circ,rank,0,level-6,l,r,dirty);}Some(l)},
         (Some(q),None)|(None,Some(q))=>Some(q),(None,None)=>None,
@@ -57,8 +65,14 @@ pub(super) fn exit_phase_cargo(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg
     second(circ,rank,a,g,&sm[2],w1,w2,dirty);
     head(circ,rank,c,g,&sm[0],w2,dirty);
     q793_loans::global_a(circ,rank,a,&sm[3],w1,&w2[258],Some(g),dirty);
-    for(i,(x,y))in w1.iter().zip(w2).enumerate(){if ![0,1,2,256,257,258].contains(&i){circ.cswap(g,x,y);}}
-    super::q793_mod8::cycle_swap(circ,[&w1[0],&w1[1],&w1[2],&w2[0],&w2[1],&w2[2],&w2[258],&w2[257],&w2[256]],g,dirty);
+    let four=super::q793_lifecycle_r03::four_hole();
+    let skip:&[usize]=if four{&[0,1,2,3,255,256,257,258]}else{&[0,1,2,256,257,258]};
+    for(i,(x,y))in w1.iter().zip(w2).enumerate(){if !skip.contains(&i){circ.cswap(g,x,y);}}
+    if four{
+        super::q792_mod16::cycle_swap(circ,[&w1[0],&w1[1],&w1[2],&w1[3],&w2[0],&w2[1],&w2[2],&w2[3],&w2[258],&w2[257],&w2[256],&w2[255]],g,dirty);
+    }else{
+        super::q793_mod8::cycle_swap(circ,[&w1[0],&w1[1],&w1[2],&w2[0],&w2[1],&w2[2],&w2[258],&w2[257],&w2[256]],g,dirty);
+    }
     circ.cswap(g,&sm[0],&sm[1]);
     let update_start=circ.b.ops.len();
     super::q793_Aupdate::update(circ,rank,a,c,sm,g,w1,w2,dirty,lo,hi,false);
@@ -74,5 +88,6 @@ pub(super) fn exit_phase_cargo(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg
     guard(circ,rank,a,c,sm,p1,p2,g,dirty);
     if std::env::var("Q793_HELD_LOAN").ok().as_deref()!=Some("1"){q793_loans::global_a(circ,rank,a,g,w1,&w2[258],None,dirty);}
     assert_eq!(circ.b.next_qubit,owned);
-    for op in &circ.b.ops[start..]{for h in [256usize,257,258]{let q=w1[h].id()as u64;assert!(op.q_target.0!=q&&op.q_control1.0!=q&&op.q_control2.0!=q,"exit touched omitted Work1[{h}]");}}
+    let holes:&[usize]=if four{&[255,256,257,258]}else{&[256,257,258]};
+    for op in &circ.b.ops[start..]{for &h in holes{let q=w1[h].id()as u64;assert!(op.q_target.0!=q&&op.q_control1.0!=q&&op.q_control2.0!=q,"exit touched omitted Work1[{h}]");}}
 }

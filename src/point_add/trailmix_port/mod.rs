@@ -4409,7 +4409,7 @@ pub fn build_builder() -> crate::point_add::B {
     if inversion::q793_lifecycle_r03::enabled() {
         eprintln!("Q793_RUNTIME_CACHE compressed_bytes={} hits={} misses={}",builder.q793_templates.bytes(),builder.q793_templates.hits,builder.q793_templates.misses);
         eprintln!("Q793_WHOLE_RESOURCE peak_qubits={} ops={} structural_T={} count_only={}; full correctness requires own tests",builder.peak_qubits,builder.current_ops_len(),builder.counted_kind_ops[OperationType::CCX as usize]+builder.counted_kind_ops[OperationType::CCZ as usize],builder.count_only);
-        let q793_expected_peak=if inversion::q793_lifecycle_r03::helpers_25(){791}else{793};
+        let q793_expected_peak=if inversion::q793_lifecycle_r03::four_hole(){792}else if inversion::q793_lifecycle_r03::helpers_25(){791}else{793};
         assert_eq!(builder.peak_qubits,q793_expected_peak+u32::try_from(novelty_pad_qubits).unwrap(),"new three-hole whole peak drift");
         assert!(builder.current_ops_len().checked_mul(std::mem::size_of::<crate::circuit::Op>()).unwrap()<128_000_000_000,"new Q793 expanded OpVec exceeds128GB");
         if inversion::q793_lifecycle_r03::candidate_configuration(){

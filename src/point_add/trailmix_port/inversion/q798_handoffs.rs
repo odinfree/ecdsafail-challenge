@@ -9,7 +9,12 @@ pub(super) fn gather_a<'a>(circ:&mut Circuit,rank:&[QReg],a:&[QReg],word:&'a[QRe
         // Retain terminal A255 even for early-block synthetic terminal tests.
         // Offset3 is only selected by nonterminal C1/newborn cargo guards.
         // The impossible terminal leaf would otherwise touch the omitted r0.
-        let mut nodes:Vec<_>=(0..256).map(|v|if ((lo..hi).contains(&v)||v==255)&&!(super::q796_parity::enabled()&&offset==3&&v==255){Some(&word[v+offset])}else{None}).collect();
+        // 4-hole probe: the terminal sentinel lane w1[255+offset] no longer
+        // exists; excluded here so the geometry probe can run. The stream
+        // gate must then decide whether the terminal A255 cargo needs a real
+        // re-home (it does if any terminal shot diverges).
+        let four=super::q793_lifecycle_r03::four_hole();
+        let mut nodes:Vec<_>=(0..256).map(|v|if ((lo..hi).contains(&v)||v==255)&&!(super::q796_parity::enabled()&&offset==3&&v==255)&&!(four&&v==255){Some(&word[v+offset])}else{None}).collect();
         for level in 0..8 {
             let mut next=Vec::new();
             for pair in nodes.chunks_exact(2) {next.push(match(pair[0],pair[1]){
