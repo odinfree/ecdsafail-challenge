@@ -114,8 +114,8 @@ fn toggle_inverse_sign(circ:&mut Circuit,terminal:&Terminal) {
 /// Logical primitive template; physical remapping preserves every alias relation.
 pub(super) fn template(block:usize,j:usize)->Vec<Op> {
     let mut circ=Circuit::new();circ.b.count_only=false;circ.b.fiat_hash=None;let rank=circ.alloc_qreg_bits("rank",5);let a=circ.alloc_qreg_bits("a",6);let c=circ.alloc_qreg_bits("c",6);let sm=circ.alloc_qreg_bits("sm",4);
-    let p1=circ.alloc_qreg("p1");let p2=circ.alloc_qreg("borrowed_phase");let iter=circ.alloc_qreg("iter");let w1=circ.alloc_qreg_bits("w1",259);let w2=circ.alloc_qreg_bits("w2",259);let helpers=circ.alloc_qreg_bits("other_borrowed",helper_count());assert_eq!(circ.b.next_qubit,565+2*usize::from(helpers_25()));
-    assert!(dual_phase());super::q793_step_r03::step(&mut circ,&rank,&a,&c,&sm,&p1,&p2,&iter,&w1,&w2,&helpers,j,block);assert_eq!(circ.b.next_qubit,565+2*usize::from(helpers_25()));
+    let p1=circ.alloc_qreg("p1");let p2=circ.alloc_qreg("borrowed_phase");let iter=circ.alloc_qreg("iter");let w1=circ.alloc_qreg_bits("w1",259);let w2=circ.alloc_qreg_bits("w2",259);let helpers=circ.alloc_qreg_bits("other_borrowed",helper_count());assert_eq!(circ.b.next_qubit,565+2*u32::from(helpers_25()));
+    assert!(dual_phase());super::q793_step_r03::step(&mut circ,&rank,&a,&c,&sm,&p1,&p2,&iter,&w1,&w2,&helpers,j,block);assert_eq!(circ.b.next_qubit,565+2*u32::from(helpers_25()));
     let b=circ.into_builder();assert!(b.ops.iter().all(|o|matches!(o.kind,OperationType::X|OperationType::CX|OperationType::CCX)));
     for h in [256,257,258]{let hole=w1[h].id()as u64;assert!(b.ops.iter().all(|o|o.q_target.0!=hole&&o.q_control1.0!=hole&&o.q_control2.0!=hole),"omitted low residual rail still emitted");}b.ops
 }
@@ -251,7 +251,7 @@ pub(crate) fn candidate_configuration()->bool{
 /// every emission mode (compact, count-only, mbu, plain) counts it.
 fn loan_bracket_ops()->Vec<Op>{
     let mut circ=Circuit::new();circ.b.count_only=false;circ.b.fiat_hash=None;let rank=circ.alloc_qreg_bits("rank",5);let a=circ.alloc_qreg_bits("a",6);let _c=circ.alloc_qreg_bits("c",6);let _sm=circ.alloc_qreg_bits("sm",4);
-    let _p1=circ.alloc_qreg("p1");let _p2=circ.alloc_qreg("borrowed_phase");let _iter=circ.alloc_qreg("iter");let w1=circ.alloc_qreg_bits("w1",259);let w2=circ.alloc_qreg_bits("w2",259);let helpers=circ.alloc_qreg_bits("other_borrowed",helper_count());assert_eq!(circ.b.next_qubit,565+2*usize::from(helpers_25()));
+    let _p1=circ.alloc_qreg("p1");let _p2=circ.alloc_qreg("borrowed_phase");let _iter=circ.alloc_qreg("iter");let w1=circ.alloc_qreg_bits("w1",259);let w2=circ.alloc_qreg_bits("w2",259);let helpers=circ.alloc_qreg_bits("other_borrowed",helper_count());assert_eq!(circ.b.next_qubit,565+2*u32::from(helpers_25()));
     assert!(circ.q797_a_support.is_none());
     super::q793_loans::global_a(&mut circ,&rank,&a,&helpers[0],&w1,&w2[258],None,&helpers[1..]);
     let b=circ.into_builder();assert!(b.ops.iter().all(|o|matches!(o.kind,OperationType::X|OperationType::CX|OperationType::CCX)));b.ops

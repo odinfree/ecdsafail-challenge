@@ -247,7 +247,10 @@ const PLAN: &[(usize, &[i8])] = &[
 
 /// Literal index 0..11 -> word[i], 12 -> guard, 13 -> the echo dirty wire.
 pub(crate) fn cycle_swap(circ:&mut Circuit,word:[&QReg;12],g:&QReg,dirty:&[QReg]){
-    assert!(dirty.len()>=4);
+    // Widest consume is guard+d+7 low-bit literals = 9 controls; the ladder
+    // path needs n-2=7 lenders. The real exit caller passes the full helper
+    // bank (>=20); the selftest allocates exactly 7.
+    assert!(dirty.len()>=7);
     let mut ids:Vec<_>=word.iter().map(|q|q.id()).chain(std::iter::once(g.id())).chain(dirty.iter().map(QReg::id)).collect();
     ids.sort_unstable();assert!(ids.windows(2).all(|x|x[0]!=x[1]),"mod16 chart aliases a lender/guard");
     let owned=circ.b.next_qubit;let active=circ.b.active_qubits;
@@ -258,7 +261,8 @@ pub(crate) fn cycle_swap(circ:&mut Circuit,word:[&QReg;12],g:&QReg,dirty:&[QReg]
             let q=if index==12{g}else if index==13{echo}else{word[index]};
             (q,lit>0)
         }).collect();
-        super::length_recompute::mixed_mcx(circ,&cs,word[target],rest);
+        let tq=if target==13{echo}else{word[target]};
+        super::length_recompute::mixed_mcx(circ,&cs,tq,rest);
     }
     assert_eq!(circ.b.next_qubit,owned);assert_eq!(circ.b.active_qubits,active);
 }
@@ -286,24 +290,24 @@ pub fn run(){
     use sha3::digest::XofReader;
     struct Fixed;impl XofReader for Fixed{fn read(&mut self,b:&mut[u8]){b.fill(0x69);}}
     let mut circ=Circuit::new();circ.b.count_only=false;circ.b.fiat_hash=None;
-    let word=circ.alloc_qreg_bits("q792.mod16.chart",12);let g=circ.alloc_qreg("q792.mod16.guard");let dirty=circ.alloc_qreg_bits("q792.mod16.dirty",4);
+    let word=circ.alloc_qreg_bits("q792.mod16.chart",12);let g=circ.alloc_qreg("q792.mod16.guard");let dirty=circ.alloc_qreg_bits("q792.mod16.dirty",7);
     cycle_swap(&mut circ,std::array::from_fn(|i|&word[i]),&g,&dirty);
-    let b=circ.into_builder();assert_eq!(b.next_qubit,17);
+    let b=circ.into_builder();assert_eq!(b.next_qubit,20);
     assert!(b.ops.iter().all(|o|matches!(o.kind,K::X|K::CX|K::CCX)));
     let t=b.ops.iter().filter(|o|o.kind==K::CCX).count();assert_eq!(t,2644);
-    let mut rng=Fixed;let mut sim=Simulator::new(17,0,&mut rng);let mut lanes=0;
-    for guard in 0..2{for pattern in 0..16{for first in(0..4096).step_by(64){
-        let mut before=vec![0u64;17];let mut expected=before.clone();
+    let mut rng=Fixed;let mut sim=Simulator::new(20,0,&mut rng);let mut lanes=0;
+    for guard in 0..2{for pattern in 0..8{for first in(0..4096).step_by(64){
+        let mut before=vec![0u64;20];let mut expected=before.clone();
         for lane in 0..64{
             let code=first+lane;let mapped=scalar(code);assert_eq!(scalar(mapped),code);
             for (state,value)in[(&mut before,code),(&mut expected,if guard==1{mapped}else{code})]{
                 for bit in 0..12{state[word[bit].id()as usize]|=(((value>>bit)&1)as u64)<<lane;}
                 state[g.id()as usize]|=(guard as u64)<<lane;
-                for bit in 0..4{state[dirty[bit].id()as usize]|=(((pattern>>bit)&1)as u64)<<lane;}
+                for bit in 0..7{state[dirty[bit].id()as usize]|=(((pattern>>bit)&1)as u64)<<lane;}
             }
         }
         sim.qubits.copy_from_slice(&before);sim.phase=0;sim.apply_iter(b.ops.iter());assert_eq!(sim.qubits,expected);assert_eq!(sim.phase,0);
         sim.apply_iter(b.ops.iter().rev());assert_eq!(sim.qubits,before);assert_eq!(sim.phase,0);lanes+=64;
     }}}
-    eprintln!("Q792_MOD16_INTEGRATED_PRIMITIVE_PASS lanes={lanes} physical_interface=17 chart=12 guard=1 dirty=4 clean=0 T={t} ops={}; NOT wholeQ792 or9024",b.ops.len());
+    eprintln!("Q792_MOD16_INTEGRATED_PRIMITIVE_PASS lanes={lanes} physical_interface=20 chart=12 guard=1 dirty=7 clean=0 T={t} ops={}; NOT wholeQ792 or9024",b.ops.len());
 }
