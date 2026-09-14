@@ -16,7 +16,7 @@ fn move_g(circ:&mut Circuit,rank:&[QReg],a:&[QReg],g:&QReg,w1:&[QReg],w2:&[QReg]
 }
 fn branch(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg,p2:&QReg,w1:&[QReg],w2:&[QReg],helpers:&[QReg],n:usize,j:usize,last:bool,low:bool){
     let g=&helpers[0];let dirty=&helpers[1..];let mut cost_at=circ.b.ops.len();
-    super::q793_loans::global_a(circ,rank,a,g,w1,&w2[258],None,dirty);
+    super::q793_loans::global_a(circ,rank,a,g,w1,&w2[258],Some(&w2[257]),None,dirty);
     guard(circ,rank,a,c,sm,p1,p2,g,dirty,j,last,low);
     if low{super::q793_t10_expand_v6::flags(circ,rank,a,c,g,&sm[1],&sm[2],dirty);super::q793_t10_expand_v6::emit(circ,rank,a,c,sm,g,w1,w2,dirty,j,false,last);}
     cost(circ,&mut cost_at,last,low,"guard+decode");
@@ -37,7 +37,7 @@ fn branch(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg
     cost(circ,&mut cost_at,last,low,"arithmetic");
     if low{super::q793_t10_expand_v6::emit(circ,rank,a,c,sm,g,w1,w2,dirty,j,true,last);super::q793_t10_expand_v6::flags(circ,rank,a,c,g,&sm[1],&sm[2],dirty);}
     guard(circ,rank,a,c,sm,p1,p2,g,dirty,j,last,low);
-    super::q793_loans::global_a(circ,rank,a,g,w1,&w2[258],None,dirty);
+    super::q793_loans::global_a(circ,rank,a,g,w1,&w2[258],Some(&w2[257]),None,dirty);
     cost(circ,&mut cost_at,last,low,"encode+return");
 }
 fn cost(circ:&Circuit,at:&mut usize,last:bool,low:bool,part:&str){if std::env::var("Q793_T10_COST").ok().as_deref()==Some("1"){let ops=&circ.b.ops[*at..];let t=ops.iter().filter(|o|o.kind==crate::circuit::OperationType::CCX).count();eprintln!("Q793_T10_V6_COST last={last} low={low} part={part} ops={} T={t}",ops.len());}*at=circ.b.ops.len();}

@@ -11,7 +11,8 @@ fn gate(circ:&mut Circuit,cs:&[(&QReg,bool)],out:&QReg,dirty:&[QReg]){
 /// C-addressed route uses no low-A addition and never names an absent leaf.
 fn gather<'a>(circ:&mut Circuit,rank:&[QReg],c:&[QReg],w1:&'a[QReg],offset:usize,dirty:&[QReg])->(&'a QReg,Vec<crate::circuit::Op>){
     assert!((1..=3).contains(&offset));let start=circ.b.ops.len();
-    let mut nodes:Vec<_>=(0..256).map(|cv|if cv<=252{Some(&w1[cv+offset])}else{None}).collect();
+    let cap=252usize.saturating_sub(usize::from(super::q793_lifecycle_r03::four_hole()));
+    let mut nodes:Vec<_>=(0..256).map(|cv|if cv<=cap{Some(&w1[cv+offset])}else{None}).collect();
     for level in 0..8{let mut next=Vec::new();for pair in nodes.chunks_exact(2){next.push(match(pair[0],pair[1]){
         (Some(left),Some(right))=>{if level<6{circ.cswap(&c[level],left,right);}else{mux::predicate_swap(circ,rank,1,level-6,left,right,dirty);}Some(left)},
         (Some(q),None)|(None,Some(q))=>Some(q),(None,None)=>None,

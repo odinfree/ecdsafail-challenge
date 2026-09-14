@@ -88,7 +88,7 @@ fn endpoints(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],p1:&QReg,p2:&QRe
 pub(super) fn signless(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg,p2:&QReg,w1:&[QReg],w2:&[QReg],helpers:&[QReg],j:usize,support_end:usize){
     assert!(helpers.len()>=23);let start=circ.b.ops.len();let owned=(circ.b.next_qubit,circ.b.active_qubits);
     let g=&helpers[0];let ha=&helpers[1];let decision=&helpers[2];let dirty=&helpers[3..];
-    super::q793_loans::global_a(circ,rank,a,g,w1,&w2[258],None,dirty);
+    super::q793_loans::global_a(circ,rank,a,g,w1,&w2[258],Some(&w2[257]),None,dirty);
     normal_guard(circ,rank,a,c,sm,p1,p2,g,dirty,j);
     borrow_ha(circ,rank,a,g,ha,w2,dirty);circ.cx(g,p2);super::q793_r01_routes_v1::quotient(circ,rank,a,c,w1,g,p2,decision);
     super::q793_r01_normal_v5::emit(circ,rank,a,c,sm,g,p1,p2,ha,decision,w1,w2,dirty,j,support_end,false);
@@ -102,7 +102,7 @@ pub(super) fn signless(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[Q
         circ.cx(g,p2);circ.cswap(g,ha,&sm[3]);special_guard(circ,rank,a,c,sm,p1,p2,g,dirty,j);
     }
     endpoints(circ,rank,a,c,p1,p2,g,w1,w2,dirty,j);
-    super::q793_loans::global_a(circ,rank,a,g,w1,&w2[258],None,dirty);
+    super::q793_loans::global_a(circ,rank,a,g,w1,&w2[258],Some(&w2[257]),None,dirty);
     assert_eq!((circ.b.next_qubit,circ.b.active_qubits),owned);
     for op in &circ.b.ops[start..]{for h in [256usize,257,258]{let q=w1[h].id()as u64;assert!(op.q_target.0!=q&&op.q_control1.0!=q&&op.q_control2.0!=q,"Q793 dynamic R01 touched omitted W1[{h}]");}}
 }

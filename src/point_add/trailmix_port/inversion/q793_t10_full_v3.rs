@@ -16,7 +16,7 @@ fn move_g(circ:&mut Circuit,rank:&[QReg],a:&[QReg],g:&QReg,w1:&[QReg],w2:&[QReg]
 }
 fn branch(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg,p2:&QReg,w1:&[QReg],w2:&[QReg],helpers:&[QReg],n:usize,j:usize,last:bool,low:bool){
     let g=&helpers[0];let dirty=&helpers[1..];
-    super::q793_loans::global_a(circ,rank,a,g,w1,&w2[258],None,dirty);
+    super::q793_loans::global_a(circ,rank,a,g,w1,&w2[258],Some(&w2[257]),None,dirty);
     guard(circ,rank,a,c,sm,p1,p2,g,dirty,j,last,low);
     if low{super::q793_t10_expand_v3::flags(circ,rank,a,c,g,&sm[1],&sm[2],dirty);super::q793_t10_expand_v3::emit(circ,rank,a,c,sm,g,w1,w2,dirty,j,false);}
     let mut source:Vec<_>=w1[..256].iter().map(QReg::borrowed_alias).collect();if low{source.push(sm[3].borrowed_alias());}
@@ -35,7 +35,7 @@ fn branch(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg
     move_g(circ,rank,a,g,&source,w2,dirty);
     if low{super::q793_t10_expand_v3::emit(circ,rank,a,c,sm,g,w1,w2,dirty,j,true);super::q793_t10_expand_v3::flags(circ,rank,a,c,g,&sm[1],&sm[2],dirty);}
     guard(circ,rank,a,c,sm,p1,p2,g,dirty,j,last,low);
-    super::q793_loans::global_a(circ,rank,a,g,w1,&w2[258],None,dirty);
+    super::q793_loans::global_a(circ,rank,a,g,w1,&w2[258],Some(&w2[257]),None,dirty);
 }
 pub(super) fn emit(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg,p2:&QReg,w1:&[QReg],w2:&[QReg],helpers:&[QReg],n:usize,j:usize){
     assert_eq!(helpers.len(),23);assert!(j<4);let owned=circ.b.next_qubit;let start=circ.b.ops.len();

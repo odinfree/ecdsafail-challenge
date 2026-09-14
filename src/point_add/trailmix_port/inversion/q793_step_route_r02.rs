@@ -71,7 +71,7 @@ pub(super) fn step(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg]
     mark(circ,"R01");
     // R01 never reads the coefficient head, for C0 or C>0. Keep its phase
     // passenger there for the whole R01 run rather than moving a Work2 gap.
-    super::q793_loans::global_a(circ,rank,a,sign,w1,&w2[258],None,dirty);circ.ccx(p1,p2,sign);
+    super::q793_loans::global_a(circ,rank,a,sign,w1,&w2[258],Some(&w2[257]),None,dirty);circ.ccx(p1,p2,sign);
     let mut low_seed=|cc:&mut Circuit,mask:&QReg,carry:&QReg,dd:&[QReg],clock:usize|super::q793_r00_seed_dynamic::emit(cc,rank,a,w1,w2,mask,carry,dd,clock);
     super::q793_r00::phase00_with_support(circ,rank,a,c,sm,p1,p2,sign,w1,w2,dirty,entry_j,259-rfirst,&mut low_seed);
     super::metadata_rotation5::rotate(circ,rank,a,p1,p2,w2,dirty,true);
@@ -108,7 +108,7 @@ pub(super) fn step(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg]
     if post_j==0{birth_cargo(circ,rank,a,c,sm,p1,p2,w1,dirty);}
     old::hide_birth(circ,rank,a,c,sm,p1,p2,dirty,post_j);
     mark(circ,"before_sign");
-    super::q793_sign_dynamic_r01::emit(circ,rank,a,c,sm,p1,p2,sign,w1,w2,dirty,post_j,(tend+1).min(258));old::hide_birth(circ,rank,a,c,sm,p1,p2,dirty,post_j);super::q793_loans::global_a(circ,rank,a,sign,w1,&w2[258],None,dirty);
+    super::q793_sign_dynamic_r01::emit(circ,rank,a,c,sm,p1,p2,sign,w1,w2,dirty,post_j,(tend+1).min(258));old::hide_birth(circ,rank,a,c,sm,p1,p2,dirty,post_j);super::q793_loans::global_a(circ,rank,a,sign,w1,&w2[258],Some(&w2[257]),None,dirty);
     mark(circ,"before_exit");
     if post_j==0{super::q793_metadata_exit::exit_phase_cargo(circ,rank,a,c,sm,p1,p2,iteration,w1,w2,helpers,lo,hi);}
     mark(circ,"after_exit");

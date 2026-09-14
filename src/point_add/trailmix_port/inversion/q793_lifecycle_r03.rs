@@ -262,7 +262,7 @@ fn loan_bracket_ops()->Vec<Op>{
     let mut circ=Circuit::new();circ.b.count_only=false;circ.b.fiat_hash=None;let rank=circ.alloc_qreg_bits("rank",5);let a=circ.alloc_qreg_bits("a",6);let _c=circ.alloc_qreg_bits("c",6);let _sm=circ.alloc_qreg_bits("sm",4);
     let _p1=circ.alloc_qreg("p1");let _p2=circ.alloc_qreg("borrowed_phase");let _iter=circ.alloc_qreg("iter");let w1=circ.alloc_qreg_bits("w1",259);let w2=circ.alloc_qreg_bits("w2",259);let helpers=circ.alloc_qreg_bits("other_borrowed",helper_count());assert_eq!(circ.b.next_qubit,565+2*u32::from(helpers_25()));
     assert!(circ.q797_a_support.is_none());
-    super::q793_loans::global_a(&mut circ,&rank,&a,&helpers[0],&w1,&w2[258],None,&helpers[1..]);
+    super::q793_loans::global_a(&mut circ,&rank,&a,&helpers[0],&w1,&w2[258],Some(&w2[257]),None,&helpers[1..]);
     let b=circ.into_builder();assert!(b.ops.iter().all(|o|matches!(o.kind,OperationType::X|OperationType::CX|OperationType::CCX)));b.ops
 }
 fn emit_plain(circ:&mut Circuit,ops:Vec<Op>,mbu:bool){

@@ -31,11 +31,15 @@ fn high_swap(circ:&mut Circuit,rank:&[QReg],bit:usize,a:&QReg,b:&QReg,dirty:&[QR
 /// In the proposed terminal use, terminal_host=SM2, which is NOT a selector.
 pub(super) fn global_a(
     circ:&mut Circuit,rank:&[QReg],a:&[QReg],passenger:&QReg,word:&[QReg],
-    terminal_host:&QReg,guard:Option<&QReg>,dirty:&[QReg],
+    terminal_host:&QReg,second_host:Option<&QReg>,guard:Option<&QReg>,dirty:&[QReg],
 ) {
     assert_eq!(rank.len(),5);assert_eq!(a.len(),6);assert_eq!(word.len(),259);
     assert!(dirty.len()>=4);
-    let bank:Vec<_>=(0..256).map(|v|if v==255{terminal_host}else{&word[v+1]}).collect();
+    let four=super::q793_lifecycle_r03::four_hole();
+    let bank:Vec<_>=(0..256).map(|v|match v{
+        255=>terminal_host,
+        254 if four=>second_host.expect("4-hole loan needs the second w2 host"),
+        _=>&word[v+1]}).collect();
     let mut ids:Vec<_>=bank.iter().copied().chain(rank).chain(a)
         .chain(std::iter::once(passenger)).chain(guard).chain(dirty).map(QReg::id).collect();
     ids.sort_unstable();assert!(ids.windows(2).all(|p|p[0]!=p[1]),"loan alias");
@@ -61,7 +65,8 @@ pub(super) fn global_a(
     if let Some(g)=guard{controlled_swap(circ,&[(g,true)],root,passenger,dirty);}
     else{circ.cx(root,passenger);circ.cx(passenger,root);circ.cx(root,passenger);}
     circ.b.ops.extend(route.into_iter().rev());assert_eq!(circ.b.next_qubit,owned);
-    for op in &circ.b.ops[all_start..]{for h in [256usize,257,258]{
+    let holes:&[usize]=if four{&[255,256,257,258]}else{&[256,257,258]};
+    for op in &circ.b.ops[all_start..]{for &h in holes{
         let hole=word[h].id()as u64;
         assert!(op.q_target.0!=hole&&op.q_control1.0!=hole&&op.q_control2.0!=hole,
             "global loan touched omitted Work1[{h}]");

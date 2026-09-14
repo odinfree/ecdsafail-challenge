@@ -58,7 +58,7 @@ pub(super) fn emit(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg]
     assert_eq!(helpers.len(),23);assert!(j<4);let owned=circ.b.next_qubit;let start=circ.b.ops.len();
     // Every branch restores g=0 and its original passenger at the same
     // A-addressed source top. Hold this one loan across all four branches.
-    if std::env::var("Q793_HELD_LOAN").ok().as_deref()!=Some("1"){super::q793_loans::global_a(circ,rank,a,&helpers[0],w1,&w2[258],None,&helpers[1..]);}
+    if std::env::var("Q793_HELD_LOAN").ok().as_deref()!=Some("1"){super::q793_loans::global_a(circ,rank,a,&helpers[0],w1,&w2[258],Some(&w2[257]),None,&helpers[1..]);}
     let g=&helpers[0];let dirty=&helpers[1..];
     // Every body restores phase/rank/A/C/SM and keeps its held g. Therefore
     // adjacent erase/recompute guards may be replaced by their Boolean XOR.
@@ -78,7 +78,7 @@ pub(super) fn emit(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg]
     branch(circ,rank,a,c,sm,p1,p2,w1,w2,helpers,n,j,false,true);
     guard_delta(circ,rank,c,sm,p1,p2,g,dirty,j,4|8); // L(1+C) ->0
 
-    if std::env::var("Q793_HELD_LOAN").ok().as_deref()!=Some("1"){super::q793_loans::global_a(circ,rank,a,&helpers[0],w1,&w2[258],None,&helpers[1..]);}
+    if std::env::var("Q793_HELD_LOAN").ok().as_deref()!=Some("1"){super::q793_loans::global_a(circ,rank,a,&helpers[0],w1,&w2[258],Some(&w2[257]),None,&helpers[1..]);}
     assert_eq!(circ.b.next_qubit,owned);
     for op in &circ.b.ops[start..]{for h in [256,257,258]{let q=w1[h].id()as u64;assert!(op.q_target.0!=q&&op.q_control1.0!=q&&op.q_control2.0!=q,"T10 V13 touched omitted W1[{h}]");}}
     let mut tail=circ.b.ops.split_off(start);super::shared_optimize::cancel_nct(&mut tail,2048,8);super::shared_optimize::cancel_nct_live(&mut tail,2048);circ.b.ops.extend(tail);

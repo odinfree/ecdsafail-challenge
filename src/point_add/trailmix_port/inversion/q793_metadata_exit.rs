@@ -60,11 +60,11 @@ pub(super) fn exit_phase_cargo(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg
     assert!(helpers.len()>=23);let owned=circ.b.next_qubit;let start=circ.b.ops.len();let g=&helpers[0];let dirty=&helpers[2..];
     // Terminal Work2[258] is a genuine zero. The post-exit r readers ignore
     // it on A255, and no SM cargo remains during the rank transfer.
-    if std::env::var("Q793_HELD_LOAN").ok().as_deref()!=Some("1"){q793_loans::global_a(circ,rank,a,g,w1,&w2[258],None,dirty);}
+    if std::env::var("Q793_HELD_LOAN").ok().as_deref()!=Some("1"){q793_loans::global_a(circ,rank,a,g,w1,&w2[258],Some(&w2[257]),None,dirty);}
     guard(circ,rank,a,c,sm,p1,p2,g,dirty);
     second(circ,rank,a,g,&sm[2],w1,w2,dirty);
     head(circ,rank,c,g,&sm[0],w2,dirty);
-    q793_loans::global_a(circ,rank,a,&sm[3],w1,&w2[258],Some(g),dirty);
+    q793_loans::global_a(circ,rank,a,&sm[3],w1,&w2[258],Some(&w2[257]),Some(g),dirty);
     let four=super::q793_lifecycle_r03::four_hole();
     let skip:&[usize]=if four{&[0,1,2,3,255,256,257,258]}else{&[0,1,2,256,257,258]};
     for(i,(x,y))in w1.iter().zip(w2).enumerate(){if !skip.contains(&i){circ.cswap(g,x,y);}}
@@ -82,11 +82,11 @@ pub(super) fn exit_phase_cargo(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg
     // Return the second cargo before depositing padding cargo. At A255 the
     // second lives in W2[257], while the padding donor is W2[258].
     super::q797_cargo_moves::exchange_a(circ,rank,a,w2,2,&sm[2],&[(g,true)],dirty);
-    q793_loans::global_a(circ,rank,a,&sm[3],w1,&w2[258],Some(g),dirty);
+    q793_loans::global_a(circ,rank,a,&sm[3],w1,&w2[258],Some(&w2[257]),Some(g),dirty);
     super::q793_transfer::transfer_exit(circ,rank,a,c,sm,p1,p2,g,w1,w2,dirty);
     circ.cx(g,iteration);
     guard(circ,rank,a,c,sm,p1,p2,g,dirty);
-    if std::env::var("Q793_HELD_LOAN").ok().as_deref()!=Some("1"){q793_loans::global_a(circ,rank,a,g,w1,&w2[258],None,dirty);}
+    if std::env::var("Q793_HELD_LOAN").ok().as_deref()!=Some("1"){q793_loans::global_a(circ,rank,a,g,w1,&w2[258],Some(&w2[257]),None,dirty);}
     assert_eq!(circ.b.next_qubit,owned);
     let holes:&[usize]=if four{&[255,256,257,258]}else{&[256,257,258]};
     for op in &circ.b.ops[start..]{for &h in holes{let q=w1[h].id()as u64;assert!(op.q_target.0!=q&&op.q_control1.0!=q&&op.q_control2.0!=q,"exit touched omitted Work1[{h}]");}}

@@ -38,7 +38,8 @@ Five distinct 793 plateaus:
 - Family-3 quotient-top borrow (`Q792_QUOTIENT_TOP_BORROW`): VERIFIED
   (whole-count named census): every mod-mul family drops 793 -> 792.
   Cost at Q793: ops +537,854, structural_T +267,008 (T-negative alone; it is
-  the family-3 half of Q792).
+  the family-3 half of Q792). Whole-stream (64 shots, independent seed):
+  classical 0, phase 0, dirty ancillas 0; executed avg T 682,799,232 at Q793.
 - mod16 exit chart (q792_mod16.rs): VERIFIED exhaustive in Rust selftest
   (65,536 lanes: 4096 codes x 2 guards x 8 dirty patterns; T=2644 exact,
   literal inverse and phase 0, dirty restored). Composition:
@@ -51,6 +52,14 @@ Five distinct 793 plateaus:
   Resolution requires re-deriving the per-offset sentinel/parking exclusions
   (v = 255-offset loses its w1 lane at each gather offset), parking those
   A-cargo values in the sm/parking protocol, and refitting A_SUPPORTS.
+  Updated audit (21:4xZ): A_SUPPORTS is semantic (not lane-indexed), so it
+  carries over; the port reduces to ~8 production sites with per-site edge
+  re-homing: metadata_entry_head5 head_delta (+1 shift, hi.min 254),
+  q793_loans A-loan bank (v=254 needs a second host lane), q793_metadata_exit
+  (done, flag-gated), q798_handoffs/q797_cargo_moves sentinel exclusions
+  (first attempt committed), q793_r01_normal_timefix_r01 and q793_sign_* top
+  boundaries, q793_r01_a1s1_v1. Flag-gated scaffolding committed; OFF path
+  unchanged (verified by whole-count identity).
 
 ## Source hashes
 

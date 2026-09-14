@@ -192,7 +192,9 @@ fn route_predicate(circ:&mut Circuit,rank:&[QReg],axis:usize,bit:usize,left:&QRe
     let truth=triples().into_iter().map(|t|t[axis]>>bit&1!=0).collect();route_swap(circ,&rank.iter().collect::<Vec<_>>(),truth,left,right,g);
 }
 fn gather_a<'a>(circ:&mut Circuit,rank:&[QReg],a:&[QReg],w1:&'a[QReg],offset:usize,max:usize,dirty:&[QReg],g:&QReg)->(&'a QReg,Vec<crate::circuit::Op>){
-    let start=circ.b.ops.len();let support=circ.q797_a_support.unwrap_or((0,256));let mut nodes:Vec<_>=(0..256).map(|v|if v<=max&&(support.0..support.1).contains(&v){Some(&w1[v+offset])}else{None}).collect();
+    let start=circ.b.ops.len();let support=circ.q797_a_support.unwrap_or((0,256));
+    let max=max.saturating_sub(usize::from(super::q793_lifecycle_r03::four_hole()));
+    let mut nodes:Vec<_>=(0..256).map(|v|if v<=max&&(support.0..support.1).contains(&v){Some(&w1[v+offset])}else{None}).collect();
     for level in 0..8{let mut next=Vec::new();for pair in nodes.chunks_exact(2){next.push(match(pair[0],pair[1]){(Some(l),Some(r))=>{if level<6{circ.cswap(&a[level],l,r);}else{route_predicate(circ,rank,0,level-6,l,r,g);}Some(l)},(Some(q),None)|(None,Some(q))=>Some(q),(None,None)=>None});}nodes=next;}
     (nodes[0].unwrap(),circ.b.ops[start..].to_vec())
 }
