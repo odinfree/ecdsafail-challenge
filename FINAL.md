@@ -67,13 +67,20 @@ Five distinct 793 plateaus:
 - probes: d682ea31 (q792_mod16 chart + Q792_QUOTIENT_TOP_BORROW flag, OFF by
   default)
 - chart contract fix: f9fbe19a (7-dirty contract, exhaustive selftest pass)
-- final HEAD: <fill at closeout>
+- final HEAD: b7952ca8 (partial 4-hole port committed, flag-gated, OFF-inert;
+  the LOWQ_Q792_EEA path itself is incomplete and panics at the exit-holes
+  assert — next phase completes Aupdate/transfer/exit_low embedded charts)
 
 ## Resource use
 
 - 48 GiB host / 16 cores. Count-only censuses ~25 min each, ~1 GiB RSS.
 - Heavy lock discipline: acquired/released per job (builds, full counts).
 - No submission was made by PRO; no official receipt.
+- Elapsed at closeout: ~3h40m of the 8h window. PRO's remaining window would
+  not change this verdict: the fourth rail needs the Aupdate/transfer/
+  exit_low embedded mod8 chart logic converted to mod16 plus the per-offset
+  sentinel reachability re-proof; that is the named next phase, not a retry
+  of a refuted candidate.
 
 ## Best next experiment (ADMIT)
 
