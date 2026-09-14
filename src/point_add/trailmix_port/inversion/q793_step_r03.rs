@@ -133,7 +133,7 @@ fn newborn(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p2:&QRe
     super::metadata_phase115_phased::prepare(circ,c,sm,sign,Some(p2),dirty,j,true);circ.cx(sign,p2);
 }
 pub(super) fn step(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg,p2:&QReg,iteration:&QReg,w1:&[QReg],w2:&[QReg],helpers:&[QReg],post_j:usize,block:usize){
-    assert_eq!(helpers.len(),23);let start=circ.b.ops.len();let entry_j=(post_j+3)%4;
+    assert_eq!(helpers.len(),super::q793_lifecycle_r03::helper_count());let start=circ.b.ops.len();let entry_j=(post_j+3)%4;
     TRACE.with(|t|t.borrow_mut().clear());
     if std::env::var_os("Q795_STAGE_CENSUS").is_some(){eprintln!("Q795_STAGE_START block={block} j={post_j}");TRACE.with(|t|t.borrow_mut().push(("start",start)));}
     let (rfirst,tend)=super::shared_step::SCHEDULE_SUPPORTS[block];let _t_top_guard=super::length_recompute::TTopGuard::set(tend);let (lo,hi)=super::metadata_entry_head5::A_SUPPORTS[block];let previous=circ.q797_a_support.replace((lo,hi));

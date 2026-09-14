@@ -24,8 +24,8 @@ pub(crate) fn template(block:usize,j:usize,measurement:BitId)->Vec<Op>{
  let mut circ=Circuit::new();circ.b.count_only=false;circ.b.fiat_hash=None;
  let rank=circ.alloc_qreg_bits("rank",5);let a=circ.alloc_qreg_bits("a",6);let c=circ.alloc_qreg_bits("c",6);let sm=circ.alloc_qreg_bits("sm",4);
  let p1=circ.alloc_qreg("p1");let p2=circ.alloc_qreg("p2");let iteration=circ.alloc_qreg("iter");
- let w1=circ.alloc_qreg_bits("w1",259);let w2=circ.alloc_qreg_bits("w2",259);let helpers=circ.alloc_qreg_bits("helpers",23);
- assert_eq!(circ.b.next_qubit,565);
+ let w1=circ.alloc_qreg_bits("w1",259);let w2=circ.alloc_qreg_bits("w2",259);let helpers=circ.alloc_qreg_bits("helpers",super::q793_lifecycle_r03::helper_count());
+ assert_eq!(circ.b.next_qubit,565+2*usize::from(super::q793_lifecycle_r03::helpers_25()));
  {let _capture=Capture::new();super::q793_step_r03::step(&mut circ,&rank,&a,&c,&sm,&p1,&p2,&iteration,&w1,&w2,&helpers,j,block);}
  let marks=super::q793_step_r03::marks();let at=|name:&str|marks.iter().find(|(n,_)|*n==name).expect("missing Q793 MBU raw span").1;
  let raw=circ.into_builder().ops;let sign=QubitId(helpers[0].id()as u64);assert_eq!(sign.0,542);assert!(raw.iter().all(nct));

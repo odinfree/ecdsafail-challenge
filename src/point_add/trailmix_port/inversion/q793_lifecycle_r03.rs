@@ -57,6 +57,15 @@ fn ids(core:&Core)->Vec<usize> {
     out.extend(core.work1.iter().chain(&core.work2).map(|q|q.id()as usize));assert_eq!(out.len(),542);out
 }
 fn dual_phase()->bool{super::metadata_muxlease::active("Q795_PHASE_LOAN")}
+/// Diagnostic peak-reduction probe: lend two more passenger lanes as dirty
+/// helpers (23 -> 25). Default OFF; ON is an unmeasured override and therefore
+/// count-only/compact generation only (candidate_configuration stays false).
+pub(crate) fn helpers_25()->bool{std::env::var("Q793_HELPERS_25").ok().as_deref()==Some("1")}
+pub(crate) fn helper_count()->usize{if helpers_25(){25}else{23}}
+/// Diagnostic peak probe: alias the cancel-path quotient-check's canonical top
+/// lane onto dy's canonical-zero top lane (saves one physical lane at the
+/// mod-mul peak). Default OFF; ON is an unmeasured override (count-only only).
+pub(crate) fn quotient_top_borrow()->bool{std::env::var("Q792_QUOTIENT_TOP_BORROW").ok().as_deref()==Some("1")}
 fn initialize(circ:&mut Circuit,mut dx:Vec<QReg>,phase_passenger:&QReg,second_passenger:&QReg)->Core {
     use super::shrunken_pz_state_machine::controlled_field_neg;
     use crate::point_add::trailmix_port::arith::compare::compare_geq_const;
@@ -105,8 +114,8 @@ fn toggle_inverse_sign(circ:&mut Circuit,terminal:&Terminal) {
 /// Logical primitive template; physical remapping preserves every alias relation.
 pub(super) fn template(block:usize,j:usize)->Vec<Op> {
     let mut circ=Circuit::new();circ.b.count_only=false;circ.b.fiat_hash=None;let rank=circ.alloc_qreg_bits("rank",5);let a=circ.alloc_qreg_bits("a",6);let c=circ.alloc_qreg_bits("c",6);let sm=circ.alloc_qreg_bits("sm",4);
-    let p1=circ.alloc_qreg("p1");let p2=circ.alloc_qreg("borrowed_phase");let iter=circ.alloc_qreg("iter");let w1=circ.alloc_qreg_bits("w1",259);let w2=circ.alloc_qreg_bits("w2",259);let helpers=circ.alloc_qreg_bits("other_borrowed",23);assert_eq!(circ.b.next_qubit,565);
-    assert!(dual_phase());super::q793_step_r03::step(&mut circ,&rank,&a,&c,&sm,&p1,&p2,&iter,&w1,&w2,&helpers,j,block);assert_eq!(circ.b.next_qubit,565);
+    let p1=circ.alloc_qreg("p1");let p2=circ.alloc_qreg("borrowed_phase");let iter=circ.alloc_qreg("iter");let w1=circ.alloc_qreg_bits("w1",259);let w2=circ.alloc_qreg_bits("w2",259);let helpers=circ.alloc_qreg_bits("other_borrowed",helper_count());assert_eq!(circ.b.next_qubit,565+2*usize::from(helpers_25()));
+    assert!(dual_phase());super::q793_step_r03::step(&mut circ,&rank,&a,&c,&sm,&p1,&p2,&iter,&w1,&w2,&helpers,j,block);assert_eq!(circ.b.next_qubit,565+2*usize::from(helpers_25()));
     let b=circ.into_builder();assert!(b.ops.iter().all(|o|matches!(o.kind,OperationType::X|OperationType::CX|OperationType::CCX)));
     for h in [256,257,258]{let hole=w1[h].id()as u64;assert!(b.ops.iter().all(|o|o.q_target.0!=hole&&o.q_control1.0!=hole&&o.q_control2.0!=hole),"omitted low residual rail still emitted");}b.ops
 }
@@ -126,9 +135,9 @@ fn compressed_sample(ops:&[Op])->u64{
  for op in ops{record[..4].copy_from_slice(&(op.kind as u32).to_le_bytes());for(i,v)in[op.q_control2.0,op.q_control1.0,op.q_target.0,op.c_target.0,op.c_condition.0,op.r_target.0].into_iter().enumerate(){record[8+8*i..16+8*i].copy_from_slice(&v.to_le_bytes());}encoder.write_all(&record).unwrap();}encoder.finish().unwrap().0
 }
 fn remap(mut ops:Vec<Op>,core_ids:&[usize],passenger:&[QReg],inverse:bool)->Vec<Op> {
-    assert_eq!(core_ids.len(),542);let first=if dual_phase(){assert_eq!(core_ids[21],passenger[1].id()as usize);2}else{1};assert!(passenger.len()>=first+23);assert_eq!(core_ids[22],passenger[0].id()as usize);let mut mapping=core_ids.to_vec();mapping.extend(passenger[first..first+23].iter().map(|q|q.id()as usize));
+    assert_eq!(core_ids.len(),542);let first=if dual_phase(){assert_eq!(core_ids[21],passenger[1].id()as usize);2}else{1};assert!(passenger.len()>=first+helper_count());assert_eq!(core_ids[22],passenger[0].id()as usize);let mut mapping=core_ids.to_vec();mapping.extend(passenger[first..first+helper_count()].iter().map(|q|q.id()as usize));
     assert_eq!(mapping.iter().filter(|&&q|q==u32::MAX as usize).count(),3);
-    let mut unique:Vec<_>=mapping.iter().copied().filter(|&q|q!=u32::MAX as usize).collect();assert_eq!(unique.len(),562);unique.sort_unstable();unique.dedup();assert_eq!(unique.len(),562);
+    let mut unique:Vec<_>=mapping.iter().copied().filter(|&q|q!=u32::MAX as usize).collect();assert_eq!(unique.len(),539+helper_count());unique.sort_unstable();unique.dedup();assert_eq!(unique.len(),539+helper_count());
     for op in &mut ops {for q in [&mut op.q_control1,&mut op.q_control2,&mut op.q_target] {if *q!=NO_QUBIT{let physical=mapping[q.0 as usize];assert_ne!(physical,u32::MAX as usize,"omitted lane appeared in emitted stream");*q=QubitId(physical as u64);}}op.validate();}
     if inverse{ops.reverse();}ops
 }
@@ -215,7 +224,9 @@ pub(crate) const CANDIDATE_TOFFOLI:usize=757_462_324;
 pub(crate) fn codex10h_resources()->Option<(usize,usize)>{
     if ["Q793_R01_A_SUPPORT_TERMS","Q793_T10_C1_P1","Q793_T10_SUM_MASK","Q793_T10_PREFIX_FREE","Q793_T10_PREFIX_TREE","Q793_T10_C1_SUM_LOAN","Q793_T10_MASK_SUM_LOAN"].iter().all(|s|super::metadata_muxlease::active(s))
         && !super::metadata_muxlease::active("Q793_A18")
-        && !super::metadata_muxlease::active("Q793_A19_SM0"){
+        && !super::metadata_muxlease::active("Q793_A19_SM0")
+        && !helpers_25()
+        && !quotient_top_borrow(){
         Some((1_243_369_959,692_077_100))
     }else{None}
 }
@@ -223,7 +234,7 @@ pub(crate) fn candidate_resources()->(usize,usize){
     codex10h_resources().unwrap_or((CANDIDATE_OPS,CANDIDATE_TOFFOLI))
 }
 pub(crate) fn candidate_configuration()->bool{
-    enabled() && CANDIDATE_OPS>0 && super::q794_lifecycle::candidate_configuration()
+    enabled() && CANDIDATE_OPS>0 && super::q794_lifecycle::candidate_configuration() && !helpers_25() && !quotient_top_borrow()
         // Only baseline defaults or the exact measured Codex feature vector
         // can use ordinary generation. Other overrides remain diagnostic-only.
         && (["Q793_R01_A_SUPPORT_TERMS","Q793_T10_C1_P1","Q793_T10_SUM_MASK","Q793_T10_PREFIX_FREE","Q793_T10_PREFIX_TREE","Q793_T10_C1_SUM_LOAN","Q793_T10_MASK_SUM_LOAN"]
@@ -240,7 +251,7 @@ pub(crate) fn candidate_configuration()->bool{
 /// every emission mode (compact, count-only, mbu, plain) counts it.
 fn loan_bracket_ops()->Vec<Op>{
     let mut circ=Circuit::new();circ.b.count_only=false;circ.b.fiat_hash=None;let rank=circ.alloc_qreg_bits("rank",5);let a=circ.alloc_qreg_bits("a",6);let _c=circ.alloc_qreg_bits("c",6);let _sm=circ.alloc_qreg_bits("sm",4);
-    let _p1=circ.alloc_qreg("p1");let _p2=circ.alloc_qreg("borrowed_phase");let _iter=circ.alloc_qreg("iter");let w1=circ.alloc_qreg_bits("w1",259);let w2=circ.alloc_qreg_bits("w2",259);let helpers=circ.alloc_qreg_bits("other_borrowed",23);assert_eq!(circ.b.next_qubit,565);
+    let _p1=circ.alloc_qreg("p1");let _p2=circ.alloc_qreg("borrowed_phase");let _iter=circ.alloc_qreg("iter");let w1=circ.alloc_qreg_bits("w1",259);let w2=circ.alloc_qreg_bits("w2",259);let helpers=circ.alloc_qreg_bits("other_borrowed",helper_count());assert_eq!(circ.b.next_qubit,565+2*usize::from(helpers_25()));
     assert!(circ.q797_a_support.is_none());
     super::q793_loans::global_a(&mut circ,&rank,&a,&helpers[0],&w1,&w2[258],None,&helpers[1..]);
     let b=circ.into_builder();assert!(b.ops.iter().all(|o|matches!(o.kind,OperationType::X|OperationType::CX|OperationType::CCX)));b.ops
@@ -351,12 +362,22 @@ pub fn divide_cancel(
     toggle_inverse_sign(circ, &terminal);
 
     restore_canonical_top(circ, &mut dy, released_forward_dy_top);
-    let quotient = circ.alloc_qreg_bits("paper2607.quotient-check", FIELD_WIDTH);
+    let quotient_top_borrow = quotient_top_borrow();
+    let mut quotient = circ.alloc_qreg_bits("paper2607.quotient-check", FIELD_WIDTH - usize::from(quotient_top_borrow));
+    if quotient_top_borrow {
+        // dy[256] is the canonical-zero top lane (restored just above); it
+        // stays |0> through the paired mul/undo, so one physical lane serves
+        // both registers. The alias is dropped before free_clean.
+        quotient.push(dy[FIELD_WIDTH - 1].borrowed_alias());
+    }
     mod_mul_canonical_mbu(circ, &quotient, &terminal.work2[..FIELD_WIDTH], &dy);
     for (ghost, lane) in lambda_ghosts.into_iter().zip(&quotient) {
         circ.resolve_ghost(ghost, lane);
     }
     mod_mul_canonical_mbu_undo(circ, &quotient, &terminal.work2[..FIELD_WIDTH], &dy);
+    if quotient_top_borrow {
+        quotient.pop();
+    }
     free_clean(circ, quotient);
 
     toggle_inverse_sign(circ, &terminal);

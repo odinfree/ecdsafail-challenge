@@ -2443,6 +2443,10 @@ pub fn build() -> Vec<Op> {
         trailmix_port::inversion::shared_metadata::verification::run();
         return Vec::new();
     }
+    if std::env::var("LOWQ_Q792_MOD16_SELFTEST").ok().as_deref() == Some("1") {
+        trailmix_port::inversion::q792_mod16::run();
+        return Vec::new();
+    }
     if std::env::var("LOWQ_LENGTH_ORACLE_SELFTEST").ok().as_deref() == Some("1") {
         trailmix_port::inversion::length_recompute::verification::run();
         return Vec::new();
@@ -2518,6 +2522,13 @@ pub fn build() -> Vec<Op> {
     set_default_env("Q793_A12_V12","1");
     set_default_env("Q793_A18","0");
     set_default_env("Q793_A19_SM0","0");
+    // Diagnostic-only peak probe: +2 dirty-helper loan from the passenger.
+    // OFF in production. ON keeps candidate_configuration() false, so it can
+    // only run count-only/compact diagnostic generation, never ordinary emit.
+    set_default_env("Q793_HELPERS_25","0");
+    // Diagnostic-only peak probe: cancel-path quotient top lane borrows the
+    // passenger's canonical-zero top lane. OFF in production.
+    set_default_env("Q792_QUOTIENT_TOP_BORROW","0");
     // Codex 10h isolated A12 experiments. Default generation remains A12.
     // PRODUCTION-FINAL configuration baking of the already-qualified build03
     // stack02 profile. Official upload carries no environment, so the seven
