@@ -387,3 +387,49 @@ pub fn run(){
     }
     eprintln!("Q792_FOURHOLE_DIFF DRILL COMPLETE cuts={}",runs[0].1.len());
 }
+
+/// Production-parity divide-only gate: count_only circuit with a sprint check
+/// attached, so the emission flows op-by-op to the sprint sim exactly as the
+/// whole-stream does. The check requires the lifecycle to return its inputs
+/// unchanged (identity), phase 0, clean ancillas.
+pub fn run_sprint(){
+    std::env::set_var("POINT_ADD_COUNT_ONLY","1");
+    use alloy_primitives::U256;
+    let p=U256::from_le_bytes(crate::point_add::trailmix_port::mod_arith::SECP256K1_P_LE);
+    let inv=|a:U256|->U256{a.pow_mod(p.wrapping_sub(U256::from(2)),p)};
+    let mut rows:Vec<(Vec<u8>,Vec<u8>,Vec<u8>)>=Vec::new();
+    let mut s=0x51ef46b9ac287d03u64;
+    for _ in 0..24{
+        let mut x=[0u8;32];for b in x.iter_mut(){*b=rnd(&mut s)as u8;}x[31]&=0x7f;
+        let mut y=[0u8;32];for b in y.iter_mut(){*b=rnd(&mut s)as u8;}y[31]&=0x7f;
+        let xu=U256::from_le_bytes(x);let yu=U256::from_le_bytes(y);
+        let l=inv(xu).mul_mod(yu,p);
+        let lo:[u8;32]=l.to_le_bytes();
+        rows.push((x.to_vec(),y.to_vec(),lo.to_vec()));
+    }
+    for a in 244..=255{
+        let mut x=[0u8;32];for b in x.iter_mut(){*b=rnd(&mut s)as u8;}
+        for i in 0..256{x[i/8]&=!(1<<(i%8));}
+        x[a/8]|=1<<(a%8);
+        if a==255{for i in 254..255{x[i/8]&=!(1<<(i%8));}}
+        let mut y=[0u8;32];for b in y.iter_mut(){*b=rnd(&mut s)as u8;}y[31]&=0x7f;
+        let xu=U256::from_le_bytes(x);let yu=U256::from_le_bytes(y);
+        let l=inv(xu).mul_mod(yu,p);
+        let lo:[u8;32]=l.to_le_bytes();
+        rows.push((x.to_vec(),y.to_vec(),lo.to_vec()));
+    }
+    if std::env::var("LOWQ_Q792_DIFF_SUBSET").ok().as_deref()==Some("few"){rows.truncate(4);}
+    for four in [false,true]{
+        std::env::set_var("LOWQ_Q792_EEA",if four{"1"}else{"0"});
+        std::env::set_var("Q792_QUOTIENT_TOP_BORROW","0");
+        eprintln!("Q792_SPRINT four={four} rows={}",rows.len());
+        let mut circ=Circuit::new();
+        let dx=circ.alloc_qreg_bits("input",257);
+        let dy=circ.alloc_qreg_bits("passenger",257);
+        let initial_ops=circ.b.counted_ops;
+        circ.b.sprint_sim=Some(crate::point_add::sprint_stream_check::Check::new_divide(&dx,&dy,initial_ops,&rows));
+        let (_dxo,_dyo,lambda)=divide_forward(&mut circ,dx,dy);
+        let check=circ.b.sprint_sim.take().expect("sprint check attached");
+        check.finish_divide(&circ.b,&lambda);
+    }
+}

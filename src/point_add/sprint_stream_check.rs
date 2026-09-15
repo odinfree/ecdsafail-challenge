@@ -5,10 +5,33 @@ use crate::sim::Simulator;
 use alloy_primitives::U256;
 use sha3::{Shake256,digest::{Update,ExtendableOutput,XofReader}};
 struct Batch {
-    sim:Simulator<'static,sha3::Shake256Reader>, expected:Vec<(U256,U256)>, offsets:Vec<(U256,U256)>,
+    sim:Simulator<'static,sha3::Shake256Reader>, expected:Vec<(U256,U256)>, expected_lam:Vec<U256>, offsets:Vec<(U256,U256)>,
     ops:usize, initial_ops:usize, started:std::time::Instant, regs:Vec<Vec<QubitOrBit>>,
 }
 impl Batch {
+    /// Divide-only variant: the caller injects dx/dy inputs; the check then
+    /// requires the lifecycle to return them unchanged (identity), phase 0 and
+    /// clean ancillas. Same sim dimensions and RNG stream as the production
+    /// sprint so the Hmr/R measurement outcomes reproduce exactly.
+    pub fn new_divide(tx:&[super::trailmix_port::circuit::QReg],ty:&[super::trailmix_port::circuit::QReg],initial_ops:usize,rows:&[(Vec<u8>,Vec<u8>,Vec<u8>)])->Self {
+        let mut seed=Shake256::default();seed.update(b"Q799-independent-whole-stream-sprint-v2");
+        if let Ok(s)=std::env::var("SPRINT_STREAM_SEED"){seed.update(s.as_bytes());}
+        let reader=Box::leak(Box::new(seed.finalize_xof()));
+        let mut sim=Simulator::new(1024,1_000_000,reader);let mut expected=Vec::new();let mut expected_lam=Vec::new();
+        let regs:Vec<Vec<QubitOrBit>>=vec![tx.iter().map(|q|QubitOrBit::Qubit(QubitId(q.id() as u64))).collect(),ty.iter().map(|q|QubitOrBit::Qubit(QubitId(q.id() as u64))).collect()];
+        for lane in 0..64{
+            let (xrow,yrow,lrow)=&rows[lane%rows.len()];
+            let mut x=[0u8;32];x[..32].copy_from_slice(&xrow[..32]);
+            let mut y=[0u8;32];y[..32].copy_from_slice(&yrow[..32]);
+            let mut l=[0u8;32];l[..32].copy_from_slice(&lrow[..32]);
+            sim.set_register(&regs[0],U256::from_le_bytes(x),lane);
+            sim.set_register(&regs[1],U256::from_le_bytes(y),lane);
+            expected.push((U256::from_le_bytes(x),U256::from_le_bytes(y)));
+            expected_lam.push(U256::from_le_bytes(l));
+        }
+        eprintln!("SPRINT_DIVIDE_START independent_shots=64 initial_ops={initial_ops}; no stream retained");
+        Self{sim,expected,expected_lam,offsets:Vec::new(),ops:0,initial_ops,started:std::time::Instant::now(),regs}
+    }
     pub fn new(tx:&[super::trailmix_port::circuit::QReg],ty:&[super::trailmix_port::circuit::QReg],ox:&[super::trailmix_port::circuit::Cbit],oy:&[super::trailmix_port::circuit::Cbit],initial_ops:usize,batch:usize)->Self {
         let curve=super::compact_check::secp256k1();
         let mut seed=Shake256::default();seed.update(b"Q799-independent-whole-stream-sprint-v2");
@@ -25,7 +48,7 @@ impl Batch {
             for (r,v) in regs.iter().zip([t.0,t.1,o.0,o.1]){sim.set_register(r,v,lane);}
         }
         eprintln!("SPRINT_STREAM_START independent_shots=64 initial_ops={initial_ops}; no stream retained");
-        Self{sim,expected,offsets,ops:0,initial_ops,started:std::time::Instant::now(),regs:Vec::new()}
+        Self{sim,expected,expected_lam:Vec::new(),offsets,ops:0,initial_ops,started:std::time::Instant::now(),regs:Vec::new()}
     }
     pub fn apply(&mut self,ops:&[Op]) {
         assert!(!ops.iter().any(|o|matches!(o.kind,K::PushCondition|K::PopCondition)));
@@ -58,12 +81,33 @@ impl Batch {
         eprintln!("SPRINT_STREAM_RESULT shots=64 peak={} physical={} simulated_ops={} structural_T={} executed_average_T={} classical_failures={failures} phase={:#018x} dirty_ancillas={garbage} elapsed={:.1}; independent development seed, not official acceptance",b.peak_qubits,b.next_qubit,self.ops,b.counted_kind_ops[K::CCX as usize]+b.counted_kind_ops[K::CCZ as usize],self.sim.stats.toffoli_gates/64,self.sim.phase,self.started.elapsed().as_secs_f64());
         assert_eq!(failures,0);assert_eq!(self.sim.phase,0);assert_eq!(garbage,0);
     }
+    pub fn finish_divide(self,b:&super::B,lambda:&[super::trailmix_port::circuit::QReg]) {
+        eprintln!("SPRINT_DIVIDE_MEMORY ops={} physical_qubits={}",self.ops,b.next_qubit);
+        assert_eq!(self.ops+self.initial_ops,b.counted_ops,"real stream coverage");
+        let mut failures=0;
+        let lr:Vec<QubitOrBit>=lambda.iter().map(|q|QubitOrBit::Qubit(QubitId(q.id() as u64))).collect();
+        for lane in 0..64 {
+            // The divide contract is lambda = dy * dx^-1 mod p; the returned
+            // dx/dy are internal (the whole point-add only consumes lambda).
+            let got_lam=self.sim.get_register(&lr,lane);
+            if got_lam!=self.expected_lam[lane]{failures+=1;eprintln!("SPRINT_DIVIDE_MISMATCH lane={lane} got_lam={got_lam:?} expected_lam={:?}",self.expected_lam[lane]);}
+        }
+        let output:std::collections::BTreeSet<_>=self.regs.iter().flat_map(|r|r.iter()).chain(lr.iter()).filter_map(|q|if let QubitOrBit::Qubit(q)=q{Some(q.0 as usize)}else{None}).collect();
+        let garbage=self.sim.qubits.iter().enumerate().filter(|(q,v)|!output.contains(q)&&**v!=0).count();
+        eprintln!("SPRINT_DIVIDE_RESULT shots=64 peak={} physical={} classical_failures={failures} phase={:#018x} dirty_ancillas={garbage} elapsed={:.1}; divide-only development seed, not official acceptance",b.peak_qubits,b.next_qubit,self.sim.phase,self.started.elapsed().as_secs_f64());
+        assert_eq!(failures,0);assert_eq!(self.sim.phase,0);assert_eq!(garbage,0);
+    }
 }
  
 // Diagnostic-only fan-out: every independent simulator sees the SAME immutable
 // emitted operations. Default one batch preserves the prior developer behavior.
 pub(crate) struct Check { batches:Vec<Batch> }
 impl Check {
+    pub fn new_divide(tx:&[super::trailmix_port::circuit::QReg],ty:&[super::trailmix_port::circuit::QReg],initial_ops:usize,rows:&[(Vec<u8>,Vec<u8>,Vec<u8>)])->Self {
+        let batches=(0..1).map(|index|Batch::new_divide(tx,ty,initial_ops,rows)).collect();
+        Self{batches}
+    }
+    pub fn finish_divide(self,b:&super::B,lambda:&[super::trailmix_port::circuit::QReg]){for batch in self.batches.into_iter(){batch.finish_divide(b,lambda);}}
     pub fn new(tx:&[super::trailmix_port::circuit::QReg],ty:&[super::trailmix_port::circuit::QReg],ox:&[super::trailmix_port::circuit::Cbit],oy:&[super::trailmix_port::circuit::Cbit],initial_ops:usize)->Self {
         let count=std::env::var("SPRINT_STREAM_BATCHES").ok().map(|v|v.parse::<usize>().expect("integer independent batch count")).unwrap_or(1);
         assert!((1..=4).contains(&count),"one to four independent batches only");
