@@ -105,9 +105,11 @@ pub fn run(){
     // Keep the NCT frame optimization off so stage/cell marks recorded during
     // step() align with the emitted op stream (the frame is function-
     // preserving, so the differential semantics are unchanged).
-    std::env::set_var("Q793_FRAME","0");
-    std::env::set_var("Q792_NO_CANCEL","1");
-    std::env::set_var("Q794_TFACTOR","0");
+    if std::env::var("LOWQ_Q792_DIFF_ALIGN").ok().as_deref()==Some("0"){
+        std::env::set_var("Q793_FRAME","0");
+        std::env::set_var("Q792_NO_CANCEL","1");
+        std::env::set_var("Q794_TFACTOR","0");
+    }
     for four in [false,true]{
         std::env::set_var("LOWQ_Q792_EEA",if four{"1"}else{"0"});
         std::env::set_var("Q792_QUOTIENT_TOP_BORROW","0");
@@ -323,6 +325,26 @@ pub fn run(){
         let mut state=vec![0u64;257+256];
         for(i,q)in dxo.iter().enumerate(){state[i]=sims[0].qubits[q.id()as usize];}
         for(i,p)in passenger.iter().enumerate(){state[257+i]=sims[0].qubits[p.id()as usize];}
+        // per-row finish self-check: dx output bits 0..255 must equal x
+        let mut perrow=[0usize;64];
+        for lane in 0..64{
+            let row=&rows[(0*64+lane)%count];
+            for bit in 0..256{
+                if (state[bit]>>lane&1)!=((row.0[bit/8]>>(bit%8)&1)as u64){perrow[lane]+=1;}
+            }
+            if state[256]>>lane&1!=0{perrow[lane]+=1;}
+        }
+        eprintln!("Q792_FINISH_SELFCHECK four={four} wrong_bits_per_row={perrow:?}",);
+        if std::env::var("LOWQ_Q792_DIFF_DUMPX").ok().as_deref()==Some("1"){
+            let row=&rows[0];
+            let mut out=[0u8;32];let mut inp=[0u8;32];
+            for bit in 0..256{
+                if (state[bit]&1)!=0{out[bit/8]|=1<<(bit%8);}
+                if (row.0[bit/8]>>(bit%8)&1)!=0{inp[bit/8]|=1<<(bit%8);}
+            }
+            let hs=|b:&[u8]|b.iter().map(|x|format!("{x:02x}")).collect::<String>();
+            eprintln!("Q792_X_DUMP four={four} lane0_out={} lane0_in={}",hs(&out),hs(&row.0));
+        }
         snaps.push(Snapshot{name:"finish",phase:sims[0].phase,state,owned,skip_w1:false});
         restore_canonical_top(&mut circ,&mut dy,released_dy_top);
         let label=format!("four_hole={four}");
