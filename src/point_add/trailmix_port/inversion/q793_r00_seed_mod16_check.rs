@@ -337,7 +337,9 @@ pub fn run_stage_diff_consistent(){
                     // residual cells: bit 3 is the relation's own solution, the
                     // higher cells are free (unconstrained by the mod-2^k part)
                     put(w,&st3.w1[258-3],lane,r>>3&1!=0);
-                    for i in 4..259{put(w,&st3.w1[258-i],lane,rnd(&mut rs)&1==1);}
+                    // Cells only on rails that are not coefficient reads: the
+                    // chart occupies w1[0..3], so i stops at 254 (rail 4).
+                    for i in 4..255{put(w,&st3.w1[258-i],lane,rnd(&mut rs)&1==1);}
                 }
                 let cargo=av>=253;
                 diag[lane]=format!("lane={lane} av={av} sv={sv} rk={rk} case={case:?} t={t} b={b} v={v} r={r} cargo={cargo}");

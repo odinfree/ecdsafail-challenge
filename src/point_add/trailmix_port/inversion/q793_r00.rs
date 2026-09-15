@@ -141,6 +141,12 @@ impl Scan<'_> {
         // `Q793_R00_SEED_CALL_INDEX=3` is the candidate alignment; it is a
         // sweep knob until the drill's mbu_after_r00 cut adjudicates.
         let call_at=std::env::var("Q793_R00_SEED_CALL_INDEX").ok().and_then(|v|v.parse::<usize>().ok()).unwrap_or(2);
+        // Candidate four-hole structure (lane_seed_port): keep the low callback
+        // at index 2 in its three-hole form and cover the deleted index-3 chain
+        // step with a dedicated bit-3 callback, instead of widening the low
+        // comparison predicate to the mod16 window.
+        let bit3_callback=super::q793_lifecycle_r03::four_hole()
+            &&std::env::var("Q793_R00_BIT3_CALLBACK").ok().as_deref()==Some("1");
         // The center is the only Sign write. W never changes its two external
         // controls, so W / guarded center / W^-1 is identity off phase00 even
         // for arbitrary metadata, cache, carry and scratch inputs.
@@ -165,7 +171,14 @@ impl Scan<'_> {
             if i>0 {self.top(circ,i-1,&[],self.mask,false);}
             if i==call_at{let s0=circ.b.ops.len();seed(circ,self.mask,carry,self.helpers,self.j);mark_seed(circ,s0);}
             if i < 3 {continue;}
-            if super::q793_lifecycle_r03::four_hole()&&i==3{continue;}
+            if super::q793_lifecycle_r03::four_hole()&&i==3{
+                if bit3_callback{
+                    let s0=circ.b.ops.len();
+                    super::q793_r00_seed_dynamic_r02::emit_bit3(circ,self.rank,self.a,target,source,self.mask,carry,self.helpers,self.j);
+                    mark_seed(circ,s0);
+                }
+                continue;
+            }
             let x=&target[258-i];let y=&source[258-i];
             // Only the carry update needs the interval mask: all DATA is
             // restored by W^-1. On an active bit x=t XOR s, y=s XOR carry.
