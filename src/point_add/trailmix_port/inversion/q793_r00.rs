@@ -150,6 +150,7 @@ impl Scan<'_> {
                 if i == 2 { seed(circ,self.mask,carry,self.helpers,self.j); }
                 continue;
             }
+            if super::q793_lifecycle_r03::four_hole()&&i==3{continue;}
             let x=&target[258-i];let y=&source[258-i];
             // Only the carry update needs the interval mask: all DATA is
             // restored by W^-1. On an active bit x=t XOR s, y=s XOR carry.

@@ -222,7 +222,8 @@ fn cargo(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],g:&QReg,c
     super::metadata_phase115_phased::prepare(circ,c,sm,g,Some(cache),dirty,j,false);
     let(l,lop)=gather_a(circ,rank,a,w1,2,253,dirty,g);let(r,rop)=gather_sum(circ,rank,c,cache,w2,257,1,dirty,g);
     swap(circ,&[(g,true)],l,r,dirty);
-    let mut a254=vec![(g,true)];a254.extend(rank.iter().enumerate().map(|(i,q)|(q,29>>i&1!=0)));a254.extend(a.iter().enumerate().map(|(i,q)|(q,254>>i&1!=0)));swap(circ,&a254,l,r,dirty);
+    let second_a=if super::q793_lifecycle_r03::four_hole(){253usize}else{254usize};
+    let mut a254=vec![(g,true)];a254.extend(rank.iter().enumerate().map(|(i,q)|(q,29>>i&1!=0)));a254.extend(a.iter().enumerate().map(|(i,q)|(q,second_a>>i&1!=0)));swap(circ,&a254,l,r,dirty);
     circ.b.ops.extend(rop.into_iter().rev());circ.b.ops.extend(lop.into_iter().rev());
     for sum in [1usize,3]{let mut cs=a254.clone();cs.extend(c.iter().enumerate().map(|(i,q)|(q,sum>>i&1!=0)));cs.extend(sm.iter().map(|q|(q,false)));swap(circ,&cs,&w2[255],&w2[257-sum],dirty);}
     let(l,lop)=gather_a(circ,rank,a,w1,1,254,dirty,g);let(r,rop)=gather_sum(circ,rank,c,cache,w2,258,1,dirty,g);circ.cswap(g,l,r);circ.b.ops.extend(rop.into_iter().rev());circ.b.ops.extend(lop.into_iter().rev());
@@ -256,16 +257,21 @@ where F:FnOnce(&mut Circuit,&[QReg]){
     let consume=|circ:&mut Circuit|{for cv in 1usize..=2{let mut cs=vec![(d,true),(g,true)];cs.extend(c.iter().enumerate().map(|(i,q)|(q,cv>>i&1!=0)));mixed_mcx(circ,&cs,out,rest);}};
     consume(circ);compute(circ);consume(circ);body(circ,rest);consume(circ);compute(circ);consume(circ);
 }
-fn mask_loan(circ:&mut Circuit,rank:&[QReg],c:&[QReg],g:&QReg,cache:&QReg,mask:&QReg,w1:&[QReg],dirty:&[QReg]){
+fn mask_loan(circ:&mut Circuit,rank:&[QReg],c:&[QReg],g:&QReg,cache:&QReg,mask:&QReg,w1:&[QReg],w2:&[QReg],dirty:&[QReg]){
     c12_hold_around(circ,rank,c,g,cache,dirty,|circ,lenders|{
-        let start=circ.b.ops.len();let max_c=257-circ.q797_a_support.map(|(lo,_)|lo).unwrap_or(0);let mut nodes:Vec<_>=(0..256).map(|v|if v>=3&&v<=max_c{Some(&w1[258-v])}else{None}).collect();
+        let start=circ.b.ops.len();let max_c=257-circ.q797_a_support.map(|(lo,_)|lo).unwrap_or(0);let min_v=3+usize::from(super::q793_lifecycle_r03::four_hole());let mut nodes:Vec<_>=(0..256).map(|v|if v>=min_v&&v<=max_c{Some(&w1[258-v])}else{None}).collect();
         for level in 0..8{let mut next=Vec::new();for pair in nodes.chunks_exact(2){next.push(match(pair[0],pair[1]){(Some(l),Some(r))=>{if level<6{circ.cswap(&c[level],l,r);}else{route_predicate(circ,rank,1,level-6,l,r,g);}Some(l)},(Some(q),None)|(None,Some(q))=>Some(q),(None,None)=>None});}nodes=next;}
-        let route=circ.b.ops[start..].to_vec();swap(circ,&[(g,true),(cache,false)],nodes[0].unwrap(),mask,lenders);circ.b.ops.extend(route.into_iter().rev());swap(circ,&[(g,true),(cache,true)],&w1[255],mask,lenders);
+        let route=circ.b.ops[start..].to_vec();swap(circ,&[(g,true),(cache,false)],nodes[0].unwrap(),mask,lenders);circ.b.ops.extend(route.into_iter().rev());
+        // 4-hole: the k255 bit is the omitted rail; the within-step mask
+        // ping-pong re-homes to the zero W2[257] pad, restored by this
+        // loan's own reversal.
+        if super::q793_lifecycle_r03::four_hole(){swap(circ,&[(g,true),(cache,true)],&w2[257],mask,lenders);}
+        else{swap(circ,&[(g,true),(cache,true)],&w1[255],mask,lenders);}
     });
 }
 fn top_flag(circ:&mut Circuit,rank:&[QReg],c:&[QReg],sm:&[QReg],g:&QReg,cache:&QReg,mask:&QReg,w1:&[QReg],dirty:&[QReg],j:usize){
     // C+S1/2 imply k256/255. Both true top bits are zero because A<=254.
-    super::metadata_phase115_phased::prepare(circ,c,sm,g,Some(cache),dirty,j,false);let(q,route)=gather_sum(circ,rank,c,cache,w1,257,3,dirty,g);
+    super::metadata_phase115_phased::prepare(circ,c,sm,g,Some(cache),dirty,j,false);let(q,route)=gather_sum(circ,rank,c,cache,w1,257,3+usize::from(super::q793_lifecycle_r03::four_hole()),dirty,g);
     // Pruned leaves are arbitrary off their supported sum. Explicitly
     // cancel sum1/2 so the fallback cannot read a data or passenger bit.
     circ.ccx(g,q,mask);
@@ -275,19 +281,20 @@ fn top_flag(circ:&mut Circuit,rank:&[QReg],c:&[QReg],sm:&[QReg],g:&QReg,cache:&Q
 
 fn core(circ:&mut Circuit,rank:&[QReg],c:&[QReg],sm:&[QReg],g:&QReg,cache:&QReg,top:&QReg,sign:&QReg,w1:&[QReg],w2:&[QReg],dirty:&[QReg],j:usize){
     super::metadata_phase115_phased::prepare(circ,c,sm,g,Some(cache),dirty,j,false);let start=circ.b.ops.len();
-    for i in 3..256{circ.cx(&w1[i],&w2[i]);}
-    for i in (4..256).rev(){circ.cx(&w1[i-1],&w1[i]);}
+    let four=super::q793_lifecycle_r03::four_hole();let w1_top=256-usize::from(four);
+    for i in 3..w1_top{circ.cx(&w1[i],&w2[i]);}
+    for i in (4..w1_top).rev(){circ.cx(&w1[i-1],&w1[i]);}
     // At the small-S v1/v2 readers, undo D=target XOR original_source.
     // The neighboring-XOR source frame reconstructs original t_i by the
     // prefix XOR source[3..=i]. These v positions are always >=k, outside
     // the comparison's causal prefix, so they can stay normalized until
     // the exact inverse. No additional output or clean rail is needed.
     let shift=(4-j)%4;
-    if shift<3{for pos in [257-shift,256-shift]{if pos<256{for i in 3..=pos{circ.cx(&w1[i],&w2[pos]);}}}}
+    if shift<3{for pos in [257-shift,256-shift]{if pos<256{for i in 3..=pos.min(w1_top-1){circ.cx(&w1[i],&w2[pos]);}}}}
     circ.x(g);low(circ,rank,c,sm,w1,w2,&w1[3],dirty,j,g);circ.x(g);
     // x_i=t_i XOR B_i; D_i=t_i XOR u_i. Adjacent-XOR preparation gives
     // x_(i+1)=t_(i+1) XOR B_i XOR x_i*D_i with one negative-control CCX.
-    for i in 3..255{circ.x(&w2[i]);circ.ccx(&w1[i],&w2[i],&w1[i+1]);circ.x(&w2[i]);}
+    for i in 3..(255-usize::from(four)){circ.x(&w2[i]);circ.ccx(&w1[i],&w2[i],&w1[i+1]);circ.x(&w2[i]);}
     let compute=circ.b.ops[start..].to_vec();
     // The active general domain has 2<=C+S<=253 (k>=4); all other
     // reachable branches were parked. Cache is the prepared addition carry.
@@ -310,9 +317,9 @@ pub(super) fn emit(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg]
     let movestart=circ.b.ops.len();
     // Internal S0 is just before the exit's final right rotation: A254's
     // second passenger is still W2[256]. S>0 boundary callers use W2[255].
-    if j==0{let mut cs=vec![(p1,true)];cs.extend(rank.iter().enumerate().map(|(i,q)|(q,29>>i&1!=0)));cs.extend(a.iter().enumerate().map(|(i,q)|(q,254>>i&1!=0)));cs.extend(sm.iter().map(|q|(q,false)));swap(circ,&cs,&w2[255],&w2[256],helpers);}
+    if j==0{let second_a=if super::q793_lifecycle_r03::four_hole(){253usize}else{254usize};let mut cs=vec![(p1,true)];cs.extend(rank.iter().enumerate().map(|(i,q)|(q,29>>i&1!=0)));cs.extend(a.iter().enumerate().map(|(i,q)|(q,second_a>>i&1!=0)));cs.extend(sm.iter().map(|q|(q,false)));swap(circ,&cs,&w2[255],&w2[256],helpers);}
     cargo(circ,rank,a,c,sm,p1,p2,w1,w2,helpers,j);let moves=circ.b.ops[movestart..].to_vec();stage(circ,"cargo");
-    let mask=&helpers[0];let dirty=&helpers[1..];let ls=circ.b.ops.len();mask_loan(circ,rank,c,p1,p2,mask,w1,dirty);let loan=circ.b.ops[ls..].to_vec();stage(circ,"mask");
+    let mask=&helpers[0];let dirty=&helpers[1..];let ls=circ.b.ops.len();mask_loan(circ,rank,c,p1,p2,mask,w1,w2,dirty);let loan=circ.b.ops[ls..].to_vec();stage(circ,"mask");
     let ts=circ.b.ops.len();top_flag(circ,rank,c,sm,p1,p2,mask,w1,dirty,j);let top=circ.b.ops[ts..].to_vec();stage(circ,"top");
     circ.cswap(p1,p2,mask);circ.ccx(p1,p2,sign);
     // Mask is now a funded zero cache; P2 retains the fixed top branch.
@@ -320,7 +327,8 @@ pub(super) fn emit(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg]
     core(circ,rank,c,sm,p1,mask,p2,sign,w1,w2,dirty,j);stage(circ,"core");
     circ.cswap(p1,p2,mask);circ.b.ops.extend(top.into_iter().rev());circ.b.ops.extend(loan.into_iter().rev());circ.b.ops.extend(moves.into_iter().rev());
     super::q795_t11::park_c1(circ,p1,p2,sign,helpers);short_flag(circ,rank,c,sm,p1,p2,helpers,j);super::q798_sign_erase::code(circ,p1,p2,sign,helpers,true);stage(circ,"return");
-    assert_eq!(circ.b.next_qubit,owned);for op in &circ.b.ops[start..]{for h in [256,257,258]{let q=w1[h].id()as u64;assert!(op.q_target.0!=q&&op.q_control1.0!=q&&op.q_control2.0!=q,"Sign touched omitted source{h}");}}
+    let holes:&[usize]=if super::q793_lifecycle_r03::four_hole(){&[255,256,257,258]}else{&[256,257,258]};
+    assert_eq!(circ.b.next_qubit,owned);for (idx,op) in circ.b.ops[start..].iter().enumerate(){for &h in holes{let q=w1[h].id()as u64;if op.q_target.0==q||op.q_control1.0==q||op.q_control2.0==q{eprintln!("Q792_SIGN_HOLE j={j} h={h} idx={idx} kind={:?} q2={} q1={} t={}",op.kind,op.q_control2.0,op.q_control1.0,op.q_target.0);panic!("Sign touched omitted source{h}");}}}
 }
 
 #[path="q793_sign_dynamic_r05_check.rs"]

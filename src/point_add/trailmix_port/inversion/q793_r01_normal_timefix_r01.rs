@@ -271,18 +271,19 @@ impl Scan<'_>{
         let cc:Vec<_>=self.c.iter().chain(word[2..4].iter()).map(QReg::borrowed_alias).collect();
         let mut aliases:Vec<_>=word.iter().chain(self.a).chain(self.c).chain(self.sm).chain([self.g,self.mask,self.ha,decision]).map(QReg::id).collect();aliases.sort_unstable();assert!(aliases.windows(2).all(|w|w[0]!=w[1]));
         assert!(self.dirty.iter().all(|q|!aliases.contains(&q.id())));
+        let four=super::q793_lifecycle_r03::four_hole();
         let start=circ.b.ops.len();for i in 0..3{self.lower(circ,i);}let low=circ.b.ops[start..].to_vec();
         arithmetic::add(circ,self.a,self.c,None,true);self.seeds(circ,w1,w2);
         let chart_start=circ.b.ops.len();numeric_chart::emit(circ,&word,self.dirty);let converter=circ.b.ops[chart_start..].to_vec();arithmetic::add(circ,&aa,&cc,None,false);
         let mut updates=Vec::new();let mut prefix=a7_prefix::Prefix::new(n,3);
-        for i in 3..n{
+        for i in (3+usize::from(four))..n{
             let at=circ.b.ops.len();self.numeric_lower(circ,&word[4..],i);let value=256-i;
             let cs:Vec<_>=cc.iter().enumerate().map(|(b,q)|(q,value>>b&1!=0)).collect();
             if !prefix.as_mut().is_some_and(|p|p.upper(circ,&cc,&aa[7],self.g,self.mask,value)){circ.x(self.g);super::paired_clean_mcx::toggle(circ,&cs,self.mask,self.g);circ.x(self.g);}
             updates.push(circ.b.ops[at..].to_vec());self.carry(circ,&w2[258-i],&w1[258-i],false);
         }
         circ.cx(self.g,decision);circ.ccx(self.g,self.ha,decision);
-        for i in (3..n).rev(){
+        for i in ((3+usize::from(four))..n).rev(){
             self.carry(circ,&w2[258-i],&w1[258-i],true);circ.cx(self.ha,&w2[258-i]);
             gate(circ,&[(self.g,true),(self.mask,true),(&w2[258-i],true),(decision,true)],&w1[258-i],self.dirty);circ.cx(self.ha,&w2[258-i]);
             circ.b.ops.extend(updates.pop().unwrap().into_iter().rev());

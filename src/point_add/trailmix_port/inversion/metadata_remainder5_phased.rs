@@ -188,14 +188,14 @@ impl Scan<'_> {
     }
     fn add(&self,circ:&mut Circuit,source:&[QReg],target:&[QReg],sign:Option<&QReg>,subtract:bool) {
         let start=circ.b.ops.len();
-        for i in 259-self.support_end..259 {if i!=258||!super::q796_parity::enabled(){circ.cx(&source[i],&target[i]);}}
+        for i in 259-self.support_end..259 {if super::q793_lifecycle_r03::four_hole()&&i==255{continue;}if i!=258||!super::q796_parity::enabled(){circ.cx(&source[i],&target[i]);}}
         self.scan(circ,source,target,sign,0,false);
         if sign.is_some() {self.scan(circ,source,target,sign,1,true);}
         self.scan(circ,source,target,sign,2,true);
         self.scan(circ,source,target,sign,3,false);
         self.scan(circ,source,target,sign,4,true);
         self.scan(circ,source,target,sign,5,false);
-        for i in 259-self.support_end..259 {if i!=258||!super::q796_parity::enabled(){circ.cx(&source[i],&target[i]);}}
+        for i in 259-self.support_end..259 {if super::q793_lifecycle_r03::four_hole()&&i==255{continue;}if i!=258||!super::q796_parity::enabled(){circ.cx(&source[i],&target[i]);}}
         // Every primitive here is self-inverse; literal reversal implements subtraction.
         if subtract {circ.b.ops[start..].reverse();}
     }

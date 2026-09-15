@@ -33,9 +33,10 @@ fn head_delta(circ:&mut Circuit,rank:&[QReg],a:&[QReg],source:&[QReg],c:&[QReg],
         // Save the first selected bit, inspect its neighbour, then uncompute.
         // The A support is exactly the caller's pre-existing lo..hi proof.
         let four=super::q793_lifecycle_r03::four_hole();
-        let shift=2+usize::from(four);let top=255usize.saturating_sub(usize::from(four));
+        let shift=2+usize::from(four);let top=if four{252}else{255};
         let first:Vec<_>=(lo..hi.min(top)).map(|v|(v,&source[v+shift])).collect();
-        let second:Vec<_>=(lo..hi.min(top)).map(|v|(v,&source[v+shift+1])).collect();
+        let top2=if four{251}else{255};
+        let second:Vec<_>=(lo..hi.min(top2)).map(|v|(v,&source[v+shift+1])).collect();
         if first.is_empty(){return;}
         let (root,gather)=super::metadata_muxlease::gather_linear(circ,&address,&first);circ.ccx(guard,root,&c[4]);circ.b.ops.extend(gather.into_iter().rev());
         let (root,gather)=super::metadata_muxlease::gather_linear(circ,&address,&second);

@@ -66,7 +66,7 @@ pub(super) fn emit(circ:&mut Circuit,rank:&[QReg],c:&[QReg],sm:&[QReg],g:&QReg,m
     // Snew=0 exactly: the one lower boundary is a guarded toggle at bit0.
     circ.cx(g,mask);seed(circ,rank,c,sm,g,ha,w1,w2,dirty);
     let mut group=-1isize;let mut updates=Vec::new();
-    for i in 3..n{
+    for i in (3+usize::from(super::q793_lifecycle_r03::four_hole()))..n{
         let at=circ.b.ops.len();let value=255-i;let high=(value/64)as isize;
         high_transition(circ,rank,g,hs,dirty,group,high);group=high;
         let mut cs=vec![(hs,true)];cs.extend(c.iter().enumerate().map(|(i,q)|(q,value>>i&1!=0)));
@@ -74,7 +74,7 @@ pub(super) fn emit(circ:&mut Circuit,rank:&[QReg],c:&[QReg],sm:&[QReg],g:&QReg,m
         updates.push(circ.b.ops[at..].to_vec());carry(circ,g,mask,ha,&w2[258-i],&w1[258-i],false);
     }
     circ.cx(g,decision);circ.ccx(g,ha,decision);
-    for i in (3..n).rev(){
+    for i in ((3+usize::from(super::q793_lifecycle_r03::four_hole()))..n).rev(){
         carry(circ,g,mask,ha,&w2[258-i],&w1[258-i],true);circ.cx(ha,&w2[258-i]);
         gate(circ,&[(g,true),(mask,true),(&w2[258-i],true),(decision,true)],&w1[258-i],dirty);circ.cx(ha,&w2[258-i]);
         circ.b.ops.extend(updates.pop().unwrap().into_iter().rev());

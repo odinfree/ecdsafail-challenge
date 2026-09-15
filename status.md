@@ -57,3 +57,29 @@ lock (pid=session17681) still held at 19:16Z; FLASH live and reconciling.
 FLASH owns queue #2 (its baseline build). I wait for queue order; do not jump.
 Next heavy job for me: queue #3 = OFF census + H3a census (one heavy acquisition,
 release after each job per rules).
+
+## ROOT HANDOFF — Q792 leak localized (2026-09-15T10:30Z)
+
+Count pass `LOWQ_Q792_EEA=1 LOWQ_Q793_NATIVE_MODE=whole-count` deterministically
+panics at the template self-check with:
+
+```
+Q792_HOLE_TOUCH block=124 j=0 hole=255 idx=170128 kind=CX q1=NO_QUBIT q2=279 t=275
+omitted low residual rail still emitted
+```
+
+Decoding the template's register allocation (rank 0..5, a 5..11, c 11..17,
+sm 17..21, p1 21, p2 22, iter 23, w1 24..283, w2 283..542) makes the leaking
+gate `CX(w2[19], w1[255])` — a copy INTO the newly omitted rail, inside block
+124 / j 0, at template offset 170128.
+
+Cheapest fix: guard that single emission with `!four_hole()` (same pattern as
+`metadata_remainder5_phased.rs`'s `if four_hole() && i == 255 { continue; }`), or
+retarget it to the port the four-hole mapping already chose for A=254
+(`w2[257]`, see `q794_handoffs.rs`). Then: whole-count must print
+`peak_qubits=792`, refreeze `codex10h_resources()` + the peak assert, whole-stream
+must be 0/0/0, then submit.
+
+Full analysis: `../../lanes/laneRoot/Q792-BLOCKER-ANALYSIS.md` and
+`../../lanes/laneRoot/Q792-NEXT-STEP.md`. Also: A24 is already OFFICIAL —
+submission `2dc9b2b`, Q793 / T671,563,551, the new nondominated Q793 frontier row.

@@ -524,6 +524,13 @@ impl Circuit {
 
     pub fn cx(&mut self, ctrl: &QReg, tgt: &QReg) {
         self.flush_pending_frees();
+        static TRAP:std::sync::OnceLock<bool>=std::sync::OnceLock::new();
+        if *TRAP.get_or_init(||std::env::var("Q792_CX_TRAP").ok().as_deref()==Some("1")){
+            let (c,t)=(ctrl.id(),tgt.id());
+            if c==279&&t==275{
+                eprintln!("Q792_CX_TRAP ctrl={c} tgt={t}\n{}",std::backtrace::Backtrace::force_capture());
+            }
+        }
         self.b.cx(QubitId(ctrl.id.into()), QubitId(tgt.id.into()));
     }
 

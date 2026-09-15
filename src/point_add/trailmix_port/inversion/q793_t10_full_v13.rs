@@ -35,7 +35,7 @@ fn branch(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg
     let g=&helpers[0];let dirty=&helpers[1..];let mut cost_at=circ.b.ops.len();
     if low{super::q793_t10_expand_v11::flags(circ,rank,a,c,g,&sm[1],&sm[2],dirty);super::q793_t10_expand_v11::emit(circ,rank,a,c,sm,p1,p2,g,w1,w2,dirty,j,false,last);}
     cost(circ,&mut cost_at,last,low,"guard+decode");
-    let mut source:Vec<_>=w1[..256].iter().map(QReg::borrowed_alias).collect();if low{source.push(sm[3].borrowed_alias());}
+    let mut source:Vec<_>=w1[..(256-usize::from(super::q793_lifecycle_r03::four_hole()))].iter().map(QReg::borrowed_alias).collect();if low{source.push(sm[3].borrowed_alias());}
     move_g(circ,rank,a,g,&source,w2,dirty);
     if last{
         super::q793_t10_fused_v3::add_and_clear(circ,rank,&source,w2,a,g,&c[2],&c[1],&c[0],dirty,n,c,sm,j,true,low);circ.cx(g,&c[0]);
@@ -80,6 +80,7 @@ pub(super) fn emit(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg]
 
     if std::env::var("Q793_HELD_LOAN").ok().as_deref()!=Some("1"){super::q793_loans::global_a(circ,rank,a,&helpers[0],w1,&w2[258],Some(&w2[257]),None,&helpers[1..]);}
     assert_eq!(circ.b.next_qubit,owned);
-    for op in &circ.b.ops[start..]{for h in [256,257,258]{let q=w1[h].id()as u64;assert!(op.q_target.0!=q&&op.q_control1.0!=q&&op.q_control2.0!=q,"T10 V13 touched omitted W1[{h}]");}}
+    let holes:&[usize]=if super::q793_lifecycle_r03::four_hole(){&[255,256,257,258]}else{&[256,257,258]};
+    for (idx,op) in circ.b.ops[start..].iter().enumerate(){for &h in holes{let q=w1[h].id()as u64;if op.q_target.0==q||op.q_control1.0==q||op.q_control2.0==q{eprintln!("Q792_T10_HOLE j={j} h={h} idx={idx} kind={:?} q2={} q1={} t={}",op.kind,op.q_control2.0,op.q_control1.0,op.q_target.0);panic!("T10 V13 touched omitted W1[{h}]");}}}
     let mut tail=circ.b.ops.split_off(start);super::shared_optimize::cancel_nct(&mut tail,2048,8);super::shared_optimize::cancel_nct_live(&mut tail,2048);circ.b.ops.extend(tail);
 }

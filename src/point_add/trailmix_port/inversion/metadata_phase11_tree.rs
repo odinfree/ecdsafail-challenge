@@ -44,7 +44,10 @@ fn compare(circ:&mut Circuit,rank:&[QReg],a:&[QReg],b:&[QReg],low:&[QReg],sm:&[Q
     for q in &b[..n]{circ.x(q);}circ.cx(guard,sign);
 }
 pub(super) fn emit(circ:&mut Circuit,rank:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg,p2:&QReg,sign:&QReg,w1:&[QReg],w2:&[QReg],helpers:&[QReg],j:usize,n:usize){
-    code(circ,p1,p2,sign,helpers,false);let mask=&helpers[0];let dirty=&helpers[1..];let addresses:Vec<_>=(0..256).map(|v|&w1[258-v]).collect();
+    code(circ,p1,p2,sign,helpers,false);let mask=&helpers[0];let dirty=&helpers[1..];
+    // 4-hole: the k255 bit is the omitted rail (zero); the zero pad stands in
+    // so the 256-address routing stays well formed and restores it after.
+    let addresses:Vec<_>=(0..256).map(|v|if super::q793_lifecycle_r03::four_hole()&&v==3{&w2[257]}else{&w1[258-v]}).collect();
     super::metadata_muxlease::exchange(circ,rank,c,1,Some(p1),mask,&addresses,dirty,true);
     super::metadata_phase115_phased::prepare(circ,c,sm,p1,None,dirty,j,false);
     if super::metadata_muxlease::active("Q799_T11_COMPARE"){compare(circ,rank,w1,w2,c,sm,p1,p2,mask,sign,dirty,j,n);}else{

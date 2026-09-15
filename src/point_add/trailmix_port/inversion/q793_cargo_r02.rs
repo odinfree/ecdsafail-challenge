@@ -14,7 +14,8 @@ fn joined<'a>(left:&[(&'a QReg,bool)],right:&[(&'a QReg,bool)])->Option<Vec<(&'a
     Some(cs)
 }
 pub(super) fn at<'a>(rank:&'a[QReg],a:&'a[QReg],value:usize,terms:&Terms<'a>)->Terms<'a> {
-    assert!((253..=255).contains(&value));
+    let four=super::q793_lifecycle_r03::four_hole();
+    assert!((if four{252..=254}else{253..=255}).contains(&value));
     let mut out=Vec::new();
     // Exact XOR cover of A_high=3 on all32 physical rank codes.
     for term in terms {for (m,v) in [(28usize,28usize),(31,28)] {
@@ -25,7 +26,8 @@ pub(super) fn at<'a>(rank:&'a[QReg],a:&'a[QReg],value:usize,terms:&Terms<'a>)->T
     out
 }
 fn below253<'a>(rank:&'a[QReg],a:&'a[QReg],terms:&Terms<'a>)->Terms<'a> {
-    let mut out=terms.clone();for value in 253..=255{out.extend(at(rank,a,value,terms));}out
+    let four=super::q793_lifecycle_r03::four_hole();
+    let mut out=terms.clone();for value in if four{252..=254}else{253..=255}{out.extend(at(rank,a,value,terms));}out
 }
 fn swap(circ:&mut Circuit,terms:&Terms<'_>,left:&QReg,right:&QReg,dirty:&[QReg]) {
     assert_ne!(left.id(),right.id());
@@ -45,11 +47,19 @@ fn flip(circ:&mut Circuit,terms:&Terms<'_>,target:&QReg,dirty:&[QReg]) {
 pub(super) fn inbound(circ:&mut Circuit,rank:&[QReg],a:&[QReg],w1:&[QReg],w2:&[QReg],from:usize,terms:&Terms<'_>,dirty:&[QReg]) {
     assert!(from==0||from==2);
     moves::adjacent_a_terms_flip(circ,rank,a,&w1[..256],from,3,&below253(rank,a,terms),dirty);
-    let a253=at(rank,a,253,terms);let a254=at(rank,a,254,terms);
-    swap(circ,&a253,&w1[255],&w2[255],dirty);
-    if from==0 {swap(circ,&a253,&w1[253],&w2[255],dirty);}
-    if from==0 {swap(circ,&a254,&w1[254],&w2[257],dirty);}
-    else {swap(circ,&a254,&w2[254],&w2[257],dirty);flip(circ,&a254,&w2[254],dirty);}
+    if super::q793_lifecycle_r03::four_hole(){
+        let a252=at(rank,a,252,terms);let a253=at(rank,a,253,terms);
+        swap(circ,&a252,&w2[256],&w2[255],dirty);
+        if from==0 {swap(circ,&a252,&w1[252],&w2[255],dirty);}
+        if from==0 {swap(circ,&a253,&w1[253],&w2[257],dirty);}
+        else {swap(circ,&a253,&w2[253],&w2[257],dirty);flip(circ,&a253,&w2[253],dirty);}
+    }else{
+        let a253=at(rank,a,253,terms);let a254=at(rank,a,254,terms);
+        swap(circ,&a253,&w1[255],&w2[255],dirty);
+        if from==0 {swap(circ,&a253,&w1[253],&w2[255],dirty);}
+        if from==0 {swap(circ,&a254,&w1[254],&w2[257],dirty);}
+        else {swap(circ,&a254,&w2[254],&w2[257],dirty);flip(circ,&a254,&w2[254],dirty);}
+    }
 }
 
 /// R01 -> T10's leading-digit port. C1 endpoint transport has already
@@ -57,10 +67,13 @@ pub(super) fn inbound(circ:&mut Circuit,rank:&[QReg],a:&[QReg],w1:&[QReg],w2:&[Q
 pub(super) fn head_to_two(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],w1:&[QReg],w2:&[QReg],terms:&Terms<'_>,dirty:&[QReg]) {
     moves::adjacent_a_terms(circ,rank,a,&w1[..256],0,2,&below253(rank,a,terms),dirty);
     // A>=253 implies C_high=0 at an active transition. Cancel C_low=1.
-    for av in [253,254] {
+    for (av,av4) in if super::q793_lifecycle_r03::four_hole(){[(252usize,252usize),(253,253)]}else{[(253,253),(254,254)]} {
+        let _=av4;
         let mut cs=at(rank,a,av,terms);let one:Vec<_>=c.iter().enumerate().map(|(i,q)|(q,i==0)).collect();
         let copy=cs.clone();for term in copy {if let Some(term)=joined(&term,&one){cs.push(term);}}
-        if av==253 {swap(circ,&cs,&w1[253],&w1[255],dirty);}
+        if av==253&&super::q793_lifecycle_r03::four_hole(){swap(circ,&cs,&w1[253],&w2[255],dirty);flip(circ,&cs,&w1[253],dirty);}
+        else if av==253 {swap(circ,&cs,&w1[253],&w1[255],dirty);}
+        else if av==252 {swap(circ,&cs,&w1[252],&w2[256],dirty);}
         else {swap(circ,&cs,&w1[254],&w2[255],dirty);flip(circ,&cs,&w1[254],dirty);}
     }
 }
@@ -69,11 +82,11 @@ pub(super) fn head_to_two(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],w1:
 /// two head readers; the passengers temporarily occupy W2[254]/W2[255].
 pub(super) fn before_entry(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg,p2:&QReg,w2:&[QReg],dirty:&[QReg]) {
     let mut base=vec![(p1,true),(p2,false),(&rank[1],false)];base.extend(c.iter().chain(sm).map(|q|(q,false)));
-    let terms=at(rank,a,254,&vec![base]);
+    let terms=at(rank,a,if super::q793_lifecycle_r03::four_hole(){253}else{254},&vec![base]);
     swap(circ,&terms,&w2[256],&w2[255],dirty);flip(circ,&terms,&w2[256],dirty);
 }
 pub(super) fn after_entry(circ:&mut Circuit,rank:&[QReg],a:&[QReg],sign:&QReg,w2:&[QReg],dirty:&[QReg]) {
-    let terms=at(rank,a,254,&vec![vec![(sign,true)]]);
+    let terms=at(rank,a,if super::q793_lifecycle_r03::four_hole(){253}else{254},&vec![vec![(sign,true)]]);
     flip(circ,&terms,&w2[256],dirty);swap(circ,&terms,&w2[256],&w2[255],dirty);
     swap(circ,&terms,&w2[254],&w2[255],dirty);
 }
@@ -86,7 +99,7 @@ pub(super) fn newborn_regular(circ:&mut Circuit,rank:&[QReg],a:&[QReg],sign:&QRe
     swap(circ,&terms,left,right,dirty);flip(circ,&terms,left,dirty);
 }
 pub(super) fn newborn_253(circ:&mut Circuit,rank:&[QReg],a:&[QReg],sign:&QReg,left:&QReg,right:&QReg,dirty:&[QReg]) {
-    let terms=at(rank,a,253,&vec![vec![(sign,true)]]);
+    let terms=at(rank,a,if super::q793_lifecycle_r03::four_hole(){252}else{253},&vec![vec![(sign,true)]]);
     swap(circ,&terms,left,right,dirty);flip(circ,&terms,left,dirty);
 }
 
@@ -96,13 +109,13 @@ pub(super) fn newborn_253(circ:&mut Circuit,rank:&[QReg],a:&[QReg],sign:&QReg,le
 /// t>=2^254 and q=2^S imply v*2^S<4, proving W2[256]=0.
 pub(super) fn finish_c1(circ:&mut Circuit,rank:&[QReg],a:&[QReg],w1:&[QReg],w2:&[QReg],terms:&Terms<'_>,dirty:&[QReg]) {
     moves::across_a_terms(circ,rank,a,w2,2,&w1[..256],2,&below253(rank,a,terms),true,dirty);
-    let cs=at(rank,a,254,terms);swap(circ,&cs,&w2[256],&w2[255],dirty);
+    let cs=at(rank,a,if super::q793_lifecycle_r03::four_hole(){253}else{254},terms);swap(circ,&cs,&w2[256],&w2[255],dirty);
 }
 
 /// Existing phase11 rotates the second passenger right by one. For S>0
 /// return it to the boundary port; at S0 keep W2[256] for the cycle exit.
 pub(super) fn normalize_old11(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg,p2:&QReg,w2:&[QReg],j:usize,dirty:&[QReg]) {
-    let mut terms=at(rank,a,254,&vec![vec![(p1,true),(p2,true)]]);
+    let mut terms=at(rank,a,if super::q793_lifecycle_r03::four_hole(){253}else{254},&vec![vec![(p1,true),(p2,true)]]);
     if j==0 {
         // Active A254 forces S_high=0; phase11 S_low is -j modulo4.
         let low:Vec<_>=sm.iter().map(|q|(q,false)).collect();

@@ -13,6 +13,12 @@ pub(super) fn mark(circ:&Circuit,name:&'static str){
         if census{let ops=&circ.b.ops[first..];let ccx=ops.iter().filter(|o|o.kind==crate::circuit::OperationType::CCX).count();eprintln!("Q795_STAGE_RAW name={name} ops={} T={ccx}",ops.len());}
         trace.push((name,circ.b.ops.len()));
     });}
+    if std::env::var("Q792_HOLE_TRAP").ok().as_deref()==Some("1"){
+        let first=TRACE.with(|t|t.borrow().last().map(|x|x.1).unwrap_or(0));
+        if let Some(op)=circ.b.ops[first..].iter().find(|o|(279..283).contains(&o.q_target.0)||(279..283).contains(&o.q_control1.0)||(279..283).contains(&o.q_control2.0)){
+            eprintln!("Q792_HOLE_TRAP stage={name} kind={:?} q2={} q1={} t={}",op.kind,op.q_control2.0,op.q_control1.0,op.q_target.0);
+        }
+    }
 }
 fn mcx_cost(n:usize)->usize{match n{0|1=>0,2=>1,_=>4*n-8}}
 /// Exact rank-function factoring for a bank of target-XOR product terms.
@@ -145,6 +151,7 @@ pub(super) fn step(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg]
     super::q793_t10_full_v13::emit(circ,rank,a,c,sm,p1,p2,w1,w2,helpers,tend,entry_j);
     mark(circ,"T10");
     super::metadata_rotation5::rotate(circ,rank,a,p1,p2,w2,&pool,false);
+    mark(circ,"rotate_pre");
     let p01=vec![(p1,false),(p2,true)];
     super::q793_r01_dynamic_timefix_r01::signless(circ,rank,a,c,sm,p1,p2,w1,w2,&pool,entry_j,259-rfirst);
     mark(circ,"R01");
@@ -163,13 +170,21 @@ pub(super) fn step(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg]
     super::metadata_phase_counter5::emit_for_block(circ,rank,a,c,sm,p1,p2,dirty,entry_j,block);
     mark(circ,"counter");
     let c1_t10=ceq(rank,c,1,&[(p1,true),(p2,false)]);
+    let rchk=|circ:&Circuit,label:&str|{if std::env::var("Q792_R_TRACE").ok().as_deref()==Some("1"){let first=circ.b.ops.len().saturating_sub(circ.b.ops.len().saturating_sub(start));if circ.b.ops[start..].iter().any(|o|(279..283).contains(&o.q_target.0)||(279..283).contains(&o.q_control1.0)||(279..283).contains(&o.q_control2.0)){eprintln!("Q792_R_TOUCH label={label}");}}};
     let tflag=vec![vec![(p1,true),(p2,false),(sign,true)]];
     toggle_pair_around(circ,&c1_t10,rank,sign,dirty,"Q793_C1_HOLD",|circ,lenders|super::q793_cargo_r02::inbound(circ,rank,a,w1,w2,2,&tflag,lenders));
+    rchk(circ,"inbound_c1hold");
     super::q793_cargo_r02::normalize_old11(circ,rank,a,c,sm,p1,p2,w2,post_j,dirty);
+    rchk(circ,"normalize");
     super::q793_cargo_r02::before_entry(circ,rank,a,c,sm,p1,p2,w2,dirty);
+    rchk(circ,"before_entry");
     super::metadata_entry_boundary5::entry_with_support(circ,rank,a,c,sm,p1,p2,sign,w1,w2,dirty,post_j,lo,hi);
+    let entrychk=|circ:&Circuit,label:&str|{if std::env::var("Q792_ENTRY_TRACE").ok().as_deref()==Some("1"){let hole=w1[255].id()as u64;if let Some(op)=circ.b.ops[start..].iter().find(|o|o.q_target.0==hole||o.q_control1.0==hole||o.q_control2.0==hole){eprintln!("Q792_ENTRY_TOUCH label={label} kind={:?} q2={} q1={} t={}",op.kind,op.q_control2.0,op.q_control1.0,op.q_target.0);}}};
+    entrychk(circ,"entry_with_support");
     newborn(circ,rank,a,c,sm,p2,sign,w1,w2,dirty,post_j);
+    entrychk(circ,"newborn");
     super::q793_cargo_r02::after_entry(circ,rank,a,sign,w2,dirty);
+    entrychk(circ,"after_entry");
     mark(circ,"entry");
     // Sign is zero on both R phases. Cache a routing predicate there while
     // masking its unrelated phase11 value with P1=false at every exchange.
@@ -190,28 +205,36 @@ pub(super) fn step(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg]
     mark(circ,"before_exit");
     if post_j==0{super::q793_metadata_exit::exit_phase_cargo(circ,rank,a,c,sm,p1,p2,iteration,w1,w2,helpers,lo,hi);}
     mark(circ,"after_exit");
+    let mut tailchk=|circ:&Circuit,label:&str|{if std::env::var("Q792_TAIL_TRACE").ok().as_deref()==Some("1"){let hole=w1[255].id()as u64;if let Some(op)=circ.b.ops[start..].iter().find(|o|o.q_target.0==hole||o.q_control1.0==hole||o.q_control2.0==hole){eprintln!("Q792_TAIL_TOUCH label={label} kind={:?} q2={} q1={} t={}",op.kind,op.q_control2.0,op.q_control1.0,op.q_target.0);}}};
     old::phase_flips(circ,rank,a,c,sm,p1,p2,w1,&w2[258],&pool,post_j);
+    tailchk(circ,"phase_flips");
     // Route by final phase: old and newly entered T10 share the A+2 gap.
     moves::adjacent_a_terms(circ,rank,a,w2,2,1,&vec![vec![(p1,false),(p2,true)]],&pool);
+    tailchk(circ,"adj21");
     let c1=ceq(rank,c,1,&[(p1,true),(p2,false)]);
     if std::env::var("Q793_HELD_LOAN").ok().as_deref()==Some("1")&&std::env::var("Q793_FINAL_FLAG").ok().as_deref()==Some("1"){
         // EXPERIMENT: with the loan held, sign is a clean zero here. Cache
         // phase10*C1 in it once and drive both final moves by that flag.
         toggle_terms(circ,&c1,rank,sign,dirty);
+        tailchk(circ,"tog1");
         let notf=vec![vec![(p1,true),(p2,false),(sign,false)]];
         moves::adjacent_a_terms(circ,rank,a,w2,2,3,&notf,dirty);
+        tailchk(circ,"adj23a");
         let f=vec![vec![(sign,true)]];
         super::q793_cargo_r02::finish_c1(circ,rank,a,w1,w2,&f,dirty);
+        tailchk(circ,"finish_c1a");
         toggle_terms(circ,&c1,rank,sign,dirty);
     }else{
     let mut other=vec![vec![(p1,true),(p2,false)]];other.extend(c1.clone());
     moves::adjacent_a_terms(circ,rank,a,w2,2,3,&other,&pool);
+    tailchk(circ,"adj23b");
     super::q793_cargo_r02::finish_c1(circ,rank,a,w1,w2,&c1,&pool);
+    tailchk(circ,"finish_c1b");
     }
     let window=std::env::var("Q795_CORE_CANCEL").ok().map(|s|s.parse::<usize>().unwrap()).unwrap_or(2048);
     mark(circ,"final");
     for op in &circ.b.ops[start..]{for h in [256usize,257,258]{let q=w1[h].id()as u64;assert!(op.q_target.0!=q&&op.q_control1.0!=q&&op.q_control2.0!=q,"STEP touched omitted Work1[{h}]");}}
-    if std::env::var_os("Q795_TRACE").is_none()&&!super::q793_mbu::capturing(){let mut tail=circ.b.ops.split_off(start);super::shared_optimize::cancel_nct(&mut tail,window,8);super::shared_optimize::cancel_nct_live(&mut tail,window);
+    if std::env::var_os("Q795_TRACE").is_none()&&!super::q793_mbu::capturing()&&std::env::var("Q792_NO_CANCEL").ok().as_deref()!=Some("1"){let mut tail=circ.b.ops.split_off(start);super::shared_optimize::cancel_nct(&mut tail,window,8);super::shared_optimize::cancel_nct_live(&mut tail,window);
         if std::env::var("Q794_TFACTOR").ok().as_deref()==Some("1") {
             let removed=super::q794_tfactor::apply(&mut tail,64);
             super::shared_optimize::cancel_nct_live(&mut tail,window);

@@ -125,7 +125,7 @@ pub(super) fn template(block:usize,j:usize)->Vec<Op> {
     assert!(dual_phase());super::q793_step_r03::step(&mut circ,&rank,&a,&c,&sm,&p1,&p2,&iter,&w1,&w2,&helpers,j,block);assert_eq!(circ.b.next_qubit,565+2*u32::from(helpers_25()));
     let b=circ.into_builder();assert!(b.ops.iter().all(|o|matches!(o.kind,OperationType::X|OperationType::CX|OperationType::CCX)));
     let holes=if four_hole(){[255usize,256,257,258].as_slice()}else{[256usize,257,258].as_slice()};
-    for &h in holes{let hole=w1[h].id()as u64;if let Some(op)=b.ops.iter().find(|o|o.q_target.0==hole||o.q_control1.0==hole||o.q_control2.0==hole){eprintln!("Q792_HOLE_TOUCH block={block} j={j} hole={h} kind={:?} q1={} q2={} t={}",op.kind,op.q_control2.0,op.q_control1.0,op.q_target.0);panic!("omitted low residual rail still emitted");}}
+    for &h in holes{let hole=w1[h].id()as u64;if let Some((idx,op))=b.ops.iter().enumerate().find(|(_,o)|o.q_target.0==hole||o.q_control1.0==hole||o.q_control2.0==hole){eprintln!("Q792_HOLE_TOUCH block={block} j={j} hole={h} idx={idx} kind={:?} q1={} q2={} t={}",op.kind,op.q_control2.0,op.q_control1.0,op.q_target.0);panic!("omitted low residual rail still emitted");}}
     b.ops
 }
 pub fn sprint_census(){

@@ -19,7 +19,8 @@ pub(super) fn gather<'a>(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],w1:&
     assert!(offset<=2);assert_eq!(w1.len(),259);let start=circ.b.ops.len();
     let lo=circ.q797_a_support.map_or(0,|(lo,_)|lo.min(253));
     add(circ,a,c,Some(carry),false);
-    let mut nodes:Vec<_>=(0..256).map(|m|if(lo..=253).contains(&m){Some(&w1[m+offset])}else{None}).collect();
+    let top=253usize.saturating_sub(usize::from(super::q793_lifecycle_r03::four_hole()));
+    let mut nodes:Vec<_>=(0..256).map(|m|if(lo..=top).contains(&m){Some(&w1[m+offset])}else{None}).collect();
     for level in 0..8{let mut next=Vec::new();for pair in nodes.chunks_exact(2){next.push(match(pair[0],pair[1]){
         (Some(left),Some(right))=>{if level<6{circ.cswap(&c[level],left,right);}else{high_swap(circ,rank,carry,g,level-6,left,right);}Some(left)},
         (Some(q),None)|(None,Some(q))=>Some(q),(None,None)=>None,

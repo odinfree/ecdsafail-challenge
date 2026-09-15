@@ -81,7 +81,7 @@ fn cell(circ:&mut Circuit,s:&QReg,t:&QReg,carry:&QReg,mask:&QReg,g:&QReg,inverse
 /// Exact inverse map q=p XOR [r>=x], y=r-q*x (mod2^(A+2)). Reversing
 /// its COMPLETE circuit emits the old pair's map, including arbitrary P1.
 pub(super) fn add_and_clear(circ:&mut Circuit,rank:&[QReg],source:&[QReg],target:&[QReg],a:&[QReg],g:&QReg,cache:&QReg,mask:&QReg,p1:&QReg,helpers:&[QReg],n:usize,c:&[QReg],sm:&[QReg],j:usize,c1:bool,low:bool){
-    let n=n.min(if low{256}else{254});
+    let n=n.min(if low{256usize.saturating_sub(usize::from(super::q793_lifecycle_r03::four_hole()))}else{254});
     assert!((2..=256).contains(&n));assert!(helpers.len()>=17);
     let carry=&helpers[0];let dirty=&helpers[1..];let start=circ.b.ops.len();
     let a18=std::env::var("Q793_A18").ok().as_deref()==Some("1");

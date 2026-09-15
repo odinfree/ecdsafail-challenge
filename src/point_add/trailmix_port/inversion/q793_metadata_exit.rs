@@ -58,32 +58,45 @@ fn head(circ:&mut Circuit,rank:&[QReg],c:&[QReg],g:&QReg,passenger:&QReg,w2:&[QR
 
 pub(super) fn exit_phase_cargo(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg,p2:&QReg,iteration:&QReg,w1:&[QReg],w2:&[QReg],helpers:&[QReg],lo:usize,hi:usize) {
     assert!(helpers.len()>=23);let owned=circ.b.next_qubit;let start=circ.b.ops.len();let g=&helpers[0];let dirty=&helpers[2..];
+    let mut chk=|circ:&Circuit,label:&str|{let hole=w1[255].id()as u64;if std::env::var("Q792_EXIT_TRACE").ok().as_deref()==Some("1"){if let Some(op)=circ.b.ops[start..].iter().find(|o|o.q_target.0==hole||o.q_control1.0==hole||o.q_control2.0==hole){eprintln!("Q792_EXIT_TOUCH label={label} kind={:?} q2={} q1={} t={}",op.kind,op.q_control2.0,op.q_control1.0,op.q_target.0);}}};
     // Terminal Work2[258] is a genuine zero. The post-exit r readers ignore
     // it on A255, and no SM cargo remains during the rank transfer.
     if std::env::var("Q793_HELD_LOAN").ok().as_deref()!=Some("1"){q793_loans::global_a(circ,rank,a,g,w1,&w2[258],Some(&w2[257]),None,dirty);}
+    chk(circ,"loan1");
     guard(circ,rank,a,c,sm,p1,p2,g,dirty);
+    chk(circ,"guard");
     second(circ,rank,a,g,&sm[2],w1,w2,dirty);
+    chk(circ,"second");
     head(circ,rank,c,g,&sm[0],w2,dirty);
+    chk(circ,"head");
     q793_loans::global_a(circ,rank,a,&sm[3],w1,&w2[258],Some(&w2[257]),Some(g),dirty);
+    chk(circ,"loan2");
     let four=super::q793_lifecycle_r03::four_hole();
     let skip:&[usize]=if four{&[0,1,2,3,255,256,257,258]}else{&[0,1,2,256,257,258]};
     for(i,(x,y))in w1.iter().zip(w2).enumerate(){if !skip.contains(&i){circ.cswap(g,x,y);}}
+    chk(circ,"cswaploop");
     if four{
         super::q792_mod16::cycle_swap(circ,[&w1[0],&w1[1],&w1[2],&w1[3],&w2[0],&w2[1],&w2[2],&w2[3],&w2[258],&w2[257],&w2[256],&w2[255]],g,dirty);
     }else{
         super::q793_mod8::cycle_swap(circ,[&w1[0],&w1[1],&w1[2],&w2[0],&w2[1],&w2[2],&w2[258],&w2[257],&w2[256]],g,dirty);
     }
+    chk(circ,"chart");
     circ.cswap(g,&sm[0],&sm[1]);
     let update_start=circ.b.ops.len();
     super::q793_Aupdate::update(circ,rank,a,c,sm,g,w1,w2,dirty,lo,hi,false);
+    chk(circ,"aupdate");
     for op in &circ.b.ops[update_start..]{for q in [&sm[1],&sm[2],&sm[3]]{let id=q.id()as u64;assert!(op.q_target.0!=id&&op.q_control1.0!=id&&op.q_control2.0!=id,"Aupdate observes parked cargo");}}
     super::q797_cargo_moves::exchange_a(circ,rank,a,w1,0,&sm[1],&[(g,true)],dirty);
+    chk(circ,"exch1");
     circ.cx(g,&sm[1]);
     // Return the second cargo before depositing padding cargo. At A255 the
     // second lives in W2[257], while the padding donor is W2[258].
     super::q797_cargo_moves::exchange_a(circ,rank,a,w2,2,&sm[2],&[(g,true)],dirty);
+    chk(circ,"exch2");
     q793_loans::global_a(circ,rank,a,&sm[3],w1,&w2[258],Some(&w2[257]),Some(g),dirty);
+    chk(circ,"loan3");
     super::q793_transfer::transfer_exit(circ,rank,a,c,sm,p1,p2,g,w1,w2,dirty);
+    chk(circ,"transfer");
     circ.cx(g,iteration);
     guard(circ,rank,a,c,sm,p1,p2,g,dirty);
     if std::env::var("Q793_HELD_LOAN").ok().as_deref()!=Some("1"){q793_loans::global_a(circ,rank,a,g,w1,&w2[258],Some(&w2[257]),None,dirty);}

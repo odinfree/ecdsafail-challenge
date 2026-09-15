@@ -63,13 +63,17 @@ pub(super) fn entry(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg
 }
 pub(super) fn entry_with_support(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg,p2:&QReg,sign:&QReg,w1:&[QReg],w2:&[QReg],helpers:&[QReg],j:usize,lo:usize,hi:usize) {
     assert!(j<4 && helpers.len()>=23);let start=circ.b.ops.len();
+    let mut echk=|circ:&Circuit,label:&str|{if std::env::var("Q792_E_TRACE").ok().as_deref()==Some("1"){let hole=w1[255].id()as u64;if let Some(op)=circ.b.ops[start..].iter().find(|o|o.q_target.0==hole||o.q_control1.0==hole||o.q_control2.0==hole){eprintln!("Q792_E_TOUCH label={label} kind={:?} q2={} q1={} t={}",op.kind,op.q_control2.0,op.q_control1.0,op.q_target.0);}}};
     // In pre-existing phase11, Sign xor P1=0; treating C as a quotient
     // during the first pair therefore cancels even though C stores LR.
     for q in [sign,p1] {empty_q(circ,rank,a,c,w1,&[(q,true)],p2,helpers,p1);}
+    echk(circ,"empty_q12");
     mixed_mcx(circ,&[(p1,true),(p2,true)],sign,helpers);
     empty_q(circ,rank,a,c,w1,&[(p1,false),(p2,true)],sign,helpers,p1);
+    echk(circ,"empty_q3");
     // Sign now marks entry exactly, including trueS256. No leased guard.
     super::metadata_entry_head5::transfer_with_support(circ,rank,a,c,sm,p1,p2,sign,w2,w1,helpers,j,false,lo,hi);
+    echk(circ,"transfer");
     let mut tail=circ.b.ops.split_off(start);super::shared_optimize::cancel_nct(&mut tail,256,8);super::shared_optimize::cancel_nct_live(&mut tail,256);circ.b.ops.extend(tail);
 }
 struct Fixed;impl XofReader for Fixed {fn read(&mut self,b:&mut[u8]){b.fill(0x69)}}

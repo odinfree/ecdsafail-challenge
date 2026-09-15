@@ -33,6 +33,7 @@ fn permute_for_update(circ:&mut Circuit,rank:&[QReg],guard:&QReg,helpers:&[QReg]
 }
 fn length_xor(circ:&mut Circuit,rank:&[QReg],c:&[QReg],sm:&[QReg],out:&[&QReg],source:&[QReg],prefix:&[QReg],guard:&QReg,helpers:&[QReg],lo:usize,hi:usize,decode_u:bool) {
     let four=super::q793_lifecycle_r03::four_hole();
+    let hi=if four{hi.min(255)}else{hi};
     let chart_9=[&prefix[0],&prefix[1],&prefix[2],&source[0],&source[1],&source[2],&source[258],&source[257],&source[256]];
     let chart_12=[&prefix[0],&prefix[1],&prefix[2],&prefix[3],&source[0],&source[1],&source[2],&source[3],&source[258],&source[257],&source[256],&source[255]];
     // These are arbitrary dirty replacements, not clean allocations. The

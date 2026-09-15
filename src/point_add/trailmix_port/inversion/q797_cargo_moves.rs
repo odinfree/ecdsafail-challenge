@@ -17,11 +17,15 @@ fn paired_a_terms(circ:&mut Circuit,rank:&[QReg],a:&[QReg],word:&[QReg],from:usi
     assert!(bits<=6);
     let stride=1usize<<bits;
     let (lo,hi)=circ.q797_a_support.unwrap_or((0,256));
+    if std::env::var("Q792_PAIRED_DBG").ok().as_deref()==Some("1")&&std::env::var("Q792_PAIRED_ONCE").ok().as_deref()!=Some("1"){std::env::set_var("Q792_PAIRED_ONCE","1");eprintln!("Q792_PAIRED_FOUR four={} support={:?} from={from} to={to}",super::q793_lifecycle_r03::four_hole(),(lo,hi));}
     for residue in 0..stride {
         let start=circ.b.ops.len();let mut roots=Vec::new();
         for offset in [from,to] {
             let mut nodes:Vec<_>=(residue..256).step_by(stride).map(|v|{
-                if ((lo..hi).contains(&v)||v==255)&&!(super::q796_parity::enabled()&&(from==3||to==3)&&v==255){Some(&word[v+offset])}else{None}
+                if std::env::var("Q792_PAIRED_DBG").ok().as_deref()==Some("1")&&super::q793_lifecycle_r03::four_hole()&&v>=248&&((lo..hi).contains(&v)||v==254)&&(!super::q793_lifecycle_r03::four_hole()||v+offset<255){eprintln!("Q792_PAIRED_INC v={v} offset={offset} support={:?}",(lo,hi));}
+                if super::q793_lifecycle_r03::four_hole()&&v==252&&offset==3&&std::env::var("Q792_PAIRED_DBG").ok().as_deref()==Some("1"){eprintln!("Q792_PAIRED_DBG2 v={v} offset={offset} support={:?} cond={}",(lo,hi),((lo..hi).contains(&v)||v==254)&&!(super::q796_parity::enabled()&&(from==3||to==3)&&v==254)&&(!super::q793_lifecycle_r03::four_hole()||v+offset<255));}
+                if std::env::var("Q792_PAIRED_DBG").ok().as_deref()==Some("1")&&super::q793_lifecycle_r03::four_hole()&&v+offset>=255&&((lo..hi).contains(&v)||v==255usize.saturating_sub(1)){eprintln!("Q792_PAIRED_DBG v={v} offset={offset} from={from} to={to} support={:?}",(lo,hi));}
+                if ((lo..hi).contains(&v)||v==255usize.saturating_sub(usize::from(super::q793_lifecycle_r03::four_hole())))&&!(super::q796_parity::enabled()&&(from==3||to==3)&&v==255usize.saturating_sub(usize::from(super::q793_lifecycle_r03::four_hole())))&&(!super::q793_lifecycle_r03::four_hole()||v+offset<255){Some(&word[v+offset])}else{None}
             }).collect();
             for level in bits..8 {
                 let mut next=Vec::new();

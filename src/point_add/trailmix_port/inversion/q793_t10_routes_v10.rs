@@ -18,16 +18,18 @@ fn high_swap(circ:&mut Circuit,rank:&[QReg],carry:&QReg,g:&QReg,bit:usize,left:&
 /// Cap M=A+C at min(2*A_hi-7,255)==min(4b+3,255); floor at block A_lo.
 /// Dropped leaves are off the live address; routing cancels with its inverse.
 fn leaf_window(circ:&Circuit)->(usize,usize){
-    let mut w=(0usize,255usize);
+    let top=255usize.saturating_sub(usize::from(super::q793_lifecycle_r03::four_hole()));
+    let mut w=(0usize,top);
     if let Some((lo,hi))=circ.q797_a_support{
-        if std::env::var("Q793_A12_V12").ok().as_deref()!=Some("0"){w.0=lo.min(255);}
-        if std::env::var("Q793_A16_V10").ok().as_deref()!=Some("0"){w.1=(2*hi).saturating_sub(7).min(255);}
+        if std::env::var("Q793_A12_V12").ok().as_deref()!=Some("0"){w.0=lo.min(top);}
+        if std::env::var("Q793_A16_V10").ok().as_deref()!=Some("0"){w.1=(2*hi).saturating_sub(7).min(top);}
     }
     w
 }
 fn leaf_nodes<'a>(circ:&Circuit,w1:&'a[QReg],offset:isize)->Vec<Option<&'a QReg>>{
     let w=leaf_window(circ);
-    let mut nodes:Vec<_>=(0..256).map(|s|{let i=s as isize+offset;if(3..=255).contains(&i)&&s>=w.0&&s<=w.1{Some(&w1[i as usize])}else{None}}).collect();
+    let top=255usize.saturating_sub(usize::from(super::q793_lifecycle_r03::four_hole()));
+    let mut nodes:Vec<_>=(0..256).map(|s|{let i=s as isize+offset;if(3..=top as isize).contains(&i)&&s>=w.0&&s<=w.1{Some(&w1[i as usize])}else{None}}).collect();
     // Rail trap: an empty window retains the minimum shipped leaf (a lone leaf
     // emits no routing at all), keeping the tree root well formed.
     if nodes.iter().all(|n|n.is_none()){let s0=(3-offset).max(0)as usize;nodes[s0]=Some(&w1[(s0 as isize+offset)as usize]);}

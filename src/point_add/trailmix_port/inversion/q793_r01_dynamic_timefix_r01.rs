@@ -153,7 +153,9 @@ pub(super) fn signless(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[Q
     endpoints(circ,rank,a,c,p1,p2,g,w1,w2,dirty,j);
     if std::env::var("Q793_HELD_LOAN").ok().as_deref()!=Some("1"){super::q793_loans::global_a(circ,rank,a,g,w1,&w2[258],Some(&w2[257]),None,dirty);}
     assert_eq!((circ.b.next_qubit,circ.b.active_qubits),owned);
-    for op in &circ.b.ops[start..]{for h in [256usize,257,258]{let q=w1[h].id()as u64;assert!(op.q_target.0!=q&&op.q_control1.0!=q&&op.q_control2.0!=q,"Q793 dynamic R01 touched omitted W1[{h}]");}}
+    if std::env::var("Q792_R01_SPAN").ok().as_deref()==Some("1"){eprintln!("Q792_R01_SPAN j={j} start={} end={} w1_255={}",start,circ.b.ops.len(),w1[255].id());}
+    let holes:&[usize]=if super::q793_lifecycle_r03::four_hole(){&[255,256,257,258]}else{&[256,257,258]};
+    for (idx,op) in circ.b.ops[start..].iter().enumerate(){for &h in holes{let q=w1[h].id()as u64;if op.q_target.0==q||op.q_control1.0==q||op.q_control2.0==q{eprintln!("Q792_R01_HOLE j={j} h={h} idx={idx} span={}..{} w1h={} kind={:?} q2={} q1={} t={}",start,circ.b.ops.len(),q,op.kind,op.q_control2.0,op.q_control1.0,op.q_target.0);panic!("Q793 dynamic R01 touched omitted W1[{h}]");}}}
 }
 #[path="q793_r01_dynamic_timefix_r01_check.rs"] mod check;
 pub fn run(){check::run();}

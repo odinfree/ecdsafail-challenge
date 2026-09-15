@@ -17,11 +17,12 @@ fn paired_a_terms(circ:&mut Circuit,rank:&[QReg],a:&[QReg],word:&[QReg],from:usi
     assert!(bits<=6);
     let stride=1usize<<bits;
     let (lo,hi)=circ.q797_a_support.unwrap_or((0,256));
+    let four=super::q793_lifecycle_r03::four_hole();let sentinel=255usize.saturating_sub(usize::from(four));
     for residue in 0..stride {
         let start=circ.b.ops.len();let mut roots=Vec::new();
         for offset in [from,to] {
             let mut nodes:Vec<_>=(residue..256).step_by(stride).map(|v|{
-                if v+from.max(to)<word.len()&&((lo..hi).contains(&v)||v==255)&&!(super::q796_parity::enabled()&&(from==3||to==3)&&v==255){Some(&word[v+offset])}else{None}
+                if v+from.max(to)<word.len()&&((lo..hi).contains(&v)||v==sentinel)&&!(super::q796_parity::enabled()&&(from==3||to==3)&&v==sentinel)&&(!four||v+offset<255){Some(&word[v+offset])}else{None}
             }).collect();
             for level in bits..8 {
                 let mut next=Vec::new();
@@ -79,6 +80,7 @@ fn exchange_a_terms_inner(circ:&mut Circuit,rank:&[QReg],a:&[QReg],word:&[QReg],
     circ.cx(passenger,root);if flip_root{for term in terms{mixed_mcx(circ,term,root,dirty);}}circ.b.ops.extend(ops.into_iter().rev());
 }
 pub(super) fn adjacent_a_terms_flip(circ:&mut Circuit,rank:&[QReg],a:&[QReg],word:&[QReg],from:usize,to:usize,terms:&[Vec<(&QReg,bool)>],helpers:&[QReg]) {
+    if std::env::var("Q792_MOVE_DBG").ok().as_deref()==Some("1"){eprintln!("Q792_MOVE_DBG from={from} to={to} pair={} word_len={}",super::metadata_muxlease::active("Q795_CARGO_PAIR"),word.len());}
     if super::metadata_muxlease::active("Q795_CARGO_PAIR"){paired_a_terms(circ,rank,a,word,from,to,terms,helpers,true);return;}
     assert_ne!(from,to);let shuttle=&helpers[0];let dirty=&helpers[1..];
     exchange_a_terms(circ,rank,a,word,from,shuttle,terms,dirty);

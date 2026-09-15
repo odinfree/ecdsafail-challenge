@@ -17,7 +17,8 @@ fn high_swap(circ:&mut Circuit,rank:&[QReg],carry:&QReg,g:&QReg,bit:usize,left:&
 
 pub(super) fn exchanges(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],g:&QReg,passengers:&[&QReg],source:&[QReg],helpers:&[QReg],carry:&QReg,endpoint:Option<&QReg>){
     let start=circ.b.ops.len();add(circ,a,c,Some(carry),false);
-    let hi=if endpoint.is_some(){256}else{254};assert!(source.len()>hi);
+    let hi=if endpoint.is_some(){256usize.saturating_sub(usize::from(super::q793_lifecycle_r03::four_hole()))}else{254};
+    assert!(source.len()>hi);
     let mut nodes:Vec<_>=(0..256).map(|s|if s!=0&&s+1<=hi{Some(&source[s+1])}else{None}).collect();
     for level in 0..8{let mut next=Vec::new();for pair in nodes.chunks_exact(2){next.push(match(pair[0],pair[1]){
         (Some(left),Some(right))=>{if level<6{circ.cswap(&c[level],left,right);}else{high_swap(circ,rank,carry,g,level-6,left,right);}Some(left)},
