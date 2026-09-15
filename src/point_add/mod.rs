@@ -2529,6 +2529,9 @@ pub fn build() -> Vec<Op> {
     for name in ["Q793_R01_A_SUPPORT_TERMS","Q793_T10_C1_P1","Q793_T10_SUM_MASK","Q793_T10_PREFIX_FREE","Q793_T10_PREFIX_TREE","Q793_T10_C1_SUM_LOAN","Q793_T10_MASK_SUM_LOAN"] {
         set_default_env(name,"1");
     }
+    // FLASH A24: support-gated cargo A=253/254 pruning. Default OFF during
+    // development; baked ON only after t-census + whole-stream + whole-9024.
+    set_default_env("Q793_CARGO_A_SUPPORT","0");
     // Whole-template NCT cube combine (q793_nct_frame_r03): no 1024-op
     // chunking, wider exact window. Identity on every basis state.
     // Exact grouped counter reflections use only existing metadata rails.
