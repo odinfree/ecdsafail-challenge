@@ -58,6 +58,11 @@ fn compare(a:&Snapshot,b:&Snapshot,tag:&str,strict_phase:bool)->bool{
             if v3!=v4{eprintln!("DIFF_CUT {tag}: logical={i} lane={lane} hole3={} hole4={} (word3={s3:#x} word4={s4:#x})",v3,v4);shown+=1;if shown>=4{break;}}
         }
     }
+    if tag=="t10_bisect_36"&&a.state.len()>540{
+        // loan probe: 3-hole w1[255] (logical 279) vs 4-hole w2[257] (logical 540)
+        eprintln!("DIFF_LOAN_PROBE w1_255_3h={:#x} w2_257_3h={:#x} w2_257_4h={:#x} g3={:#x} g4={:#x}",
+            a.state[279],a.state[540],b.state[540],a.state[544],b.state[544]);
+    }
     ok
 }
 
