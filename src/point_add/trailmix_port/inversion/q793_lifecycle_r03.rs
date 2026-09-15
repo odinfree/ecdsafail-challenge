@@ -88,9 +88,8 @@ fn initialize(circ:&mut Circuit,mut dx:Vec<QReg>,phase_passenger:&QReg,second_pa
 fn release_terminal(circ:&mut Circuit,mut core:Core)->Terminal {
     // Terminal phase00: return the passenger carried in the coefficient head.
     // Under four_hole() the coefficient-head rail W1[255] does not exist: the
-    // A-ladder shifts up one step and its top two homes move to the top W2
-    // lanes (A=254 -> W2[257], A=255 -> W2[258], per q793_loans::global_a and
-    // q793_metadata_exit::second).
+    // passenger rides Work1's top physical rail instead (W1[254]), exactly one
+    // lane below the OFF home, while phase1 keeps its OFF pad W2[257].
     let four=four_hole();
     let h0=if four{&core.work2[257]}else{&core.work1[255]};
     let h1=if four{&core.work2[258]}else{&core.work2[257]};
@@ -111,6 +110,7 @@ fn rebuild_terminal(circ:&mut Circuit,mut terminal:Terminal,phase_passenger:&QRe
     let four=four_hole();
     let h0=if four{&terminal.work2[257]}else{&work1[255]};
     let h1=if four{&terminal.work2[258]}else{&terminal.work2[257]};
+    let h1=&terminal.work2[257];
     circ.cx(&phase2,h0);circ.cx(h0,&phase2);circ.cx(&phase2,h0);circ.x(&phase2);
     let phase1=if dual_phase(){let p=second_passenger.borrowed_alias();circ.cx(&p,h1);circ.cx(h1,&p);circ.cx(&p,h1);p}else{circ.alloc_qreg("rank5.P1.rebuilt")};
     Core {rank,a,c:terminal.history,sm,phase1,phase2,iteration:terminal.iteration,work1,work2:terminal.work2}
