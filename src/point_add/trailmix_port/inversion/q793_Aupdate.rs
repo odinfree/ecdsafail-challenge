@@ -32,12 +32,14 @@ fn permute_for_update(circ:&mut Circuit,rank:&[QReg],guard:&QReg,helpers:&[QReg]
     if inverse{circ.b.ops[start..].reverse();}
 }
 fn length_xor(circ:&mut Circuit,rank:&[QReg],c:&[QReg],sm:&[QReg],out:&[&QReg],source:&[QReg],prefix:&[QReg],guard:&QReg,helpers:&[QReg],lo:usize,hi:usize,decode_u:bool) {
-    let chart=[&prefix[0],&prefix[1],&prefix[2],&source[0],&source[1],&source[2],&source[258],&source[257],&source[256]];
+    let four=super::q793_lifecycle_r03::four_hole();
+    let chart_9=[&prefix[0],&prefix[1],&prefix[2],&source[0],&source[1],&source[2],&source[258],&source[257],&source[256]];
+    let chart_12=[&prefix[0],&prefix[1],&prefix[2],&prefix[3],&source[0],&source[1],&source[2],&source[3],&source[258],&source[257],&source[256],&source[255]];
     // These are arbitrary dirty replacements, not clean allocations. The
     // prefix conjugation restores them; it must not overwrite its chart.
-    let protected:Vec<_>=prefix.iter().enumerate().map(|(i,q)|if decode_u&&i<3{helpers[i].borrowed_alias()}else{q.borrowed_alias()}).collect();
+    let protected:Vec<_>=prefix.iter().enumerate().map(|(i,q)|if decode_u&&i<(if four{4}else{3}){helpers[i].borrowed_alias()}else{q.borrowed_alias()}).collect();
     let prefix=&protected;
-    let helpers=if decode_u{assert!(helpers.len()>=19);&helpers[3..]}else{helpers};
+    let helpers=if decode_u{assert!(helpers.len()>=if four{20}else{19});&helpers[if four{4}else{3}..]}else{helpers};
     let mut boundary:Vec<_>=c.iter().collect();boundary.extend([&rank[0],&rank[1]]);let mask=&rank[4];let scratch=&sm[0];let n=hi-lo;
     let cache_bits=std::env::var("Q795_AUPDATE_PREFIX").ok().map(|v|v.parse::<usize>().unwrap()).unwrap_or(0);assert!(cache_bits==0||(4..=6).contains(&cache_bits));
     let cache_key=std::cell::Cell::new(None);
@@ -92,7 +94,7 @@ fn length_xor(circ:&mut Circuit,rank:&[QReg],c:&[QReg],sm:&[QReg],out:&[&QReg],s
     };
     let cell=|circ:&mut Circuit,i:usize| {
         let parent=if i==0{guard}else{&prefix[i-1]};circ.cx(parent,&prefix[i]);
-        if hi-1-i==0&&super::q796_parity::enabled(){mixed_mcx(circ,&[(parent,true),(mask,true)],&prefix[i],helpers);}else if (1..=2).contains(&(hi-1-i))&&decode_u{super::q793_exit_low::xor_u(circ,chart,hi-1-i,&[(parent,true),(mask,true)],&prefix[i],helpers);}else{mixed_mcx(circ,&[(parent,true),(&source[hi-1-i],true),(mask,true)],&prefix[i],helpers);}
+        if hi-1-i==0&&super::q796_parity::enabled(){mixed_mcx(circ,&[(parent,true),(mask,true)],&prefix[i],helpers);}else if (1..=(if four{3}else{2})).contains(&(hi-1-i))&&decode_u{if four{super::q793_exit_low::xor_u16(circ,chart_12,hi-1-i,&[(parent,true),(mask,true)],&prefix[i],helpers);}else{super::q793_exit_low::xor_u(circ,chart_9,hi-1-i,&[(parent,true),(mask,true)],&prefix[i],helpers);}}else{mixed_mcx(circ,&[(parent,true),(&source[hi-1-i],true),(mask,true)],&prefix[i],helpers);}
     };
     // Selected coefficient top lies in [lo,hi), so C<=258-lo on guard1.
     // Initialize eligibility at the high reverse index; both sweeps restore

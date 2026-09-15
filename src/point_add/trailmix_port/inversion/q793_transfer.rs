@@ -74,11 +74,13 @@ fn exit_clean_toggle(circ:&mut Circuit,cs:&[(&QReg,bool)],out:&QReg,scratch:&[QR
     for &(q,v) in cs.iter().rev(){if !v{circ.x(q);}}
 }
 fn length_xor(circ:&mut Circuit,rank:&[QReg],a:&[QReg],source:&[QReg],out:&[&QReg],guard:&QReg,prefix:&[QReg],helpers:&[QReg],exit_cache:Option<(&[QReg],usize)>) {
-    let chart=[&source[0],&source[1],&source[2],&prefix[0],&prefix[1],&prefix[2],&prefix[258],&prefix[257],&prefix[256]];
+    let four=super::q793_lifecycle_r03::four_hole();
+    let chart_9=[&source[0],&source[1],&source[2],&prefix[0],&prefix[1],&prefix[2],&prefix[258],&prefix[257],&prefix[256]];
+    let chart_12=[&source[0],&source[1],&source[2],&source[3],&prefix[0],&prefix[1],&prefix[2],&prefix[3],&prefix[258],&prefix[257],&prefix[256],&prefix[255]];
     // Protect all six W2 chart inputs from this borrowed dirty prefix.
-    assert!(helpers.len()>=20);
-    let protected:Vec<_>=prefix.iter().enumerate().map(|(i,q)|match i{0=>helpers[0].borrowed_alias(),1=>helpers[1].borrowed_alias(),2=>helpers[2].borrowed_alias(),256=>helpers[3].borrowed_alias(),257=>helpers[4].borrowed_alias(),258=>helpers[5].borrowed_alias(),_=>q.borrowed_alias()}).collect();
-    let prefix=&protected;let helpers=&helpers[6..];
+    assert!(helpers.len()>=if four{21}else{20});
+    let protected:Vec<_>=prefix.iter().enumerate().map(|(i,q)|if four{match i{0=>helpers[0].borrowed_alias(),1=>helpers[1].borrowed_alias(),2=>helpers[2].borrowed_alias(),3=>helpers[3].borrowed_alias(),255=>helpers[4].borrowed_alias(),256=>helpers[5].borrowed_alias(),257=>helpers[6].borrowed_alias(),258=>helpers[7].borrowed_alias(),_=>q.borrowed_alias()}}else{match i{0=>helpers[0].borrowed_alias(),1=>helpers[1].borrowed_alias(),2=>helpers[2].borrowed_alias(),256=>helpers[3].borrowed_alias(),257=>helpers[4].borrowed_alias(),258=>helpers[5].borrowed_alias(),_=>q.borrowed_alias()}}).collect();
+    let prefix=&protected;let helpers=&helpers[if four{8}else{6}..];
     let mut boundary:Vec<_>=a.iter().collect();boundary.extend([&rank[0],&rank[1]]);let mask=&rank[4];
     let cache_key=std::cell::Cell::new(None);
     let cache_toggle=|circ:&mut Circuit,value:usize|{let(sm,bits)=exit_cache.unwrap();let cs:Vec<_>=boundary[8-bits..].iter().enumerate().map(|(i,&q)|(q,value>>i&1!=0)).collect();exit_clean_toggle(circ,&cs,&sm[0],&sm[1..]);};
@@ -119,7 +121,7 @@ fn length_xor(circ:&mut Circuit,rank:&[QReg],a:&[QReg],source:&[QReg],out:&[&QRe
     };
     let cell=|circ:&mut Circuit,i:usize| {
         let parent=if i==0{guard}else{&prefix[i-1]};circ.cx(parent,&prefix[i]);
-        if i>0 {if i==258&&super::q796_parity::enabled(){mixed_mcx(circ,&[(parent,true),(mask,true)],&prefix[i],helpers);}else if i==256||i==257{super::q793_exit_low::xor_r(circ,chart,&boundary,258-i,&[(parent,true),(mask,true)],&prefix[i],helpers);}else{mixed_mcx(circ,&[(parent,true),(&source[i],true),(mask,true)],&prefix[i],helpers);}}
+        if i>0 {if i==258&&super::q796_parity::enabled(){mixed_mcx(circ,&[(parent,true),(mask,true)],&prefix[i],helpers);}else if four&&(i==255||i==256||i==257){super::q793_exit_low::xor_r16(circ,chart_12,&boundary,258-i,&[(parent,true),(mask,true)],&prefix[i],helpers);}else if !four&&(i==256||i==257){super::q793_exit_low::xor_r(circ,chart_9,&boundary,258-i,&[(parent,true),(mask,true)],&prefix[i],helpers);}else{mixed_mcx(circ,&[(parent,true),(&source[i],true),(mask,true)],&prefix[i],helpers);}}
     };
     let zero_map=|circ:&mut Circuit| {
         circ.x(mask);
