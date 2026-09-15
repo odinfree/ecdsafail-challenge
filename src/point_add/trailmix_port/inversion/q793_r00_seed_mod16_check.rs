@@ -303,6 +303,7 @@ pub fn run_stage_diff_consistent(){
     // (a-value, rank) per A-case class plus one generic mid A.
     let classes:[(usize,usize);6]=[(0,0),(1,0),(2,0),(29,7),(253,29),(254,29)];
     let mut lanes_total=0usize;let mut mismatched=0usize;let mut cargo_mismatched=0usize;
+    let mut bound_lanes=0usize;let mut unbound_lanes=0usize;
     for j in 0..2usize{
         let shift=j+1;
         std::env::set_var("LOWQ_Q792_EEA","0");std::env::remove_var("Q793_R00_SEED_CALL_INDEX");
@@ -317,9 +318,28 @@ pub fn run_stage_diff_consistent(){
             for lane in 0..64usize{
                 let sv=if av<255&&av+j<=255{j+4*((batch*29+av+lane)%((255-av-j)/4+1).max(1))}else{j};
                 // chart draw: t odd, u and v free 4-bit values
-                let t=(1+2*((rnd(&mut rs)&7)as usize))&15;
-                let b=(rnd(&mut rs)&15)as usize;
-                let v=(rnd(&mut rs)&15)as usize;
+                // Cargo classes: the walk's integer bounds are part of their
+                // definition (t>=2^254 => r<4 and v<<S<=r; t>=2^253 => r<8,
+                // 2v<=r). Re-draw until the chart is bound-consistent, so the
+                // comparison happens on the class's own domain.
+                let bound_ok=|t:usize,b:usize,v:usize|{
+                    let r=rr_model(true,shift,t,b,v,case_of(rk,av,j));
+                    if av==254&&j==0{r<4&&(v<<1)<=r}
+                    else if av==253&&j==1{r<8&&(v<<1)<=r}
+                    else if av==254&&j==1{r<4&&(v<<2)<=r}
+                    else{true}
+                };
+                let(mut t,mut b,mut v)=(0usize,0usize,0usize);
+                let mut drawn=false;
+                for _ in 0..4096{
+                    t=(1+2*((rnd(&mut rs)&7)as usize))&15;
+                    b=(rnd(&mut rs)&15)as usize;
+                    v=(rnd(&mut rs)&15)as usize;
+                    if bound_ok(t,b,v){drawn=true;break;}
+                }
+                if !drawn{t=1;b=0;v=0;}
+                if av>=253&&drawn{bound_lanes+=1;}
+                if av>=253&&!drawn{unbound_lanes+=1;}
                 let case=case_of(rk,av,j);
                 let r=rr_model(true,shift,t,b,v,case);
                 for w in [&mut before3,&mut before4]{
@@ -360,7 +380,7 @@ pub fn run_stage_diff_consistent(){
         }}
         eprintln!("Q793_R00_STAGE_DIFF_CONSISTENT_DONE j={j} lanes={lanes_total} sign_mismatches={mismatched} cargo_class_mismatches={cargo_mismatched} (modularly consistent lanes only)");
     }
-    eprintln!("Q793_R00_STAGE_DIFF_CONSISTENT_TOTAL lanes={lanes_total} sign_mismatches={mismatched} cargo={cargo_mismatched} generic={}",mismatched-cargo_mismatched);
+    eprintln!("Q793_R00_STAGE_DIFF_CONSISTENT_TOTAL lanes={lanes_total} sign_mismatches={mismatched} cargo={cargo_mismatched} generic={} bound_consistent_cargo_lanes={bound_lanes} unbound_cargo_lanes={unbound_lanes}",mismatched-cargo_mismatched);
 }
 
 /// Stage-level four-hole check: the full R00 comparator (`phase00_with_support`,
