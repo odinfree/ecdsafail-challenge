@@ -2738,13 +2738,17 @@ pub fn build() -> Vec<Op> {
         // are adjacent), so they are safe regardless of whether the per-step
         // optimizer already ran: the optimizer works inside each step frame,
         // while this sweep also reaches pairs that span frame boundaries.
-        // Measured on the canonical Q793 stream: 62,152,364 removable CCX.
+        // Do NOT quote the stream census (62,152,364 CCX pairs) as this pass's
+        // effect: the census uses a different scan than this loop (it keeps a
+        // candidate alive across ops that do not commute past it), so it only
+        // names a rewrite class. Measured official effect of un-guarding this
+        // pass: -215,049 executed Toffoli on the 9,024-shot draw.
         if !ops.is_empty() {
             let a = B::cancel_adjacent_ccx_in_memory(&mut ops);
-            // Window 64 keeps the sweep cheap (the cost is O(#CCX x window))
-            // while still reaching every pair the census found: with a 512
-            // window the same 62,152,364 CCX were found, so the extra reach buys
-            // nothing measurable here and would risk the 45-minute CI timeout.
+            // Window 64 keeps the sweep cheap (the cost is O(#CCX x window)).
+            // The window was reduced from 512 only to stay inside the CI
+            // budget; the window's effect on this artifact has not been
+            // measured, so do not claim the two windows are equivalent.
             let w: usize = std::env::var("CANCEL_COMMUTING_CCX_WINDOW")
                 .ok().and_then(|v| v.parse().ok()).unwrap_or(64);
             let c = B::cancel_commuting_ccx_in_memory(&mut ops, w);

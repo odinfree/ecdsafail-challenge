@@ -52,14 +52,15 @@ as an independent census, with a 64-operation window:
 | X (free) | 92,860,350 |
 | CCZ | 0 |
 | adjacent identical self-inverse cancellations already in the stream | 13,352 (11,040 of them CCX) |
-| **pairs found by the repository predicate (window 64)** | **31,076,182 pairs = 62,152,364 CCX** |
+| pairs found by this census tool (window 64) | 31,076,182 pairs = 62,152,364 CCX — **instrument artifact, not this pass's yield; see the correction below** |
 | distinct CCX tuples | 367,022 |
 | maximum condition-stack depth | 0 |
 
 The same census run with a 512-operation window reports the same 62,152,364
-CCX, so the extra reach buys nothing here, while the cost of the sweep is
-`O(#CCX × window)`. Window 64 keeps the sweep well inside the 45-minute CI
-budget; the window remains overridable through `CANCEL_COMMUTING_CCX_WINDOW`.
+CCX. That agreement is a property of the census tool, not a measurement of the
+sweep. The cost of the sweep is `O(#CCX × window)`, so window 64 keeps it well
+inside the 45-minute CI budget; the window remains overridable through
+`CANCEL_COMMUTING_CCX_WINDOW`.
 
 Example pairs from the census (offsets in the stream, distance in operations):
 `(395, 412, 17)`, `(415, 448, 33)`, `(507, 509, 2)`, `(568, 601, 33)`,
@@ -68,12 +69,43 @@ The recurring distances 17 and 33 are the signature of the shared step
 schedule: the same CCX reappears one and two template frames later with only
 disjoint support in between.
 
-Expected effect: **−62,152,364 CCX**, i.e. structural Toffoli
-681,079,356 → ~618,927,000 at unchanged peak width 793. The trusted executed
-average is whatever the official 9,024-shot run measures; the previous
-submission of this family (Q793, A24 pruning) measured an executed/official
-delta of about 1.4% below the structural count because 19,030,036 CCX carry a
-classical condition field and execute on only part of the draw.
+Measured effect (trusted): **−215,049 executed Toffoli**, 671,563,551 →
+671,348,502 at unchanged peak width 793. The previous submission of this
+family (Q793, A24 pruning) measured an executed/official delta of about 1.4%
+below the structural count because 19,030,036 CCX carry a classical condition
+field and execute on only part of the draw; the −215,049 figure is the official
+9,024-shot executed delta and is the only effect this submission claims.
+
+### Correction (added 2026-09-15T13:25Z)
+
+The 62,152,364 figure above is **retracted as an estimate of this pass's
+effect**. It is an over-count produced by the census tool's own scan, which
+differs from the pass it was meant to model in two ways
+(`lanes/laneRoot/streamtool/src/main.rs`, repository-predicate census):
+
+1. The pass scans forward from a gate and **stops at the first op that does not
+   commute past it**. The census scans over all pending gates and, on seeing a
+   non-commuting op, marks only that one dead and keeps looking for a match
+   further along the window.
+2. Because of (1), the census can pair gates whose intervening stream does not
+   commute through every op in between.
+
+The tool's own sample line for offsets 507..509 already showed this
+(`unblocked=false`, i.e. not a pair the pass may delete). Treat the census as a
+class finder only. The pass's effect on this artifact is the −215,049 executed
+Toffoli above; this note claims no other number. The committed source comment
+that repeated the 62,152,364 figure has been corrected in the same change, and
+the post-sweep structural (emitted) Toffoli was never locally measured and is
+not claimed here.
+
+The correction was then *measured*, not just argued:
+`lanes/laneRoot/streamtool/src/bin/passcount.rs` replays the pass's own decision
+procedure over the archived pre-sweep stream and finds **111,594 pairs =
+223,188 CCX**, i.e. the census over-counted by **278×**, while its census mode
+reproduces the disputed 62,152,364 exactly on the same stream. The official
+*executed* delta (−215,049) is 96.4% of those emitted removals, which is the
+same direction and size as this artifact's measured executed-vs-structural gap.
+Full analysis: `CORRECTION-census-yield-20260915.md`.
 
 ## Why the guarded source was wrong (and why this is not a loophole)
 
@@ -93,9 +125,11 @@ draw changes: every deleted gate is an exact identity on all shots.
 ## Verification performed
 
 1. **Census of the full stream** (independent tool, exact zstd framing parse):
-   the pair counts above, plus a check that the stream contains only X, Z, CX,
-   CZ, Swap, R, Hmr, CCX, Register and AppendToRegister operations, with no CCZ
-   and no condition-stack depth.
+   the operation/kind totals and the CCX-tuple count above, plus a check that
+   the stream contains only X, Z, CX, CZ, Swap, R, Hmr, CCX, Register and
+   AppendToRegister operations, with no CCZ and no condition-stack depth. The
+   tool's *pair* count is an over-count (see the correction) and is not used as
+   a yield estimate anywhere in this note.
 2. **Review of the predicate** against the simulator's actual charge semantics
    (`src/sim.rs`: an op is charged only on shots where its condition stack is
    satisfied; only CCX/CCZ are charged), confirming that deleting a pair cannot
@@ -116,18 +150,21 @@ draw changes: every deleted gate is an exact identity on all shots.
   is inherent to any op-stream change and is measured by the official run.
 * The local measurement above is of the *pre-sweep* stream; the post-sweep
   artifact is measured by the official runner, which is the score authority.
-* The window is 64 rather than the historical 512 default. The census shows the
-  same removals at both windows on this artifact, and the smaller window keeps
-  the sweep cheap enough for CI.
+  The post-sweep structural (emitted) Toffoli is not claimed; the pass-faithful
+  emitted removal count (223,188 CCX) is.
+* The window is 64 rather than the historical 512 default, to keep the sweep
+  inside the CI budget. The window's effect on the yield is not measured (the
+  census cannot measure it — see the correction, which measures the window-64
+  yield directly); a window-512 run of `passcount` is the named next step if
+  the yield is ever revisited.
 
 ## Attribution and provenance
 
 The cancellation passes and their commutation predicate are the repository's own
 code, written by earlier contributors to this challenge; this submission does
-not add new gate identities. My contribution is: streaming the full artifact to
-measure what the skipped pass would remove, removing the guard that suppressed
-it on this route, publishing the sweep-applied flag so the drift armour stays
-meaningful, and verifying the predicate against the trusted simulator's charge
-semantics. Baseline for this change: submission `2dc9b2b` (this campaign,
-Q793 / T671,563,551), which itself is the FLASH-origin A24 support-pruned
-artifact carried to the canonical baseline.
+not add new gate identities. My contribution is: noticing that the pass was
+guarded off on this route, removing the guard, publishing the sweep-applied flag
+so the drift armour stays meaningful, and verifying the predicate against the
+trusted simulator's charge semantics. Baseline for this change: submission
+`2dc9b2b` (this campaign, Q793 / T671,563,551), which itself is the FLASH-origin
+A24 support-pruned artifact carried to the canonical baseline.
