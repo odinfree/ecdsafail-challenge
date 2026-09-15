@@ -87,8 +87,14 @@ fn initialize(circ:&mut Circuit,mut dx:Vec<QReg>,phase_passenger:&QReg,second_pa
 }
 fn release_terminal(circ:&mut Circuit,mut core:Core)->Terminal {
     // Terminal phase00: return the passenger carried in the coefficient head.
-    circ.x(&core.phase2);circ.cx(&core.phase2,&core.work1[255]);circ.cx(&core.work1[255],&core.phase2);circ.cx(&core.phase2,&core.work1[255]);
-    if dual_phase(){circ.cx(&core.phase1,&core.work2[257]);circ.cx(&core.work2[257],&core.phase1);circ.cx(&core.phase1,&core.work2[257]);}
+    // Under four_hole() the coefficient-head rail W1[255] does not exist, so
+    // the head moves to the top *real* Work1 rail, W1[254]; the phase-1
+    // parked lane W2[257] is unchanged.
+    let four=four_hole();
+    let h0=if four{&core.work1[254]}else{&core.work1[255]};
+    let h1=&core.work2[257];
+    circ.x(&core.phase2);circ.cx(&core.phase2,h0);circ.cx(h0,&core.phase2);circ.cx(&core.phase2,h0);
+    if dual_phase(){circ.cx(&core.phase1,h1);circ.cx(h1,&core.phase1);circ.cx(&core.phase1,h1);}
     toggle_terminal_work1(circ,&core.work1);free_work1(circ,core.work1);
     toggle_constant(circ,&core.rank,29);free_clean(circ,core.rank);toggle_constant(circ,&core.a,63);free_clean(circ,core.a);
     let high=core.sm.split_off(2);free_clean(circ,high);let mut history=core.c;history.extend(core.sm);assert_eq!(history.len(),8);
@@ -101,8 +107,11 @@ fn rebuild_terminal(circ:&mut Circuit,mut terminal:Terminal,phase_passenger:&QRe
     let a=circ.alloc_qreg_bits("rank5.a.rebuilt",6);toggle_constant(circ,&a,63);
     let mut sm=terminal.history.split_off(6);sm.extend(circ.alloc_qreg_bits("rank5.sm.high.rebuilt",2));
     let phase2=phase_passenger.borrowed_alias();
-    circ.cx(&phase2,&work1[255]);circ.cx(&work1[255],&phase2);circ.cx(&phase2,&work1[255]);circ.x(&phase2);
-    let phase1=if dual_phase(){let p=second_passenger.borrowed_alias();circ.cx(&p,&terminal.work2[257]);circ.cx(&terminal.work2[257],&p);circ.cx(&p,&terminal.work2[257]);p}else{circ.alloc_qreg("rank5.P1.rebuilt")};
+    let four=four_hole();
+    let h0=if four{&work1[254]}else{&work1[255]};
+    let h1=&terminal.work2[257];
+    circ.cx(&phase2,h0);circ.cx(h0,&phase2);circ.cx(&phase2,h0);circ.x(&phase2);
+    let phase1=if dual_phase(){let p=second_passenger.borrowed_alias();circ.cx(&p,h1);circ.cx(h1,&p);circ.cx(&p,h1);p}else{circ.alloc_qreg("rank5.P1.rebuilt")};
     Core {rank,a,c:terminal.history,sm,phase1,phase2,iteration:terminal.iteration,work1,work2:terminal.work2}
 }
 fn finish(circ:&mut Circuit,mut core:Core)->Vec<QReg> {
@@ -228,23 +237,29 @@ pub fn enabled()->bool{four_hole()||std::env::var("LOWQ_Q793_EEA").ok().as_deref
 // Canonical9024 and official validation remain separate release requirements.
 pub(crate) const CANDIDATE_OPS:usize=1_358_731_435;
 pub(crate) const CANDIDATE_TOFFOLI:usize=757_462_324;
-// Codex build02 resource binding only; correctness and official gates are separate.
-// Source c17977f5; exact count receipt is retained in the private 10h packet.
+// Exact whole-count resource binding for the two qualified source-default
+// configurations. Correctness and official gates are separate.
 pub(crate) fn codex10h_resources()->Option<(usize,usize)>{
-    if ["Q793_R01_A_SUPPORT_TERMS","Q793_T10_C1_P1","Q793_T10_SUM_MASK","Q793_T10_PREFIX_FREE","Q793_T10_PREFIX_TREE","Q793_T10_C1_SUM_LOAN","Q793_T10_MASK_SUM_LOAN"].iter().all(|s|super::metadata_muxlease::active(s))
+    let base=["Q793_R01_A_SUPPORT_TERMS","Q793_T10_C1_P1","Q793_T10_SUM_MASK","Q793_T10_PREFIX_FREE","Q793_T10_PREFIX_TREE","Q793_T10_C1_SUM_LOAN","Q793_T10_MASK_SUM_LOAN"].iter().all(|s|super::metadata_muxlease::active(s))
         && !super::metadata_muxlease::active("Q793_A18")
         && !super::metadata_muxlease::active("Q793_A19_SM0")
-        && !helpers_25()
-        && !quotient_top_borrow()
-        && !four_hole(){
+        && !helpers_25();
+    if base && !quotient_top_borrow() && !four_hole(){
+        // Q793 canonical (A24): peak=793, ops=1_243_369_959, T=692_077_100.
         Some((1_243_369_959,692_077_100))
+    }else if base && quotient_top_borrow() && four_hole(){
+        // Q792 four-hole + INV16-corrected chart: peak=792,
+        // ops=1_296_419_964, T=747_320_144 (measured by the fixed
+        // whole-stream at laneT-reduce 37dff749; the terminal-head
+        // retarget only moves CX operands and cannot change these counts).
+        Some((1_296_419_964,747_320_144))
     }else{None}
 }
 pub(crate) fn candidate_resources()->(usize,usize){
     codex10h_resources().unwrap_or((CANDIDATE_OPS,CANDIDATE_TOFFOLI))
 }
 pub(crate) fn candidate_configuration()->bool{
-    enabled() && CANDIDATE_OPS>0 && super::q794_lifecycle::candidate_configuration() && !helpers_25() && !quotient_top_borrow() && !four_hole()
+    enabled() && CANDIDATE_OPS>0 && super::q794_lifecycle::candidate_configuration() && !helpers_25() && (quotient_top_borrow()==four_hole())
         // Only baseline defaults or the exact measured Codex feature vector
         // can use ordinary generation. Other overrides remain diagnostic-only.
         && (["Q793_R01_A_SUPPORT_TERMS","Q793_T10_C1_P1","Q793_T10_SUM_MASK","Q793_T10_PREFIX_FREE","Q793_T10_PREFIX_TREE","Q793_T10_C1_SUM_LOAN","Q793_T10_MASK_SUM_LOAN"]

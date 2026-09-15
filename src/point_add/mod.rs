@@ -349,6 +349,49 @@ impl B {
     }
     fn push_op(&mut self, op: Op) {
         self.counted_ops += 1;
+        if self.sprint_sim.is_some() {
+            // A marker id (u32::MAX) or NO_QUBIT (u64::MAX) in any operand the
+            // simulator dereferences is a latent omitted-rail leak: the count
+            // path tolerates it, sim.rs panics with an opaque index error.
+            let bad = match op.kind {
+                crate::circuit::OperationType::CCX | crate::circuit::OperationType::CCZ => {
+                    op.q_target.0 == u32::MAX as u64
+                        || op.q_target.0 == u64::MAX
+                        || op.q_control1.0 == u32::MAX as u64
+                        || op.q_control1.0 == u64::MAX
+                        || op.q_control2.0 == u32::MAX as u64
+                        || op.q_control2.0 == u64::MAX
+                }
+                crate::circuit::OperationType::CX
+                | crate::circuit::OperationType::Swap
+                | crate::circuit::OperationType::CZ => {
+                    op.q_target.0 == u32::MAX as u64
+                        || op.q_target.0 == u64::MAX
+                        || op.q_control1.0 == u32::MAX as u64
+                        || op.q_control1.0 == u64::MAX
+                }
+                crate::circuit::OperationType::X
+                | crate::circuit::OperationType::Z
+                | crate::circuit::OperationType::Hmr
+                | crate::circuit::OperationType::R => {
+                    op.q_target.0 == u32::MAX as u64 || op.q_target.0 == u64::MAX
+                }
+                _ => false,
+            };
+            if bad {
+                panic!(
+                    "Q792_STREAM_MARKER_LEAK phase={} op_idx={} kind={:?} t={} c1={} c2={} ct={} cc={}",
+                    self.phase,
+                    self.counted_ops,
+                    op.kind,
+                    op.q_target.0,
+                    op.q_control1.0,
+                    op.q_control2.0,
+                    op.c_target.0,
+                    op.c_condition.0
+                );
+            }
+        }
         self.counted_kind_ops[op.kind as usize] += 1;
         self.counted_phase_kind_ops[op.kind as usize] += 1;
         if let Some(hasher) = &mut self.fiat_hash {
@@ -2526,11 +2569,12 @@ pub fn build() -> Vec<Op> {
     // OFF in production. ON keeps candidate_configuration() false, so it can
     // only run count-only/compact diagnostic generation, never ordinary emit.
     set_default_env("Q793_HELPERS_25","0");
-    // Diagnostic-only peak probe: cancel-path quotient top lane borrows the
-    // passenger's canonical-zero top lane. OFF in production.
-    set_default_env("Q792_QUOTIENT_TOP_BORROW","0");
-    // Diagnostic-only peak probe: fourth omitted Work1 tail rail (Q792). OFF.
-    set_default_env("LOWQ_Q792_EEA","0");
+    // Q792 production configuration: cancel-path quotient top lane borrows
+    // the passenger's canonical-zero top lane, and the fourth Work1 tail rail
+    // is omitted (four-hole EEA). Baked ON so the official upload, which
+    // carries no environment, emits the measured Q792 stream.
+    set_default_env("Q792_QUOTIENT_TOP_BORROW","1");
+    set_default_env("LOWQ_Q792_EEA","1");
     // Codex 10h isolated A12 experiments. Default generation remains A12.
     // PRODUCTION-FINAL configuration baking of the already-qualified build03
     // stack02 profile. Official upload carries no environment, so the seven

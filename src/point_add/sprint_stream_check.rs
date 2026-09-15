@@ -29,7 +29,10 @@ impl Batch {
     }
     pub fn apply(&mut self,ops:&[Op]) {
         assert!(!ops.iter().any(|o|matches!(o.kind,K::PushCondition|K::PopCondition)));
-        for op in ops {if op.kind==K::AppendToRegister {
+        const MARKER:u64=u32::MAX as u64;
+        for op in ops {if op.q_target.0==MARKER||op.q_control1.0==MARKER||op.q_control2.0==MARKER {
+            panic!("Q792_MARKER_OP seq={} kind={:?} q2={} q1={} t={}; omitted-lane marker reached the emitted stream",self.ops,op.kind,op.q_control2.0,op.q_control1.0,op.q_target.0);
+        }if op.kind==K::AppendToRegister {
             let r=op.r_target.0 as usize;while self.regs.len()<=r{self.regs.push(Vec::new());}
             self.regs[r].push(if op.q_target.0!=u64::MAX{QubitOrBit::Qubit(op.q_target)}else{QubitOrBit::Bit(op.c_target)});
         }}
@@ -46,6 +49,12 @@ impl Batch {
         }
         let output:std::collections::BTreeSet<_>=regs.iter().flat_map(|r|r.iter()).filter_map(|q|if let QubitOrBit::Qubit(q)=q{Some(q.0 as usize)}else{None}).collect();
         let garbage=self.sim.qubits.iter().enumerate().filter(|(q,v)|!output.contains(q)&&**v!=0).count();
+        if garbage>0||std::env::var("Q792_DIRTY_DUMP").ok().as_deref()==Some("1") {
+            let lanes:Vec<_>=self.sim.qubits.iter().enumerate().filter(|(q,v)|!output.contains(q)&&**v!=0).collect();
+            eprintln!("SPRINT_DIRTY_LANES count={} first={:?}",lanes.len(),&lanes[..lanes.len().min(24)]);
+            let head:Vec<_>=(255..259).map(|i|(i,self.sim.qubits.get(i).copied().unwrap_or(0))).collect();
+            eprintln!("SPRINT_HEAD_LANES {head:?}");
+        }
         eprintln!("SPRINT_STREAM_RESULT shots=64 peak={} physical={} simulated_ops={} structural_T={} executed_average_T={} classical_failures={failures} phase={:#018x} dirty_ancillas={garbage} elapsed={:.1}; independent development seed, not official acceptance",b.peak_qubits,b.next_qubit,self.ops,b.counted_kind_ops[K::CCX as usize]+b.counted_kind_ops[K::CCZ as usize],self.sim.stats.toffoli_gates/64,self.sim.phase,self.started.elapsed().as_secs_f64());
         assert_eq!(failures,0);assert_eq!(self.sim.phase,0);assert_eq!(garbage,0);
     }

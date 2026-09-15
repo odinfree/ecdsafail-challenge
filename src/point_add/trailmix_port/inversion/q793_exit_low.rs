@@ -71,7 +71,12 @@ pub(super) fn xor_u16(circ:&mut Circuit,chart:[&QReg;12],bit:usize,controls:&[(&
     }
 }
 
-const INV16:[usize;16]=[0,1,9,11,13,5,3,7,0,9,13,3,5,11,7,15];
+// True modular inverses mod 16 for the odd entries: 1->1, 3->11, 5->13,
+// 7->7, 9->9, 11->3, 13->5, 15->15. (The shipped table had 5->5 and
+// 13->11, which breaks the reachable A==253 (u=5) and A==252 (u=13)
+// forced-chart cases.) Even entries are only read on the unreachable
+// (t,v) both-even domain and are kept for the raw full-cube ANF.
+const INV16:[usize;16]=[0,1,9,11,13,13,3,7,0,9,13,3,5,5,7,15];
 
 pub(super) fn xor_r16(circ:&mut Circuit,chart:[&QReg;12],a_bits:&[&QReg],bit:usize,controls:&[(&QReg,bool)],target:&QReg,dirty:&[QReg]) {
     assert_eq!(a_bits.len(),8);assert!((1..=3).contains(&bit));
