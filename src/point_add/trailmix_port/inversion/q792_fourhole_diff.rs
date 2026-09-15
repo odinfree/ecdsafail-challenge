@@ -87,6 +87,10 @@ pub fn run(){
         let mut y=[0u8;32];for b in y.iter_mut(){*b=rnd(&mut s)as u8;}y[31]&=0x7f;
         rows.push((x.to_vec(),y.to_vec()));
     }
+    if std::env::var("LOWQ_Q792_DIFF_NO_TOP").ok().as_deref()==Some("1"){
+        // restrict every row to A<=253 to isolate the top-A cargo region
+        for (x,_y) in &mut rows{for i in 254..256{x[i/8]&=!(1<<(i%8));}}
+    }
     if std::env::var("LOWQ_Q792_DIFF_SUBSET").ok().as_deref()==Some("few"){rows.truncate(4);}
     let count=rows.len();let batches=count.div_ceil(64);
     eprintln!("Q792_FOURHOLE_DIFF rows={count} batches={batches}");
@@ -143,7 +147,9 @@ pub fn run(){
             let mut templates:Vec<_>=Vec::new();
             let mut j1_stages:Vec<(&'static str,usize)>=Vec::new();
             let mut j0_stages:Vec<(&'static str,usize)>=Vec::new();
+            let mut j0_cells:Vec<(usize,Vec<usize>)>=Vec::new();
             for j in 0..4{
+                super::super::q793_t10_fused_v3::clear_cell_bounds();
                 let ops=remap(template(block,j),&mapping,&passenger,false);
                 if block==0&&j==1{
                     j1_stages=super::super::q793_step_r03::marks();
@@ -155,7 +161,7 @@ pub fn run(){
                         }
                     }
                 }
-                if block==0&&j==0{j0_stages=super::super::q793_step_r03::marks();}
+                if block==0&&j==0{j0_stages=super::super::q793_step_r03::marks();j0_cells=super::super::q793_t10_fused_v3::cell_bounds();}
                 templates.push(ops);
             }
             let first=block*64;let end=(first+64).min(1616);
@@ -163,18 +169,21 @@ pub fn run(){
                 let step=first+i;
                 let ops=&templates[(step+1)%4];
                 if z==0&&i==3{
-                    // stage cuts inside the j=0 template at step 3 (first w1
-                    // divergence site)
-                    let mut prev=0usize;
-                    for(name,idx)in j0_stages.iter().copied(){
-                        let idx=idx.min(ops.len());
-                        if idx<=prev{continue;}
-                        for sim in &mut sims{sim.apply_iter(ops[prev..idx].iter());}
-                        let cn:&'static str=Box::leak(format!("block0_j0_{name}").into_boxed_str());
-                        cut(&sims,cn,&mapping,&passenger,owned,&mut snaps);
-                        prev=idx;
+                    // per-cell cuts inside add_and_clear (j=0, step 3)
+                    let main=j0_cells.iter().max_by_key(|(n,_b)|*n);
+                    if main.is_none(){
+                        for sim in &mut sims{sim.apply_iter(ops.iter());}
+                    }else{
+                        let cb=&main.unwrap().1;
+                        for sim in &mut sims{sim.apply_iter(ops[..cb[0]].iter());}
+                        cut(&sims,"block0_j0_pre_add",&mapping,&passenger,owned,&mut snaps);
+                        for(ci,&b)in cb.iter().enumerate(){
+                            let e=cb.get(ci+1).copied().unwrap_or(ops.len()).min(ops.len());
+                            for sim in &mut sims{sim.apply_iter(ops[b..e].iter());}
+                            let cn:&'static str=Box::leak(format!("block0_j0_cell{ci}").into_boxed_str());
+                            cut(&sims,cn,&mapping,&passenger,owned,&mut snaps);
+                        }
                     }
-                    for sim in &mut sims{sim.apply_iter(ops[prev..].iter());}
                 }else if z==0&&i==4{
                     // stage-level cuts inside the j=1 template at the first
                     // diverging application (step 4)

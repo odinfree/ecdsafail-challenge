@@ -5,6 +5,10 @@ use super::length_recompute::mixed_mcx;
 use crate::circuit::Op;
 #[path="metadata_arithmetic5_programs.rs"] mod programs;
 
+thread_local!{static CELL_BOUNDS:std::cell::RefCell<Vec<(usize,Vec<usize>)>>=const{std::cell::RefCell::new(Vec::new())};}
+pub(crate) fn cell_bounds()->Vec<(usize,Vec<usize>)>{CELL_BOUNDS.with(|c|c.borrow().clone())}
+pub(crate) fn clear_cell_bounds(){CELL_BOUNDS.with(|c|c.borrow_mut().clear());}
+
 fn top_loan(circ:&mut Circuit,rank:&[QReg],a:&[QReg],g:&QReg,carry:&QReg,source:&[QReg],dirty:&[QReg]) {
     let(root,gather)=super::q794_handoffs::gather_a(circ,rank,a,source,1,dirty);
     circ.cswap(g,root,carry);circ.b.ops.extend(gather.into_iter().rev());
@@ -120,8 +124,10 @@ pub(super) fn add_and_clear(circ:&mut Circuit,rank:&[QReg],source:&[QReg],target
         assert!(c1||host.id()==cache.id());
     }
     let mut range=Range{rank,a,g,cache,mask,dirty,group:-1,prefix,prefix_key:Vec::new(),prefix_ops:Vec::new()};let mut updates=Vec::new();
+    CELL_BOUNDS.with(|c|c.borrow_mut().push((n,Vec::new())));
     for i in 0..n{
         let at=circ.b.ops.len();if i>0{range.equality(circ,i-1);}updates.push(circ.b.ops[at..].to_vec());
+        CELL_BOUNDS.with(|c|c.borrow_mut().last_mut().unwrap().1.push(circ.b.ops.len()));
         cell(circ,&source[i],&target[i],carry,mask,g,false);
         if i==1{low_correction(circ,rank,a,c,source,target,carry,&special,g,dirty,j,c1,false);}
     }
