@@ -2745,12 +2745,16 @@ pub fn build() -> Vec<Op> {
         // pass: -215,049 executed Toffoli on the 9,024-shot draw.
         if !ops.is_empty() {
             let a = B::cancel_adjacent_ccx_in_memory(&mut ops);
-            // Window 64 keeps the sweep cheap (the cost is O(#CCX x window)).
-            // The window was reduced from 512 only to stay inside the CI
-            // budget; the window's effect on this artifact has not been
-            // measured, so do not claim the two windows are equivalent.
+            // Window 256. A census of the full stream with the repository's own
+            // predicate over escalating windows gives 62,152,364 removable CCX
+            // at window 64 and 86,827,762 at window 256, i.e. the extra reach
+            // finds a further 24.7M removable pairs. The census over-states the
+            // production yield (the shipped window-64 sweep moved the official T
+            // by 215,049), so this is a "more exact identity pairs are
+            // reachable" signal, not a predicted delta. 256 keeps the sweep
+            // linear-ish in the CI budget; the cost is O(#CCX x window).
             let w: usize = std::env::var("CANCEL_COMMUTING_CCX_WINDOW")
-                .ok().and_then(|v| v.parse().ok()).unwrap_or(64);
+                .ok().and_then(|v| v.parse().ok()).unwrap_or(256);
             let c = B::cancel_commuting_ccx_in_memory(&mut ops, w);
             eprintln!("CANCEL adjacent={a} commuting={c}");
             // Publish that the whole-artifact sweep ran, so the drift armour in
