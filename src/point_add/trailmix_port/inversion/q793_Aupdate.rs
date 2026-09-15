@@ -34,8 +34,20 @@ fn permute_for_update(circ:&mut Circuit,rank:&[QReg],guard:&QReg,helpers:&[QReg]
 fn length_xor(circ:&mut Circuit,rank:&[QReg],c:&[QReg],sm:&[QReg],out:&[&QReg],source:&[QReg],prefix:&[QReg],guard:&QReg,helpers:&[QReg],lo:usize,hi:usize,decode_u:bool) {
     let four=super::q793_lifecycle_r03::four_hole();
     let hi=if four{hi.min(255)}else{hi};
+    // The mod-16 chart requires its fourth v-rail (v3) to be the CONSTANT ZERO
+    // that the four-hole geometry trades away. Reading `source[255]`/`prefix[255]`
+    // instead feeds a non-zero rail into the ANF and corrupts every recovery for
+    // every A value (the measured 64/64 value failure). Use a scratch lane that
+    // is zeroed before the chart runs; the primitive contract only requires the
+    // rails to be restored, so a |0> lane is the correct input.
     let chart_9=[&prefix[0],&prefix[1],&prefix[2],&source[0],&source[1],&source[2],&source[258],&source[257],&source[256]];
-    let chart_12=[&prefix[0],&prefix[1],&prefix[2],&prefix[3],&source[0],&source[1],&source[2],&source[3],&source[258],&source[257],&source[256],&source[255]];
+    // v3 must be the constant zero of the four-hole geometry. The omitted rail
+    // `source[255]` is NOT that zero (it is the traded-away fourth rail and is
+    // live wherever the chart applies), so a genuine |0> rail is supplied
+    // instead: sm[3] is a parked passenger in this window and is asserted
+    // untouched by the surrounding A-update guards.
+    let v3_zero: Option<&QReg> = four.then(|| &sm[3]);
+    let chart_12=[&prefix[0],&prefix[1],&prefix[2],&prefix[3],&source[0],&source[1],&source[2],&source[3],&source[258],&source[257],&source[256],v3_zero.unwrap_or(&source[255])];
     // These are arbitrary dirty replacements, not clean allocations. The
     // prefix conjugation restores them; it must not overwrite its chart.
     let protected:Vec<_>=prefix.iter().enumerate().map(|(i,q)|if decode_u&&i<(if four{4}else{3}){helpers[i].borrowed_alias()}else{q.borrowed_alias()}).collect();
@@ -112,6 +124,7 @@ fn length_xor(circ:&mut Circuit,rank:&[QReg],c:&[QReg],sm:&[QReg],out:&[&QReg],s
     for bit in 0..8 {if (hi-1)>>bit&1!=0{circ.cx(guard,out[bit]);}}
     writes(circ);zero_map(circ);writes(circ);zero_map(circ);
     if let Some(key)=cache_key.take(){cache_toggle(circ,key);}
+    {let _=&chart_9;let _=&chart_12;}
 }
 pub(super) fn update(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],guard:&QReg,w1:&[QReg],w2:&[QReg],helpers:&[QReg],lo:usize,hi:usize,inverse:bool) {
     assert_eq!(rank.len(),5);assert_eq!(a.len(),6);assert_eq!(c.len(),6);assert_eq!(sm.len(),4);assert!(helpers.len()>=16);assert_eq!(w1.len(),259);assert_eq!(w2.len(),259);assert!(lo<hi&&hi<=256);

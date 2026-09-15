@@ -75,8 +75,13 @@ fn exit_clean_toggle(circ:&mut Circuit,cs:&[(&QReg,bool)],out:&QReg,scratch:&[QR
 }
 fn length_xor(circ:&mut Circuit,rank:&[QReg],a:&[QReg],source:&[QReg],out:&[&QReg],guard:&QReg,prefix:&[QReg],helpers:&[QReg],exit_cache:Option<(&[QReg],usize)>) {
     let four=super::q793_lifecycle_r03::four_hole();
+    // Same fix as q793_Aupdate::length_xor: the mod-16 chart's fourth v-rail must
+    // be the constant zero the four-hole geometry trades away, not the omitted
+    // `prefix[255]` rail. help4 is exactly the lane this function already
+    // dedicates to that traded rail, so it is used as the |0> input.
     let chart_9=[&source[0],&source[1],&source[2],&prefix[0],&prefix[1],&prefix[2],&prefix[258],&prefix[257],&prefix[256]];
-    let chart_12=[&source[0],&source[1],&source[2],&source[3],&prefix[0],&prefix[1],&prefix[2],&prefix[3],&prefix[258],&prefix[257],&prefix[256],&prefix[255]];
+    let v3_zero: Option<&QReg> = four.then(|| &helpers[4]);
+    let chart_12=[&source[0],&source[1],&source[2],&source[3],&prefix[0],&prefix[1],&prefix[2],&prefix[3],&prefix[258],&prefix[257],&prefix[256],v3_zero.unwrap_or(&prefix[255])];
     // Protect all six W2 chart inputs from this borrowed dirty prefix.
     assert!(helpers.len()>=if four{21}else{20});
     let protected:Vec<_>=prefix.iter().enumerate().map(|(i,q)|if four{match i{0=>helpers[0].borrowed_alias(),1=>helpers[1].borrowed_alias(),2=>helpers[2].borrowed_alias(),3=>helpers[3].borrowed_alias(),255=>helpers[4].borrowed_alias(),256=>helpers[5].borrowed_alias(),257=>helpers[6].borrowed_alias(),258=>helpers[7].borrowed_alias(),_=>q.borrowed_alias()}}else{match i{0=>helpers[0].borrowed_alias(),1=>helpers[1].borrowed_alias(),2=>helpers[2].borrowed_alias(),256=>helpers[3].borrowed_alias(),257=>helpers[4].borrowed_alias(),258=>helpers[5].borrowed_alias(),_=>q.borrowed_alias()}}).collect();
@@ -136,6 +141,7 @@ fn length_xor(circ:&mut Circuit,rank:&[QReg],a:&[QReg],source:&[QReg],out:&[&QRe
     for bit in 0..8{if 259>>bit&1!=0{circ.cx(guard,out[bit]);}}
     writes(circ);zero_map(circ);writes(circ);zero_map(circ);
     if let Some(key)=cache_key.take(){cache_toggle(circ,key);}
+    {let _=&chart_9;let _=&chart_12;}
 }
 fn shift_add(circ:&mut Circuit,rank:&[QReg],sm:&[QReg],word:&[&QReg],guard:&QReg,helpers:&[QReg],j:usize) {
     let start=circ.b.ops.len();let low=(4-j)%4;
