@@ -97,6 +97,12 @@ pub fn run(){
 
     let mut runs:Vec<(String,Vec<Snapshot>)>=Vec::new();
     std::env::set_var("Q795_STAGE_CENSUS","1");
+    // Keep the NCT frame optimization off so stage/cell marks recorded during
+    // step() align with the emitted op stream (the frame is function-
+    // preserving, so the differential semantics are unchanged).
+    std::env::set_var("Q793_FRAME","0");
+    std::env::set_var("Q792_NO_CANCEL","1");
+    std::env::set_var("Q794_TFACTOR","0");
     for four in [false,true]{
         std::env::set_var("LOWQ_Q792_EEA",if four{"1"}else{"0"});
         std::env::set_var("Q792_QUOTIENT_TOP_BORROW","0");
@@ -177,12 +183,26 @@ pub fn run(){
                         let cb=&main.unwrap().1;
                         for sim in &mut sims{sim.apply_iter(ops[..cb[0]].iter());}
                         cut(&sims,"block0_j0_pre_add",&mapping,&passenger,owned,&mut snaps);
+                        let mut last_cell_end=cb[0];
                         for(ci,&b)in cb.iter().enumerate(){
-                            let e=cb.get(ci+1).copied().unwrap_or(ops.len()).min(ops.len());
+                            let e=cb.get(ci+1).copied()
+                                .or_else(||j0_stages.iter().map(|(_,i)|*i).filter(|i|*i>b).min())
+                                .unwrap_or(ops.len()).min(ops.len());
                             for sim in &mut sims{sim.apply_iter(ops[b..e].iter());}
                             let cn:&'static str=Box::leak(format!("block0_j0_cell{ci}").into_boxed_str());
                             cut(&sims,cn,&mapping,&passenger,owned,&mut snaps);
+                            last_cell_end=e;
                         }
+                        // remaining template in stage chunks per the marks
+                        for(name,idx)in j0_stages.iter().copied(){
+                            let idx=idx.min(ops.len());
+                            if idx<=last_cell_end{continue;}
+                            for sim in &mut sims{sim.apply_iter(ops[last_cell_end..idx].iter());}
+                            let cn:&'static str=Box::leak(format!("block0_j0_{name}").into_boxed_str());
+                            cut(&sims,cn,&mapping,&passenger,owned,&mut snaps);
+                            last_cell_end=idx;
+                        }
+                        for sim in &mut sims{sim.apply_iter(ops[last_cell_end..].iter());}
                     }
                 }else if z==0&&i==4{
                     // stage-level cuts inside the j=1 template at the first
