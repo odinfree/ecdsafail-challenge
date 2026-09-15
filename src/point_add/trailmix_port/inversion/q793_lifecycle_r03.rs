@@ -87,8 +87,12 @@ fn initialize(circ:&mut Circuit,mut dx:Vec<QReg>,phase_passenger:&QReg,second_pa
 }
 fn release_terminal(circ:&mut Circuit,mut core:Core)->Terminal {
     // Terminal phase00: return the passenger carried in the coefficient head.
-    circ.x(&core.phase2);circ.cx(&core.phase2,&core.work1[255]);circ.cx(&core.work1[255],&core.phase2);circ.cx(&core.phase2,&core.work1[255]);
-    if dual_phase(){circ.cx(&core.phase1,&core.work2[257]);circ.cx(&core.work2[257],&core.phase1);circ.cx(&core.phase1,&core.work2[257]);}
+    // 4-hole: the coefficient head W1[255] is the omitted rail; its home moves
+    // to the W2 top lanes (h0=W2[257], h1=W2[258]) per the cargo re-home.
+    let h0=if four_hole(){&core.work2[257]}else{&core.work1[255]};
+    let h1=if four_hole(){&core.work2[258]}else{&core.work2[257]};
+    circ.x(&core.phase2);circ.cx(&core.phase2,h0);circ.cx(h0,&core.phase2);circ.cx(&core.phase2,h0);
+    if dual_phase(){circ.cx(&core.phase1,h1);circ.cx(h1,&core.phase1);circ.cx(&core.phase1,h1);}
     toggle_terminal_work1(circ,&core.work1);free_work1(circ,core.work1);
     toggle_constant(circ,&core.rank,29);free_clean(circ,core.rank);toggle_constant(circ,&core.a,63);free_clean(circ,core.a);
     let high=core.sm.split_off(2);free_clean(circ,high);let mut history=core.c;history.extend(core.sm);assert_eq!(history.len(),8);
@@ -101,8 +105,10 @@ fn rebuild_terminal(circ:&mut Circuit,mut terminal:Terminal,phase_passenger:&QRe
     let a=circ.alloc_qreg_bits("rank5.a.rebuilt",6);toggle_constant(circ,&a,63);
     let mut sm=terminal.history.split_off(6);sm.extend(circ.alloc_qreg_bits("rank5.sm.high.rebuilt",2));
     let phase2=phase_passenger.borrowed_alias();
-    circ.cx(&phase2,&work1[255]);circ.cx(&work1[255],&phase2);circ.cx(&phase2,&work1[255]);circ.x(&phase2);
-    let phase1=if dual_phase(){let p=second_passenger.borrowed_alias();circ.cx(&p,&terminal.work2[257]);circ.cx(&terminal.work2[257],&p);circ.cx(&p,&terminal.work2[257]);p}else{circ.alloc_qreg("rank5.P1.rebuilt")};
+    let h0=if four_hole(){&terminal.work2[257]}else{&work1[255]};
+    let h1=if four_hole(){&terminal.work2[258]}else{&terminal.work2[257]};
+    circ.cx(&phase2,h0);circ.cx(h0,&phase2);circ.cx(&phase2,h0);circ.x(&phase2);
+    let phase1=if dual_phase(){let p=second_passenger.borrowed_alias();circ.cx(&p,h1);circ.cx(h1,&p);circ.cx(&p,h1);p}else{circ.alloc_qreg("rank5.P1.rebuilt")};
     Core {rank,a,c:terminal.history,sm,phase1,phase2,iteration:terminal.iteration,work1,work2:terminal.work2}
 }
 fn finish(circ:&mut Circuit,mut core:Core)->Vec<QReg> {

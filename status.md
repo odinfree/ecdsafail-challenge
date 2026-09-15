@@ -83,3 +83,31 @@ must be 0/0/0, then submit.
 Full analysis: `../../lanes/laneRoot/Q792-BLOCKER-ANALYSIS.md` and
 `../../lanes/laneRoot/Q792-NEXT-STEP.md`. Also: A24 is already OFFICIAL —
 submission `2dc9b2b`, Q793 / T671,563,551, the new nondominated Q793 frontier row.
+
+## ROOT NOTE — Q792 whole-stream defect (2026-09-15T11:20Z)
+
+`whole-count` now passes: **peak=792, ops=1,369,818,684, structural_T=820,699,472**.
+But the 64-shot `whole-stream` pass panics in the simulator:
+
+```
+thread 'main' panicked at src/sim.rs:48: index out of bounds: the len is 1024
+but the index is 4294967295
+```
+
+Index `u32::MAX` is `NO_QUBIT`, so an emitted op still carries a sentinel as its
+`q_target` (sim.rs:48 reads `self.qubit(op.q_target)`). This is a remap/emit
+defect, not a hole-geometry one: the template self-check validates the pre-remap
+stream (where sentinels are legal placeholders), but the remapped/passed-on op
+must have all three qubit fields resolved. Find the op whose `.q_target` is
+`NO_QUBIT` in the emitted stream — likely an entry built by direct `Op`
+construction (not via `circ.x/cx/ccx`) or a captured-and-replayed `Vec<Op>` that
+kept a placeholder — and resolve or drop it.
+
+Also note for the eventual submission: the whole-artifact exact CCX cancellation
+sweep in `mod.rs` (`cancel_adjacent_ccx_in_memory` + `cancel_commuting_ccx_in_memory`)
+was being skipped by a guard; it is now enabled in the root tree and was measured
+to remove **62,152,364 CCX** from the A24 artifact (window 64). The committed
+submission with it is `7351d318`. Once the Q792 port is its own tree, it should
+carry the same sweep for the same reason — it will cut ~9% of Toffoli there too,
+and the drift armour in `trailmix_port/mod.rs:4412` now accepts a bound when
+`Q793_CANCEL_SWEEP_APPLIED=1` is set by `build()`.
