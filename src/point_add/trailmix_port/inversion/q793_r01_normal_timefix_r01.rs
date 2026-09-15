@@ -10,6 +10,9 @@ use super::{metadata_arithmetic5 as arithmetic,metadata_muxlease as mux,length_r
 #[path="q793_r01_numeric_scan_check.rs"] mod numeric_scan_check;
 
 fn triples()->Vec<[usize;3]>{(0..4).flat_map(|a|(0..4).flat_map(move|c|(0..4).filter(move|&s|a+c+s<=4).map(move|s|[a,c,s]))).collect()}
+thread_local!{static MAIN_BOUNDS:std::cell::RefCell<Vec<(&'static str,usize)>>=const{std::cell::RefCell::new(Vec::new())};}
+pub(crate) fn main_bounds()->Vec<(&'static str,usize)>{MAIN_BOUNDS.with(|c|c.borrow().clone())}
+pub(crate) fn clear_main_bounds(){MAIN_BOUNDS.with(|c|c.borrow_mut().clear());}
 fn gate(circ:&mut Circuit,cs:&[(&QReg,bool)],out:&QReg,dirty:&[QReg]){
     let mut unique:Vec<(&QReg,bool)>=Vec::new();
     for &(q,v) in cs { assert_ne!(q.id(),out.id());
@@ -293,6 +296,7 @@ impl Scan<'_>{
     /// off-guard action is the same restored identity as the rank-program scan.
     fn numeric_fused(&self,circ:&mut Circuit,w1:&[QReg],w2:&[QReg],decision:&QReg){
         let n=self.support_end.min(257);assert!(n>=3);let owned=circ.b.next_qubit;
+        let mut sub=vec![];let mut mark=|circ:&Circuit,name:&'static str|{sub.push((name,circ.b.ops.len()));};
         let word:Vec<_>=self.rank.iter().chain(std::iter::once(self.hs)).map(QReg::borrowed_alias).collect();
         let aa:Vec<_>=self.a.iter().chain(word[..2].iter()).map(QReg::borrowed_alias).collect();
         let cc:Vec<_>=self.c.iter().chain(word[2..4].iter()).map(QReg::borrowed_alias).collect();
@@ -300,8 +304,11 @@ impl Scan<'_>{
         assert!(self.dirty.iter().all(|q|!aliases.contains(&q.id())));
         let four=super::q793_lifecycle_r03::four_hole();
         let start=circ.b.ops.len();for i in 0..3{self.lower(circ,i);}let low=circ.b.ops[start..].to_vec();
+        mark(circ,"lower");
         arithmetic::add(circ,self.a,self.c,None,true);self.seeds(circ,w1,w2);
+        mark(circ,"seeds");
         let chart_start=circ.b.ops.len();numeric_chart::emit(circ,&word,self.dirty);let converter=circ.b.ops[chart_start..].to_vec();arithmetic::add(circ,&aa,&cc,None,false);
+        mark(circ,"converter");
         let mut updates=Vec::new();let mut prefix=a7_prefix::Prefix::new(n,3);
         for i in (3+usize::from(four))..n{
             let at=circ.b.ops.len();self.numeric_lower(circ,&word[4..],i);let value=256-i;
@@ -309,15 +316,19 @@ impl Scan<'_>{
             if !prefix.as_mut().is_some_and(|p|p.upper(circ,&cc,&aa[7],self.g,self.mask,value)){circ.x(self.g);super::paired_clean_mcx::toggle(circ,&cs,self.mask,self.g);circ.x(self.g);}
             updates.push(circ.b.ops[at..].to_vec());self.carry(circ,&w2[258-i],&w1[258-i],false);
         }
+        mark(circ,"carry_fwd");
         circ.cx(self.g,decision);circ.ccx(self.g,self.ha,decision);
         for i in ((3+usize::from(four))..n).rev(){
             self.carry(circ,&w2[258-i],&w1[258-i],true);circ.cx(self.ha,&w2[258-i]);
             gate(circ,&[(self.g,true),(self.mask,true),(&w2[258-i],true),(decision,true)],&w1[258-i],self.dirty);circ.cx(self.ha,&w2[258-i]);
             circ.b.ops.extend(updates.pop().unwrap().into_iter().rev());
         }
+        mark(circ,"carry_rev");
         arithmetic::add(circ,&aa,&cc,None,true);circ.b.ops.extend(converter.into_iter().rev());
         self.seeds(circ,w1,w2);self.low_update_original(circ,w1,w2,decision);arithmetic::add(circ,self.a,self.c,None,false);
+        mark(circ,"low_update");
         circ.b.ops.extend(low.into_iter().rev());assert_eq!(circ.b.next_qubit,owned);
+        MAIN_BOUNDS.with(|c|*c.borrow_mut()=sub);
     }
     fn fused(&self,circ:&mut Circuit,w1:&[QReg],w2:&[QReg],decision:&QReg){
         let n=self.support_end.min(257);assert!(n>=3);
@@ -337,8 +348,11 @@ impl Scan<'_>{
     }
     fn rank_fused(&self,circ:&mut Circuit,w1:&[QReg],w2:&[QReg],decision:&QReg){
         let n=self.support_end.min(257);assert!(n>=3);
+        let mut sub=vec![];let mut mark=|circ:&Circuit,name:&'static str|{sub.push((name,circ.b.ops.len()));};
         let start=circ.b.ops.len();for i in 0..3{self.lower(circ,i);}let low=circ.b.ops[start..].to_vec();
+        mark(circ,"lower");
         self.seed_all(circ,w1,w2);
+        mark(circ,"seeds");
         let mut group=-1isize;let mut updates=Vec::new();
         for i in 3..n{
             let at=circ.b.ops.len();self.lower(circ,i);let value=256-i;let h=(value/64)as isize;
@@ -348,13 +362,17 @@ impl Scan<'_>{
             circ.x(self.g);super::paired_clean_mcx::toggle(circ,&cs,self.mask,self.g);circ.x(self.g);
             updates.push(circ.b.ops[at..].to_vec());self.carry(circ,&w2[258-i],&w1[258-i],false);
         }
+        mark(circ,"carry_fwd");
         circ.cx(self.g,decision);circ.ccx(self.g,self.ha,decision);
         for i in (3..n).rev(){
             self.carry(circ,&w2[258-i],&w1[258-i],true);circ.cx(self.ha,&w2[258-i]);
             gate(circ,&[(self.g,true),(self.mask,true),(&w2[258-i],true),(decision,true)],&w1[258-i],self.dirty);circ.cx(self.ha,&w2[258-i]);
             circ.b.ops.extend(updates.pop().unwrap().into_iter().rev());
         }
+        mark(circ,"carry_rev");
         self.seed_all(circ,w1,w2);self.low_update(circ,w1,w2,decision);
+        mark(circ,"low_update");
+        MAIN_BOUNDS.with(|c|*c.borrow_mut()=sub);
         circ.b.ops.extend(low.into_iter().rev());
     }
 }

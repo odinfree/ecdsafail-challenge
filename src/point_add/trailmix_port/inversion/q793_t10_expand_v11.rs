@@ -82,7 +82,7 @@ pub(super) fn flags(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],g:&QReg,m
 }
 
 pub(super) fn emit(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg,p2:&QReg,g:&QReg,w1:&[QReg],w2:&[QReg],helpers:&[QReg],j:usize,inverse:bool,last:bool){
-    if super::q793_lifecycle_r03::four_hole(){emit16(circ,rank,a,c,sm,p1,p2,g,w1,w2,helpers,j,inverse,last);return;}
+    if super::q793_lifecycle_r03::four_hole()&&std::env::var("Q792_T10_MOD16").ok().as_deref()==Some("1"){emit16(circ,rank,a,c,sm,p1,p2,g,w1,w2,helpers,j,inverse,last);return;}
     assert!(helpers.len()>=22);let start=circ.b.ops.len();let h=&sm[3];let q=&helpers[..3];let dirty=&helpers[3..];let scratch=&sm[0];let metadata:Vec<_>=rank.iter().chain(a).chain(c).chain(&sm[1..3]).chain(std::iter::once(g)).map(QReg::id).collect();
     let cc:Vec<_>=(0..=3).map(|i|if last{if i==1{one()}else{Vec::new()}}else if i<=1{Vec::new()}else{ceq_small(rank,c,i)}).collect();let aa0=aeq_supported(circ,rank,a,0);let aa1=aeq_supported(circ,rank,a,1);
     let spec3=mul(&aeq_supported(circ,rank,a,253),&cc[1]);let spec2=mul(&aeq_supported(circ,rank,a,254),&cc[1]);let spec1=mul(&aeq_supported(circ,rank,a,254),&cc[2]);
@@ -117,8 +117,11 @@ pub(super) fn emit(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg]
         let bb:[Poly<'_>;3]=std::array::from_fn(|k|wire(&w2[(259+k-shift)%259]));let b2=&w2[(261-shift)%259];
         let vv:[Poly<'_>;3]=std::array::from_fn(|k|{
             let index=258-shift-k;let mut v=wire(&w2[index]);
-            if index>=3&&index-3<=254{let cond=mul(&aeq_supported(circ,rank,a,index-3),&xor(one(),cc[1].clone()));v=replace(v,cond,false);}
-            if index==257{v=replace(v,mul(&aeq_supported(circ,rank,a,254),&cc[1]),true);}v
+            let four=super::q793_lifecycle_r03::four_hole();
+            if four&&index>=4&&index-4<=253{let cond=mul(&aeq_supported(circ,rank,a,index-4),&xor(one(),cc[1].clone()));v=replace(v,cond,false);}
+            if four&&index==256{v=replace(v,mul(&aeq_supported(circ,rank,a,253),&cc[1]),true);}
+            if !four&&index>=3&&index-3<=254{let cond=mul(&aeq_supported(circ,rank,a,index-3),&xor(one(),cc[1].clone()));v=replace(v,cond,false);}
+            if !four&&index==257{v=replace(v,mul(&aeq_supported(circ,rank,a,254),&cc[1]),true);}v
         });
         for rwidth in [3usize,2,1]{
             if rwidth==2&&shift>1||rwidth==1&&shift!=0{continue;}
