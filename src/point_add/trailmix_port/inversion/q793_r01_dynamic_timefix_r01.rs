@@ -60,9 +60,12 @@ pub(super) fn grouped_with_flag(circ:&mut Circuit,gates:&[Vec<(&QReg,bool)>],ran
 }
 fn grouped(circ:&mut Circuit,gates:&[Vec<(&QReg,bool)>],rank:&[QReg],g:&QReg,dirty:&[QReg]){grouped_with_flag(circ,gates,rank,g,dirty,"Q793_RANK_ECHO_R01")}
 fn rest_or_all(dirty:&[QReg])->&[QReg]{dirty}
+// The four-hole walk has no A=255 terminal: its top endpoint and terminal
+// flags slide one A value down (A=255 -> A=254).
+fn aterm()->usize{255-usize::from(super::q793_lifecycle_r03::four_hole())}
 fn phase_guard(circ:&mut Circuit,rank:&[QReg],a:&[QReg],p1:&QReg,p2:&QReg,g:&QReg,dirty:&[QReg]){
     let base=[(p1,false),(p2,true)];let mut gates=vec![base.to_vec()];
-    for flag in aflags(rank,a,255){let mut cs=base.to_vec();cs.extend(flag);gates.push(cs);}
+    for flag in aflags(rank,a,aterm()){let mut cs=base.to_vec();cs.extend(flag);gates.push(cs);}
     grouped(circ,&gates,rank,g,dirty);
 }
 /// Metadata-only A+C=254/255 toggle. Original C on entry and return.
@@ -92,12 +95,12 @@ fn special_guard(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p
 }
 fn terminal_guard(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],p1:&QReg,p2:&QReg,g:&QReg,dirty:&[QReg]){
     let mut gates=Vec::new();
-    for af in aflags(rank,a,255){for cf in cflags(rank,c,0){let mut cs=vec![(p1,false),(p2,true)];cs.extend(af.iter().copied());cs.extend(cf);gates.push(cs);}}
+    for af in aflags(rank,a,aterm()){for cf in cflags(rank,c,0){let mut cs=vec![(p1,false),(p2,true)];cs.extend(af.iter().copied());cs.extend(cf);gates.push(cs);}}
     grouped(circ,&gates,rank,g,dirty);
 }
 fn normal_guard(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg,p2:&QReg,g:&QReg,dirty:&[QReg],j:usize){
     phase_guard(circ,rank,a,p1,p2,g,dirty);
-    endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,254);endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,255);
+    endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,254);endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,aterm());
     terminal_guard(circ,rank,a,c,p1,p2,g,dirty);
 }
 fn borrow_ha(circ:&mut Circuit,rank:&[QReg],a:&[QReg],g:&QReg,ha:&QReg,w2:&[QReg],dirty:&[QReg]){
@@ -130,11 +133,11 @@ fn endpoints(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],p1:&QReg,p2:&QRe
     else{short_permutation(circ,b,&base,2,dirty);}
     for flag in aflags(rank,a,0){let mut cs=vec![(g,true)];cs.extend(flag);gate(circ,&cs,p1,dirty);}
     endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,254);
-    endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,255);terminal_guard(circ,rank,a,c,p1,p2,g,dirty);
+    endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,aterm());terminal_guard(circ,rank,a,c,p1,p2,g,dirty);
     for flag in aflags(rank,a,0){let mut cs=vec![(g,true)];cs.extend(flag);gate(circ,&cs,p1,dirty);}
     circ.cx(&w2[1],&w2[0]);gate(circ,&[(g,true),(p1,false),(&w1[0],false),(&w2[0],true)],&w2[1],dirty);circ.cx(&w2[1],&w2[0]);
     for flag in aflags(rank,a,0){let mut cs=vec![(g,true)];cs.extend(flag);gate(circ,&cs,p1,dirty);}
-    terminal_guard(circ,rank,a,c,p1,p2,g,dirty);endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,255);
+    terminal_guard(circ,rank,a,c,p1,p2,g,dirty);endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,aterm());
 }
 /// Three physical holes W1[256..258]. All helpers are borrowed dirty.
 /// The global gap is W1[A+1] for A<255 and terminal W2[258] for A255.
