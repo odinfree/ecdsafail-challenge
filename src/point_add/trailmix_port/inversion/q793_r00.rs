@@ -35,6 +35,14 @@ fn high(circ:&mut Circuit,rank:&[QReg],guard:&QReg,target:&QReg,helpers:&[QReg],
         if unguarded{super::length_recompute::mixed_mcx(circ,&cs,target,helpers);}else{clean_gate(circ,&cs,target,guard,scratch,helpers);}
     }
 }
+thread_local!{static SEED_MARKS:std::cell::RefCell<Vec<(usize,usize)>>=const{std::cell::RefCell::new(Vec::new())};}
+/// Diagnostic (lane_seed_port): op-range of each mandatory low-borrow callback,
+/// so a checker can read the interval-mask rail as it stands at the call.
+pub(super) fn seed_marks()->Vec<(usize,usize)>{SEED_MARKS.with(|m|m.borrow().clone())}
+pub(super) fn clear_seed_marks(){SEED_MARKS.with(|m|m.borrow_mut().clear());}
+fn mark_seed(circ:&Circuit,start:usize){
+    if std::env::var_os("Q793_R00_SEED_MARK").is_some(){SEED_MARKS.with(|m|m.borrow_mut().push((start,circ.b.ops.len())));}
+}
 struct Scan<'a> {rank:&'a[QReg],a:&'a[QReg],sm:&'a[QReg],mask:&'a QReg,guard:&'a QReg,hs:&'a QReg,ha:&'a QReg,helpers:&'a[QReg],output:&'a QReg,output_control:&'a QReg,scratch:&'a QReg,j:usize,support_end:usize,low_cache:&'a QReg,top_cache:&'a QReg,low_value:std::cell::Cell<Option<usize>>,top_value:std::cell::Cell<Option<usize>>,compare:bool}
 impl Scan<'_> {
     fn lower_bits(&self)->usize{static BITS:std::sync::OnceLock<usize>=std::sync::OnceLock::new();*BITS.get_or_init(||{let n=std::env::var("Q795_R00_LOWER_BITS").ok().map(|v|v.parse().unwrap()).unwrap_or(2);assert!((2..=4).contains(&n));n})}
@@ -124,6 +132,15 @@ impl Scan<'_> {
     }
     fn compare(&self,circ:&mut Circuit,source:&[QReg],target:&[QReg],carry:&QReg,seed:&mut dyn FnMut(&mut Circuit,&QReg,&QReg,&[QReg],usize)) {
         assert!(self.compare);assert_eq!(self.prefix_mode(),2);
+        // Diagnostic (lane_seed_port): the mandatory low-borrow callback must be
+        // aligned with the last index that has no physical DATA cell. Three-hole:
+        // index 2. Four-hole: index 3 (bit 3 is skipped by the chain below).
+        // `Q793_R00_SEED_CALL_INDEX` overrides it for the alignment sweep.
+        // Baseline default: 2 for both geometries (unchanged production
+        // semantics). The four-hole frame also has no DATA cell at i=3, so
+        // `Q793_R00_SEED_CALL_INDEX=3` is the candidate alignment; it is a
+        // sweep knob until the drill's mbu_after_r00 cut adjudicates.
+        let call_at=std::env::var("Q793_R00_SEED_CALL_INDEX").ok().and_then(|v|v.parse::<usize>().ok()).unwrap_or(2);
         // The center is the only Sign write. W never changes its two external
         // controls, so W / guarded center / W^-1 is identity off phase00 even
         // for arbitrary metadata, cache, carry and scratch inputs.
@@ -146,10 +163,8 @@ impl Scan<'_> {
             self.lo(circ,i,sh,&[],self.mask);
             // Include upper boundary bit i=256-A; toggle mask one bit later.
             if i>0 {self.top(circ,i-1,&[],self.mask,false);}
-            if i < 3 {
-                if i == 2 { seed(circ,self.mask,carry,self.helpers,self.j); }
-                continue;
-            }
+            if i==call_at{let s0=circ.b.ops.len();seed(circ,self.mask,carry,self.helpers,self.j);mark_seed(circ,s0);}
+            if i < 3 {continue;}
             if super::q793_lifecycle_r03::four_hole()&&i==3{continue;}
             let x=&target[258-i];let y=&source[258-i];
             // Only the carry update needs the interval mask: all DATA is
