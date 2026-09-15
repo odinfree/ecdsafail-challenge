@@ -87,12 +87,8 @@ fn initialize(circ:&mut Circuit,mut dx:Vec<QReg>,phase_passenger:&QReg,second_pa
 }
 fn release_terminal(circ:&mut Circuit,mut core:Core)->Terminal {
     // Terminal phase00: return the passenger carried in the coefficient head.
-    // 4-hole: the coefficient head is a ladder-address host, not the top of
-    // the p-register; under the cargo re-home the A-ladder's top two homes
-    // move to W2[257]/W2[258] (q793_loans bank address 254 -> second_host
-    // w2[257]; q793_metadata_exit::second leaf 253 -> w2[257]).
-    let h0=if four_hole(){&core.work2[257]}else{&core.work1[255]};
-    let h1=if four_hole(){&core.work2[258]}else{&core.work2[257]};
+    let h0=if four_hole(){&core.work1[254]}else{&core.work1[255]};
+    let h1=if four_hole(){&core.work2[257]}else{&core.work2[257]};
     circ.x(&core.phase2);circ.cx(&core.phase2,h0);circ.cx(h0,&core.phase2);circ.cx(&core.phase2,h0);
     if dual_phase(){circ.cx(&core.phase1,h1);circ.cx(h1,&core.phase1);circ.cx(&core.phase1,h1);}
     toggle_terminal_work1(circ,&core.work1);free_work1(circ,core.work1);
@@ -107,8 +103,8 @@ fn rebuild_terminal(circ:&mut Circuit,mut terminal:Terminal,phase_passenger:&QRe
     let a=circ.alloc_qreg_bits("rank5.a.rebuilt",6);toggle_constant(circ,&a,63);
     let mut sm=terminal.history.split_off(6);sm.extend(circ.alloc_qreg_bits("rank5.sm.high.rebuilt",2));
     let phase2=phase_passenger.borrowed_alias();
-    let h0=if four_hole(){&terminal.work2[257]}else{&work1[255]};
-    let h1=if four_hole(){&terminal.work2[258]}else{&terminal.work2[257]};
+    let h0=if four_hole(){&work1[254]}else{&work1[255]};
+    let h1=if four_hole(){&terminal.work2[257]}else{&terminal.work2[257]};
     circ.cx(&phase2,h0);circ.cx(h0,&phase2);circ.cx(&phase2,h0);circ.x(&phase2);
     let phase1=if dual_phase(){let p=second_passenger.borrowed_alias();circ.cx(&p,h1);circ.cx(h1,&p);circ.cx(&p,h1);p}else{circ.alloc_qreg("rank5.P1.rebuilt")};
     Core {rank,a,c:terminal.history,sm,phase1,phase2,iteration:terminal.iteration,work1,work2:terminal.work2}

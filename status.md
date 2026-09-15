@@ -111,3 +111,35 @@ submission with it is `7351d318`. Once the Q792 port is its own tree, it should
 carry the same sweep for the same reason — it will cut ~9% of Toffoli there too,
 and the drift armour in `trailmix_port/mod.rs:4412` now accepts a bound when
 `Q793_CANCEL_SWEEP_APPLIED=1` is set by `build()`.
+
+## ROOT NEGATIVE RESULTS + VERDICT (2026-09-15T12:42Z)
+
+Two hard results from the root session, so nobody re-derives them:
+
+1. **`w1[254]` head retarget is BROKEN.** `runtime/treduce-q792-fixed-stream.log`
+   (whole-stream, 64 independent shots):
+   `peak=792 structural_T=747,320,144 executed_average_T=737,780,471
+   classical_failures=64 phase=0xbdc9cb0a280c5f49 dirty_ancillas=0`
+   — all 64 shots wrong. That variant is dead; do not bake it. This settles the
+   head-lane fork: only the `w2[257]/w2[258]` retarget remains live
+   (`lane_refreeze`, whose 64-shot stream was still running at 12:42Z).
+2. **Sentinel-target defect is real in the w2 lanes too.**
+   `runtime/pro-q792-stream-w2fix.log` and `runtime/rootlane-q792-stream-w2.log`
+   both panic (`right: 0` / `NO_QUBIT` reaching `sim.rs:48`) before finishing.
+
+3. **Second-traversal verdict (the 335.5M T question): not a missing algebra.**
+   Full write-up: `../../lanes/laneRoot/SECOND-TRAVERSAL-VERDICT.md`. Both EEA
+   traversals compute the same loop closure `dy·(dx/dy) = dx`; `divide_forward`
+   frees `dy` (256 lanes) before rebuilding the terminal, which is what makes
+   the walk fit at 793. So the design trades ~256 lanes against one traversal,
+   and at this width T-per-qubit ≈1.3M — the frontier rows in this band sit on
+   that line. The only untested escape is a partition where the walk's inner
+   working set releases ~256 lanes concurrent with a `dy` lifetime extension;
+   the cheapest test of the paper-style recovery is: does the walk's terminal
+   state determine `p` without the dialog tape?
+
+4. Instrument calibration: my CCX-sweep census (62,152,364 removable) was
+   audited pair-by-pair and its *count* retracted — sampled pairs are genuinely
+   removable, but the census reconciles only ~1% against the pass's actual
+   yield (215,049 executed). Treat pair censuses as class finders, not yield
+   estimates.
