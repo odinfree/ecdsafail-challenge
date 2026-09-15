@@ -30,11 +30,19 @@ fn snapshot<R:XofReader>(sim:&Simulator<'_,R>,mapping:&[usize],passenger:&[crate
 fn compare(a:&Snapshot,b:&Snapshot,tag:&str,strict_phase:bool)->bool{
     let mut first=None;
     let n=a.state.len().min(b.state.len());
+    let w2shift=std::env::var("LOWQ_Q792_DIFF_W2SHIFT").ok().and_then(|v|v.parse::<i64>().ok()).unwrap_or(0);
+    let w1cmp=std::env::var("LOWQ_Q792_DIFF_W1").ok().as_deref()==Some("1");
     for i in 0..n{
         // work1 region may legitimately differ; work2 and control regs and
         // passengers must agree exactly.
-        if a.skip_w1&&b.skip_w1&&(24..283).contains(&i){continue;}
-        if a.state[i]!=b.state[i]{if first.is_none(){first=Some(i);}}
+        // w1 lanes that exist in BOTH geometries: 24..278 (w1[0..254]).
+        // w1[255] is real only in 3-hole (its bit-3 toggle has no 4-hole
+        // home by design) and 256..258 are markers in both.
+        if a.skip_w1&&b.skip_w1&&(24..283).contains(&i)&&!(w1cmp&&(24..278).contains(&i)){continue;}
+        let j=if a.skip_w1&&b.skip_w1&&(283..541).contains(&i){
+            let k=i as i64-283;let k2=if (3..=257).contains(&k){k+w2shift}else{k};283+k2.clamp(0,258)as usize
+        }else{i};
+        if j<n&&a.state[i]!=b.state[j]{if first.is_none(){first=Some(i);}}
     }
     let phase_diff=a.phase!=b.phase;
     let tail=if a.state.len()!=b.state.len(){Some((a.state.len(),b.state.len()))}else{None};
@@ -134,16 +142,40 @@ pub fn run(){
             let block=z;
             let mut templates:Vec<_>=Vec::new();
             let mut j1_stages:Vec<(&'static str,usize)>=Vec::new();
+            let mut j0_stages:Vec<(&'static str,usize)>=Vec::new();
             for j in 0..4{
                 let ops=remap(template(block,j),&mapping,&passenger,false);
-                if block==0&&j==1{j1_stages=super::super::q793_step_r03::marks();eprintln!("Q792_FOURHOLE_DIFF j1_ops_len={} marks={:?}",ops.len(),j1_stages.last());}
+                if block==0&&j==1{
+                    j1_stages=super::super::q793_step_r03::marks();
+                    eprintln!("Q792_FOURHOLE_DIFF j1_ops_len={} marks={:?}",ops.len(),j1_stages.last());
+                    if std::env::var("LOWQ_Q792_DIFF_OPDUMP").ok().as_deref()==Some("1"){
+                        let logical=template(block,j);
+                        for(i,op)in logical.iter().take(36).enumerate(){
+                            eprintln!("Q792_OPDUMP i={i} kind={:?} q2={} q1={} t={} ct={} cc={}",op.kind,op.q_control2.0,op.q_control1.0,op.q_target.0,op.c_target.0,op.c_condition.0);
+                        }
+                    }
+                }
+                if block==0&&j==0{j0_stages=super::super::q793_step_r03::marks();}
                 templates.push(ops);
             }
             let first=block*64;let end=(first+64).min(1616);
             for i in 0..end-first{
                 let step=first+i;
                 let ops=&templates[(step+1)%4];
-                if z==0&&i==4{
+                if z==0&&i==3{
+                    // stage cuts inside the j=0 template at step 3 (first w1
+                    // divergence site)
+                    let mut prev=0usize;
+                    for(name,idx)in j0_stages.iter().copied(){
+                        let idx=idx.min(ops.len());
+                        if idx<=prev{continue;}
+                        for sim in &mut sims{sim.apply_iter(ops[prev..idx].iter());}
+                        let cn:&'static str=Box::leak(format!("block0_j0_{name}").into_boxed_str());
+                        cut(&sims,cn,&mapping,&passenger,owned,&mut snaps);
+                        prev=idx;
+                    }
+                    for sim in &mut sims{sim.apply_iter(ops[prev..].iter());}
+                }else if z==0&&i==4{
                     // stage-level cuts inside the j=1 template at the first
                     // diverging application (step 4)
                     let mut prev=0usize;
