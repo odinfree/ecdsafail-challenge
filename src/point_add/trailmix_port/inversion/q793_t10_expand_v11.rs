@@ -82,6 +82,7 @@ pub(super) fn flags(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],g:&QReg,m
 }
 
 pub(super) fn emit(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg,p2:&QReg,g:&QReg,w1:&[QReg],w2:&[QReg],helpers:&[QReg],j:usize,inverse:bool,last:bool){
+    if super::q793_lifecycle_r03::four_hole(){emit16(circ,rank,a,c,sm,p1,p2,g,w1,w2,helpers,j,inverse,last);return;}
     assert!(helpers.len()>=22);let start=circ.b.ops.len();let h=&sm[3];let q=&helpers[..3];let dirty=&helpers[3..];let scratch=&sm[0];let metadata:Vec<_>=rank.iter().chain(a).chain(c).chain(&sm[1..3]).chain(std::iter::once(g)).map(QReg::id).collect();
     let cc:Vec<_>=(0..=3).map(|i|if last{if i==1{one()}else{Vec::new()}}else if i<=1{Vec::new()}else{ceq_small(rank,c,i)}).collect();let aa0=aeq_supported(circ,rank,a,0);let aa1=aeq_supported(circ,rank,a,1);
     let spec3=mul(&aeq_supported(circ,rank,a,253),&cc[1]);let spec2=mul(&aeq_supported(circ,rank,a,254),&cc[1]);let spec1=mul(&aeq_supported(circ,rank,a,254),&cc[2]);
@@ -143,4 +144,65 @@ pub(super) fn emit(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg]
     circ.b.ops.extend(readouts.into_iter().rev());
     if std::env::var("Q793_T10_COST").ok().as_deref()==Some("1"){for(label,l,r)in[("cargo+qborrow",start,poly_start),("poly",poly_start,poly_end),("qreturn",poly_end,circ.b.ops.len())]{let ops=&circ.b.ops[l..r];let t=ops.iter().filter(|o|o.kind==crate::circuit::OperationType::CCX).count();eprintln!("Q793_T10_V11_CODEC last={last} inverse={inverse} part={label} ops={} T={t}",ops.len());}}
     if inverse{circ.b.ops[start..].reverse();}
+}
+
+/// 4-hole (mod16) T10 expansion: 4-bit t/u/v charts, INV16 arithmetic, and the
+/// endpoint specs slid one A value down (A=253/254 -> A=252/253). Mirrors the
+/// verified mod16 semantics of q792_mod16::scalar and q793_exit_low::xor_r16.
+fn emit16(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg,p2:&QReg,g:&QReg,w1:&[QReg],w2:&[QReg],helpers:&[QReg],j:usize,inverse:bool,last:bool){
+    assert!(helpers.len()>=22);let start=circ.b.ops.len();let h=&sm[3];let q=&helpers[..3];let dirty=&helpers[3..];let scratch=&sm[0];let metadata:Vec<_>=rank.iter().chain(a).chain(c).chain(&sm[1..3]).chain(std::iter::once(g)).map(QReg::id).collect();
+    let cc:Vec<_>=(0..=3).map(|i|if last{if i==1{one()}else{Vec::new()}}else if i<=1{Vec::new()}else{ceq_small(rank,c,i)}).collect();let aa0=aeq_supported(circ,rank,a,0);let aa1=aeq_supported(circ,rank,a,1);let aa2=aeq_supported(circ,rank,a,2);
+    let spec3=mul(&aeq_supported(circ,rank,a,252),&cc[1]);let spec2=mul(&aeq_supported(circ,rank,a,253),&cc[1]);let spec1=mul(&aeq_supported(circ,rank,a,253),&cc[2]);
+    let specs=xor(xor(spec3.clone(),spec2.clone()),spec1.clone());
+    swap(circ,mul(&wire(g),&specs),h,&w2[255],dirty,g,scratch,&metadata);
+    let readout_start=circ.b.ops.len();circ.cx(g,p1);
+    if last{
+        gates(circ,mul(&wire(g),&replace(wire(&w1[1]),aa0.clone(),false)),p1,dirty,g,scratch,&metadata);
+        gates(circ,mul(&wire(g),&replace(wire(&w1[2]),xor(aa0.clone(),aa1.clone()),false)),p2,dirty,g,scratch,&metadata);
+    }else{
+        let q0cond=vec![vec![(g,true),(&sm[1],false),(&sm[2],false)]];
+        super::q793_t10_routes_v10::digit_xor(circ,rank,a,c,w1,p1,dirty,1,&q0cond,g,scratch);
+        let q1cond=mul(&vec![vec![(g,true),(&sm[2],false)]],&xor(one(),cc[2].clone()));
+        super::q793_t10_routes_v10::digit_xor(circ,rank,a,c,w1,p2,dirty,0,&q1cond,g,scratch);
+        gates(circ,mul(&wire(g),&cc[2]),p2,dirty,g,scratch,&metadata);
+        if j&1==0{let cs=vec![(g,true),(&sm[2],false)];super::q793_t10_routes_v10::digit(circ,rank,a,c,w1,&q[2],dirty,-1,&cs,g,scratch);}
+    }
+    let readouts=circ.b.ops[readout_start..].to_vec();let poly_start=circ.b.ops.len();
+    let t3mask=xor(xor(aa0.clone(),aa1.clone()),aa2.clone());
+    let tt=if last{[wire(&w1[0]),wire(p1),wire(p2),replace(wire(&w1[3]),t3mask.clone(),false)]}
+        else{[wire(&w1[0]),replace(wire(&w1[1]),aa0.clone(),false),replace(wire(&w1[2]),xor(aa0.clone(),aa1.clone()),false),replace(wire(&w1[3]),t3mask.clone(),false)]};
+    let qq=if last{[if inverse{Vec::new()}else{one()},Vec::new(),Vec::new(),Vec::new()]}else{[wire(p1),wire(p2),if j&1==1{Vec::new()}else{replace(replace(wire(&q[2]),cc[2].clone(),false),cc[3].clone(),true)},Vec::new()]};
+    for shift in 0..=2{
+        if j&1!=shift&1{continue;}
+        let c0=((j>>1)^(j&1))^(shift>>1);let sb=vec![vec![(g,true),(&c[0],c0!=0)]];
+        let bb:[Poly<'_>;4]=std::array::from_fn(|k|wire(&w2[(259+k-shift)%259]));let b2=&w2[(261-shift)%259];
+        let vv:[Poly<'_>;4]=std::array::from_fn(|k|{
+            let index=258-shift-k;let mut v=wire(&w2[index]);
+            if index>=4&&index-4<=253{let cond=mul(&aeq_supported(circ,rank,a,index-4),&xor(one(),cc[1].clone()));v=replace(v,cond,false);}
+            if index==256{v=replace(v,mul(&aeq_supported(circ,rank,a,253),&cc[1]),true);}v
+        });
+        for rwidth in [3usize,2,1]{
+            if rwidth==2&&shift>1||rwidth==1&&shift!=0{continue;}
+            if rwidth<3&&endpoints_excluded(circ){continue;}
+            let rb=if rwidth==3{vec![vec![(&sm[1],false),(&sm[2],false)]]}else if rwidth==2{wire(&sm[1])}else{wire(&sm[2])};
+            let base=mul(&sb,&rb);let spec=match rwidth{3=>&spec3,2=>&spec2,_=>&spec1};let known=rwidth==1||(rwidth==2&&!inverse);
+            let normal=mul(&base,&xor(one(),spec.clone()));let even=mul(&normal,&vec![vec![(&w1[0],false)]]);let odd=mul(&normal,&wire(&w1[0]));
+            gates(circ,mul(&even,&bb[3]),h,dirty,g,scratch,&metadata);
+            let mut vars=Vec::new();vars.extend(tt.clone());vars.extend(bb.clone());vars.extend(vv.clone());vars.extend(qq.clone());
+            anf(circ,&vars,|x|{let t=x&15;let u=x>>4&15;let v=x>>8&15;let qs=x>>12&7;
+                if rwidth==3{(super::q793_exit_low::INV16[t].wrapping_mul(15usize.wrapping_sub(u*v)).wrapping_sub((qs<<shift)*v))>>2&1!=0}
+                else if rwidth==2{if t&1==0||v==0||(v<<shift)>=16{return false;}let d=(super::q793_exit_low::INV16[t].wrapping_mul(15usize.wrapping_sub(u*v)).wrapping_sub(((qs&6)<<shift)*v))&15;d>=v<<shift}
+                else{((15usize.wrapping_sub(u)).wrapping_mul(super::q793_exit_low::INV16[t]))>>1&1!=0}
+            },&odd,h,dirty,g,scratch,&metadata);
+            let hp=replace(wire(h),spec.clone(),known);let all_even=mul(&base,&vec![vec![(&w1[0],false)]]);
+            gates(circ,mul(&all_even,&hp),b2,dirty,g,scratch,&metadata);
+            let q0=if rwidth==3{qq[0].clone()}else if rwidth==2{hp.clone()}else{bb[1].clone()};let q1=if rwidth==1{hp}else{qq[1].clone()};
+            let mut vars=Vec::new();vars.extend(tt.clone());vars.push(if rwidth==1{Vec::new()}else{bb[0].clone()});vars.push(if rwidth==1{Vec::new()}else{bb[1].clone()});vars.extend(vv.clone());vars.push(q0);vars.push(q1);
+            anf(circ,&vars,|x|{let t=x&15;let r=x>>4&15;let v=x>>8&15;let qs=x>>12&7;(v.wrapping_mul(15usize.wrapping_sub(t*r)).wrapping_sub((qs<<shift)*t))>>2&1!=0},&all_even,b2,dirty,g,scratch,&metadata);
+        }
+    }
+    let poly_end=circ.b.ops.len();
+    circ.b.ops.extend(readouts.into_iter().rev());
+    if inverse{circ.b.ops[start..].reverse();}
+    let _=poly_end;
 }
