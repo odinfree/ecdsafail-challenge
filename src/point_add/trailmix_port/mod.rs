@@ -62,6 +62,7 @@ pub mod inversion {
     pub mod q793_cargo_r01;
     pub mod q793_cargo_r02;
     pub mod q793_r00_seed_dynamic_r02;
+    pub mod q793_r00_seed_mod16_check;
     pub mod q793_step_route_r03;
     pub mod q793_step_route_r03_check;
     pub mod q793_r01_supported_v5;

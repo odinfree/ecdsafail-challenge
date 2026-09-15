@@ -2666,6 +2666,7 @@ pub fn build() -> Vec<Op> {
             "lifecycle" => trailmix_port::inversion::q793_lifecycle_r03::check::run(),
             "full-step" => trailmix_port::inversion::q793_step_r03_check::run(),
             "fourhole-diff" => trailmix_port::inversion::q793_lifecycle_r03::diff::run(),
+            "r00-mod16-check" => trailmix_port::inversion::q793_r00_seed_mod16_check::run(),
             "r00" | "r00-all" => trailmix_port::inversion::q793_r00_check::run(),
             "dual-exit" | "dual-exit-offguard" => trailmix_port::inversion::q793_exit_check::run(),
             _ => panic!("unknown own Q793 native mode: {mode}"),
