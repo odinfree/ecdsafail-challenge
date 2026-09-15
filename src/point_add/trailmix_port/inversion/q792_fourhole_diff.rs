@@ -7,7 +7,8 @@
 use super::*;
 use crate::circuit::{Op,OperationType,NO_QUBIT};
 use crate::sim::Simulator;
-use sha3::digest::XofReader;
+use sha3::digest::{XofReader,Update,ExtendableOutput};
+use sha3::Shake256;
 
 struct Fixed(u64);
 impl XofReader for Fixed{fn read(&mut self,b:&mut[u8]){for x in b{*x=rnd(&mut self.0)as u8;}}}
@@ -138,7 +139,15 @@ pub fn run(){
         let owned=circ.b.next_qubit as usize;
         let bits=circ.b.next_bit as usize;
         eprintln!("Q792_FOURHOLE_DIFF built four={four} owned={owned} bits={bits} peak={}",circ.b.peak_qubits);
-        let mut sims:Vec<_>=(0..batches).map(|b|Simulator::new(owned,bits,Box::leak(Box::new(Fixed(0x14e5a67db802c39f^b as u64))))).collect();
+        let mut sims:Vec<_>=(0..batches).map(|b|{
+            // Match the production sprint's simulator RNG exactly: the Hmr/R
+            // measurement outcomes draw from this stream and must reproduce
+            // the official artifact's behavior.
+            let mut seed=Shake256::default();
+            seed.update(b"Q799-independent-whole-stream-sprint-v2");
+            if b>0{seed.update(b"\0Q795-independent-additional-batch-v1\0");seed.update(&(b as u64).to_le_bytes());}
+            Simulator::new(owned,bits,Box::leak(Box::new(seed.finalize_xof())))
+        }).collect();
         for batch in 0..batches{
             let mut seed=0x51ef46b9ac287d03u64^batch as u64;
             let mut state=vec![0u64;owned];
