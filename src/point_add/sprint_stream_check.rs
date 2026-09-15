@@ -29,6 +29,21 @@ impl Batch {
     }
     pub fn apply(&mut self,ops:&[Op]) {
         assert!(!ops.iter().any(|o|matches!(o.kind,K::PushCondition|K::PopCondition)));
+        // Diagnostic (dev only): dump the measurement/uncompute skeleton of the
+        // stream so a correct build and a suspect build can be diffed. Off
+        // unless Q792_GHOST_DUMP is set.
+        if std::env::var("Q792_GHOST_DUMP").ok().as_deref()==Some("1") {
+            static OFF: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+            for op in ops {
+                let off = OFF.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                if matches!(op.kind, K::R | K::Hmr) {
+                    eprintln!(
+                        "Q792_GHOST off={off} kind={:?} q1={} q2={} qt={} ct={} cc={}",
+                        op.kind, op.q_control1.0, op.q_control2.0, op.q_target.0, op.c_target.0, op.c_condition.0
+                    );
+                }
+            }
+        }
         for op in ops {if op.kind==K::AppendToRegister {
             let r=op.r_target.0 as usize;while self.regs.len()<=r{self.regs.push(Vec::new());}
             self.regs[r].push(if op.q_target.0!=u64::MAX{QubitOrBit::Qubit(op.q_target)}else{QubitOrBit::Bit(op.c_target)});
