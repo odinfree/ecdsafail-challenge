@@ -152,13 +152,17 @@ pub fn run(){
             let block=z;
             let mut templates:Vec<_>=Vec::new();
             let mut j1_stages:Vec<(&'static str,usize)>=Vec::new();
+            let mut j1_subs:Vec<(&'static str,usize)>=Vec::new();
             let mut j0_stages:Vec<(&'static str,usize)>=Vec::new();
             let mut j0_cells:Vec<(usize,Vec<usize>)>=Vec::new();
+            let mut j0_subs:Vec<(&'static str,usize)>=Vec::new();
             for j in 0..4{
                 super::super::q793_t10_fused_v3::clear_cell_bounds();
+                super::super::q793_r01_dynamic_timefix_r01::clear_sub_bounds();
                 let ops=remap(template(block,j),&mapping,&passenger,false);
                 if block==0&&j==1{
                     j1_stages=super::super::q793_step_r03::marks();
+                    j1_subs=super::super::q793_r01_dynamic_timefix_r01::sub_bounds();
                     eprintln!("Q792_FOURHOLE_DIFF j1_ops_len={} marks={:?}",ops.len(),j1_stages.last());
                     if std::env::var("LOWQ_Q792_DIFF_OPDUMP").ok().as_deref()==Some("1"){
                         let logical=template(block,j);
@@ -167,7 +171,7 @@ pub fn run(){
                         }
                     }
                 }
-                if block==0&&j==0{j0_stages=super::super::q793_step_r03::marks();j0_cells=super::super::q793_t10_fused_v3::cell_bounds();}
+                if block==0&&j==0{j0_stages=super::super::q793_step_r03::marks();j0_cells=super::super::q793_t10_fused_v3::cell_bounds();j0_subs=super::super::q793_r01_dynamic_timefix_r01::sub_bounds();}
                 templates.push(ops);
             }
             let first=block*64;let end=(first+64).min(1616);
@@ -197,9 +201,24 @@ pub fn run(){
                         for(name,idx)in j0_stages.iter().copied(){
                             let idx=idx.min(ops.len());
                             if idx<=last_cell_end{continue;}
-                            for sim in &mut sims{sim.apply_iter(ops[last_cell_end..idx].iter());}
-                            let cn:&'static str=Box::leak(format!("block0_j0_{name}").into_boxed_str());
-                            cut(&sims,cn,&mapping,&passenger,owned,&mut snaps);
+                            if name=="R01"{
+                                let mut p=last_cell_end;
+                                for(sn,si)in j0_subs.iter().copied(){
+                                    let si=si.min(idx);
+                                    if si<=p{continue;}
+                                    for sim in &mut sims{sim.apply_iter(ops[p..si].iter());}
+                                    let cn:&'static str=Box::leak(format!("block0_j0_r01_{sn}").into_boxed_str());
+                                    cut(&sims,cn,&mapping,&passenger,owned,&mut snaps);
+                                    p=si;
+                                }
+                                for sim in &mut sims{sim.apply_iter(ops[p..idx].iter());}
+                                let cn:&'static str=Box::leak(format!("block0_j0_r01_tail").into_boxed_str());
+                                cut(&sims,cn,&mapping,&passenger,owned,&mut snaps);
+                            }else{
+                                for sim in &mut sims{sim.apply_iter(ops[last_cell_end..idx].iter());}
+                                let cn:&'static str=Box::leak(format!("block0_j0_{name}").into_boxed_str());
+                                cut(&sims,cn,&mapping,&passenger,owned,&mut snaps);
+                            }
                             last_cell_end=idx;
                         }
                         for sim in &mut sims{sim.apply_iter(ops[last_cell_end..].iter());}
@@ -211,7 +230,20 @@ pub fn run(){
                     for(si,(name,idx))in j1_stages.iter().copied().enumerate(){
                         let idx=idx.min(ops.len());
                         if idx<=prev{continue;}
-                        if si==1{
+                        if name=="R01"{
+                            let mut p=prev;
+                            for(sn,si2)in j1_subs.iter().copied(){
+                                let si2=si2.min(idx);
+                                if si2<=p{continue;}
+                                for sim in &mut sims{sim.apply_iter(ops[p..si2].iter());}
+                                let cn:&'static str=Box::leak(format!("block0_j1_r01_{sn}").into_boxed_str());
+                                cut(&sims,cn,&mapping,&passenger,owned,&mut snaps);
+                                p=si2;
+                            }
+                            for sim in &mut sims{sim.apply_iter(ops[p..idx].iter());}
+                            let cn:&'static str=Box::leak(format!("block0_j1_r01_tail").into_boxed_str());
+                            cut(&sims,cn,&mapping,&passenger,owned,&mut snaps);
+                        }else if si==1{
                             // bisect the T10 stage at 2^12 granularity
                             let mut applied=prev;
                             for c in (1..(1<<12)).map(|k|prev+(idx-prev)*k/(1<<12)){

@@ -52,6 +52,24 @@ fn prefix_xor(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],word:&[QReg],ba
 }
 
 fn borrow_truth(code:usize,shift:usize,a_class:Option<usize>)->bool{
+    if super::q793_lifecycle_r03::four_hole(){
+        let mut t=code&15;let mut b=code>>4&15;let mut v=code>>8&15;
+        if let Some(a)=a_class{
+            if a==0{t=1;b=0;}
+            else if a==1{t=(t&1)|2;
+                if shift==0{if t&1==0{
+                    let low_b=b&7;let logical_b=low_b|(v&8);
+                    v=(v&7)|((1^(low_b>>2&1)^(code>>12&1))<<3);b=logical_b;
+                }else{b&=7;}} // u<t=3; physical b3 is the parked HA passenger.
+            }
+            else if a==2{t=(t&3)|4;} // Logical coefficient head, not its passenger.
+            let keep=256usize.saturating_sub(a+shift).min(4);
+            v&=(1<<keep)-1; // Beyond this point the physical source can be cargo.
+        }
+        let q=match shift{0=>((code>>12&1)<<1)|((code>>13&1)<<2),1=>(code>>12&1)<<2,2=>0,_=>unreachable!()};
+        let r=if t&1!=0{(15usize.wrapping_sub(b*v).wrapping_mul(super::q793_exit_low::INV16[t]).wrapping_sub(q*v))&15}else{b};
+        return r<((v<<shift)&15);
+    }
     let mut t=code&7;let mut b=code>>3&7;let mut v=code>>6&7;
     if let Some(a)=a_class{
         if a==0{t=1;b=0;}
@@ -70,8 +88,10 @@ fn borrow_truth(code:usize,shift:usize,a_class:Option<usize>)->bool{
     r<((v<<shift)&7)
 }
 fn terms(shift:usize,class:Option<usize>)->Vec<usize>{
-    let mut anf:Vec<_>=(0..2048).map(|c|borrow_truth(c,shift,class)^class.is_some().then(||borrow_truth(c,shift,None)).unwrap_or(false)).collect();
-    for bit in 0..11{for m in 0..2048{if m>>bit&1!=0{anf[m]^=anf[m^(1<<bit)];}}}
+    let four=super::q793_lifecycle_r03::four_hole();
+    let bits=if four{14}else{11};let n=1usize<<bits;
+    let mut anf:Vec<_>=(0..n).map(|c|borrow_truth(c,shift,class)^class.is_some().then(||borrow_truth(c,shift,None)).unwrap_or(false)).collect();
+    for bit in 0..bits{for m in 0..n{if m>>bit&1!=0{anf[m]^=anf[m^(1<<bit)];}}}
     anf.into_iter().enumerate().filter_map(|(m,b)|b.then_some(m)).collect()
 }
 /// 1: keep whichever scan emits fewer raw operations; 2: always numeric (check harness).
@@ -137,9 +157,16 @@ fn seed(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],g:&QReg,ma
     // correction, reducing each rank-minterm family to one eight-bit cube.
     // Its three borrowed work rails may start dirty and are restored by the
     // recorded literal inverse after all dirty-ladder consumers finish.
-    let word=[&w1[0],&w1[1],&w1[2],&w2[(259-shift)%259],&w2[(260-shift)%259],&w2[(261-shift)%259],
-              &w2[258-shift],&w2[257-shift],&w2[256-shift],&sm[0],&sm[1]];
-    for m in terms(shift,None){let mut cs=base.to_vec();cs.extend((0..11).filter(|&i|m>>i&1!=0).map(|i|(word[i],true)));seed_ha_gate(circ,&cs,ha,g);}
+    let four=super::q793_lifecycle_r03::four_hole();
+    let word:Vec<&QReg>=if four{
+        vec![&w1[0],&w1[1],&w1[2],&w1[3],
+             &w2[(259-shift)%259],&w2[(260-shift)%259],&w2[(261-shift)%259],&w2[(262-shift)%259],
+             &w2[258-shift],&w2[257-shift],&w2[256-shift],&w2[255-shift],&sm[0],&sm[1]]
+    }else{
+        vec![&w1[0],&w1[1],&w1[2],&w2[(259-shift)%259],&w2[(260-shift)%259],&w2[(261-shift)%259],
+             &w2[258-shift],&w2[257-shift],&w2[256-shift],&sm[0],&sm[1]]
+    };
+    for m in terms(shift,None){let mut cs=base.to_vec();cs.extend((0..word.len()).filter(|&i|m>>i&1!=0).map(|i|(word[i],true)));seed_ha_gate(circ,&cs,ha,g);}
     for a_class in [0,1,2,252,253]{
         // A29: retain the upstream A1 rule; opt in to the same support rule
         // for the other constant-A correction banks. A255 is never in this list.
@@ -154,7 +181,7 @@ fn seed(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],g:&QReg,ma
         // SM2 is known zero only under the external seed guard. Retaining
         // that guard on each action makes arbitrary off-guard SM2 harmless.
         for m in correction{let mut cs=base.to_vec();cs.push((&sm[2],true));
-            cs.extend((0..11).filter(|&i|m>>i&1!=0).map(|i|(word[i],true)));seed_ha_gate(circ,&cs,ha,g);
+            cs.extend((0..word.len()).filter(|&i|m>>i&1!=0).map(|i|(word[i],true)));seed_ha_gate(circ,&cs,ha,g);
         }
         circ.b.ops.extend(restore.into_iter().rev());
     }

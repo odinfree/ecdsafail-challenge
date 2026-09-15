@@ -60,6 +60,9 @@ pub(super) fn grouped_with_flag(circ:&mut Circuit,gates:&[Vec<(&QReg,bool)>],ran
 }
 fn grouped(circ:&mut Circuit,gates:&[Vec<(&QReg,bool)>],rank:&[QReg],g:&QReg,dirty:&[QReg]){grouped_with_flag(circ,gates,rank,g,dirty,"Q793_RANK_ECHO_R01")}
 fn rest_or_all(dirty:&[QReg])->&[QReg]{dirty}
+thread_local!{static SUB_BOUNDS:std::cell::RefCell<Vec<(&'static str,usize)>>=const{std::cell::RefCell::new(Vec::new())};}
+pub(crate) fn sub_bounds()->Vec<(&'static str,usize)>{SUB_BOUNDS.with(|c|c.borrow().clone())}
+pub(crate) fn clear_sub_bounds(){SUB_BOUNDS.with(|c|c.borrow_mut().clear());}
 // The four-hole walk has no A=255 terminal: its top endpoint and terminal
 // flags slide one A value down (A=255 -> A=254).
 fn aterm()->usize{255-usize::from(super::q793_lifecycle_r03::four_hole())}
@@ -145,17 +148,25 @@ fn endpoints(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],p1:&QReg,p2:&QRe
 pub(super) fn signless(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg,p2:&QReg,w1:&[QReg],w2:&[QReg],helpers:&[QReg],j:usize,support_end:usize){
     assert!(helpers.len()>=23);let start=circ.b.ops.len();let owned=(circ.b.next_qubit,circ.b.active_qubits);
     let g=&helpers[0];let ha=&helpers[1];let decision=&helpers[2];let dirty=&helpers[3..];
+    let mut sub=vec![];
+    let mut mark=|circ:&Circuit,name:&'static str|{sub.push((name,circ.b.ops.len()));};
     if std::env::var("Q793_HELD_LOAN").ok().as_deref()!=Some("1"){super::q793_loans::global_a(circ,rank,a,g,w1,&w2[258],Some(&w2[257]),None,dirty);}
+    mark(circ,"loan");
     normal_guard(circ,rank,a,c,sm,p1,p2,g,dirty,j);
-    circ.cx(g,p2);super::q793_r01_a1normalize_timefix_r01::normalize(circ,rank,a,c,sm,g,p1,w1,w2,dirty,j,false);
-    borrow_ha(circ,rank,a,g,ha,w2,dirty);super::q793_r01_routes_v1::quotient(circ,rank,a,c,w1,g,p2,decision);
+    mark(circ,"normal_guard");circ.cx(g,p2);super::q793_r01_a1normalize_timefix_r01::normalize(circ,rank,a,c,sm,g,p1,w1,w2,dirty,j,false);
+    mark(circ,"a1normalize_fwd");borrow_ha(circ,rank,a,g,ha,w2,dirty);super::q793_r01_routes_v1::quotient(circ,rank,a,c,w1,g,p2,decision);
+    mark(circ,"borrow_quotient");
     super::q793_r01_normal_timefix_r01::emit(circ,rank,a,c,sm,g,p1,p2,ha,decision,w1,w2,dirty,j,support_end,false);
-    super::q793_r01_routes_v1::quotient(circ,rank,a,c,w1,g,p2,decision);borrow_ha(circ,rank,a,g,ha,w2,dirty);
-    super::q793_r01_a1normalize_timefix_r01::normalize(circ,rank,a,c,sm,g,p1,w1,w2,dirty,j,true);circ.cx(g,p2);
+    mark(circ,"r01_main");super::q793_r01_routes_v1::quotient(circ,rank,a,c,w1,g,p2,decision);borrow_ha(circ,rank,a,g,ha,w2,dirty);
+    mark(circ,"quotient_borrow_rev");super::q793_r01_a1normalize_timefix_r01::normalize(circ,rank,a,c,sm,g,p1,w1,w2,dirty,j,true);circ.cx(g,p2);
+    mark(circ,"a1normalize_rev");
     normal_guard(circ,rank,a,c,sm,p1,p2,g,dirty,j);
-    endpoints(circ,rank,a,c,p1,p2,g,w1,w2,dirty,j);
+    mark(circ,"normal_guard_rev");endpoints(circ,rank,a,c,p1,p2,g,w1,w2,dirty,j);
+    mark(circ,"endpoints");
     if std::env::var("Q793_HELD_LOAN").ok().as_deref()!=Some("1"){super::q793_loans::global_a(circ,rank,a,g,w1,&w2[258],Some(&w2[257]),None,dirty);}
+    mark(circ,"loan_rev");
     assert_eq!((circ.b.next_qubit,circ.b.active_qubits),owned);
+    SUB_BOUNDS.with(|c|*c.borrow_mut()=sub);
     if std::env::var("Q792_R01_SPAN").ok().as_deref()==Some("1"){eprintln!("Q792_R01_SPAN j={j} start={} end={} w1_255={}",start,circ.b.ops.len(),w1[255].id());}
     let holes:&[usize]=if super::q793_lifecycle_r03::four_hole(){&[255,256,257,258]}else{&[256,257,258]};
     for (idx,op) in circ.b.ops[start..].iter().enumerate(){for &h in holes{let q=w1[h].id()as u64;if op.q_target.0==q||op.q_control1.0==q||op.q_control2.0==q{eprintln!("Q792_R01_HOLE j={j} h={h} idx={idx} span={}..{} w1h={} kind={:?} q2={} q1={} t={}",start,circ.b.ops.len(),q,op.kind,op.q_control2.0,op.q_control1.0,op.q_target.0);panic!("Q793 dynamic R01 touched omitted W1[{h}]");}}}
