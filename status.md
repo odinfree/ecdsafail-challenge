@@ -146,8 +146,10 @@ Two hard results from the root session, so nobody re-derives them:
    pair-by-pair and its *count* retracted — sampled pairs are individually
    removable, but the tool's scan keeps candidates alive across ops that do not
    commute past them, so its total is not a yield and not a bound. The trusted
-   effect is −215,049 executed Toffoli. Treat pair censuses as class finders,
-   never as yield estimates, and record the pass's own
+   effect is −215,049 executed Toffoli, and a pass-faithful replay on the
+   archived stream measures the pass's own window-64 yield at **111,594 pairs =
+   223,188 CCX** — the census was 278× high. Treat pair censuses as class
+   finders, never as yield estimates, and record the pass's own
    `CANCEL adjacent=.. commuting=..` line when it runs.
 
 ## ROOT STOP-SIGNAL: Q792 port fails 64/64 on every variant (2026-09-15T13:10Z)

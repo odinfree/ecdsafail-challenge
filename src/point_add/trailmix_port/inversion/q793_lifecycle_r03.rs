@@ -155,6 +155,7 @@ fn remap(mut ops:Vec<Op>,core_ids:&[usize],passenger:&[QReg],inverse:bool)->Vec<
     if inverse{ops.reverse();}ops
 }
 #[path="q793_lifecycle_r01_check.rs"]pub mod check;
+#[path="q792_fourhole_diff.rs"]pub mod diff;
 
 struct CanonicalTopLoan {
     restored: bool,

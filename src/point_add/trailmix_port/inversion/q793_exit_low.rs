@@ -72,7 +72,7 @@ pub(super) fn xor_u16(circ:&mut Circuit,chart:[&QReg;12],bit:usize,controls:&[(&
 }
 
 // modular inverses mod 16 for odd t (5<->13, 7->7, 9->9, 3<->11, 15->15)
-const INV16:[usize;16]=[0,1,9,11,13,13,3,7,0,9,5,3,5,5,7,15];
+pub(crate) const INV16:[usize;16]=[0,1,9,11,13,13,3,7,0,9,5,3,5,5,7,15];
 
 pub(super) fn xor_r16(circ:&mut Circuit,chart:[&QReg;12],a_bits:&[&QReg],bit:usize,controls:&[(&QReg,bool)],target:&QReg,dirty:&[QReg]) {
     assert_eq!(a_bits.len(),8);assert!((1..=3).contains(&bit));
