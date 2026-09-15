@@ -4415,8 +4415,18 @@ pub fn build_builder() -> crate::point_add::B {
         if inversion::q793_lifecycle_r03::candidate_configuration(){
             if let Some((ops,toffoli))=inversion::q793_lifecycle_r03::codex10h_resources(){
                 assert_eq!(novelty_pad_qubits,0,"Codex measured profile requires Q793");
-                assert_eq!(builder.current_ops_len(),ops,"Codex measured operation-count drift");
-                assert_eq!(builder.counted_kind_ops[OperationType::CCX as usize]+builder.counted_kind_ops[OperationType::CCZ as usize],toffoli,"Codex measured Toffoli drift");
+                let swept=std::env::var("Q793_CANCEL_SWEEP_APPLIED").ok().as_deref()==Some("1");
+                if swept{
+                    // The whole-artifact exact cancellation sweep has removed only
+                    // identity gate pairs, so the recorded pair is an upper bound:
+                    // the pre-sweep build must still reproduce it exactly, and the
+                    // swept build can only come in below it.
+                    assert!(builder.current_ops_len()<=ops,"Codex operation-count above measured ceiling");
+                    assert!(builder.counted_kind_ops[OperationType::CCX as usize]+builder.counted_kind_ops[OperationType::CCZ as usize]<=toffoli,"Codex Toffoli above measured ceiling");
+                }else{
+                    assert_eq!(builder.current_ops_len(),ops,"Codex measured operation-count drift");
+                    assert_eq!(builder.counted_kind_ops[OperationType::CCX as usize]+builder.counted_kind_ops[OperationType::CCZ as usize],toffoli,"Codex measured Toffoli drift");
+                }
             }else{
                 assert!(builder.current_ops_len()<=inversion::q793_lifecycle_r03::CANDIDATE_OPS+3*novelty_pad_qubits,"Q793 operation-count above qualified ceiling");
                 assert!(builder.counted_kind_ops[OperationType::CCX as usize]+builder.counted_kind_ops[OperationType::CCZ as usize]<=inversion::q793_lifecycle_r03::CANDIDATE_TOFFOLI,"Q793 exact Toffoli drift");

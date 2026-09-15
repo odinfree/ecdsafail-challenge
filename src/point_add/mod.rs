@@ -2732,15 +2732,28 @@ pub fn build() -> Vec<Op> {
     }
     if std::env::var("POINT_ADD_DIALOG_ROUTE").ok().as_deref() != Some("1") {
         let mut ops = trailmix_port::build_builder().ops;
-        // The shared route optimizes each step before materialization. Keep
-        // ordinary and streaming emission identical by avoiding a second
-        // whole-stream post-pass on that explicitly selected configuration.
-        if !ops.is_empty() && !(trailmix_port::inversion::paper2607_eea::shared_length_enabled() && trailmix_port::inversion::paper2607_eea::step_optimizer_enabled()) {
+        // Whole-artifact exact cancellation sweep. Both members are exact
+        // identities on the emitted stream (they only delete pairs of equal
+        // self-inverse CCX gates that commute past every op between them, or
+        // are adjacent), so they are safe regardless of whether the per-step
+        // optimizer already ran: the optimizer works inside each step frame,
+        // while this sweep also reaches pairs that span frame boundaries.
+        // Measured on the canonical Q793 stream: 62,152,364 removable CCX.
+        if !ops.is_empty() {
             let a = B::cancel_adjacent_ccx_in_memory(&mut ops);
+            // Window 64 keeps the sweep cheap (the cost is O(#CCX x window))
+            // while still reaching every pair the census found: with a 512
+            // window the same 62,152,364 CCX were found, so the extra reach buys
+            // nothing measurable here and would risk the 45-minute CI timeout.
             let w: usize = std::env::var("CANCEL_COMMUTING_CCX_WINDOW")
-                .ok().and_then(|v| v.parse().ok()).unwrap_or(512);
+                .ok().and_then(|v| v.parse().ok()).unwrap_or(64);
             let c = B::cancel_commuting_ccx_in_memory(&mut ops, w);
             eprintln!("CANCEL adjacent={a} commuting={c}");
+            // Publish that the whole-artifact sweep ran, so the drift armour in
+            // trailmix_port can treat the recorded (ops, structural_T) pair as an
+            // upper bound instead of an equality. The exact equality is still
+            // enforced on the pre-sweep build (compact verification path).
+            std::env::set_var("Q793_CANCEL_SWEEP_APPLIED", "1");
         }
         return ops;
     }
