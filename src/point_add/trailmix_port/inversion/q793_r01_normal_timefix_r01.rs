@@ -233,8 +233,10 @@ impl Scan<'_>{
     fn low_update_original(&self,circ:&mut Circuit,w1:&[QReg],w2:&[QReg],decision:&QReg){
         for shift in 0..3{if (shift+1)%2!=self.j%2{continue;}
             let c0=((self.j>>1)&1!=0)^(shift!=0);
-            let b=[&w2[(259-shift)%259],&w2[(260-shift)%259],&w2[(261-shift)%259]];
-            let v=[&w2[258-shift],&w2[257-shift],&w2[256-shift]];
+            let four=super::q793_lifecycle_r03::four_hole();
+            let mut b:Vec<&QReg>=vec![&w2[(259-shift)%259],&w2[(260-shift)%259],&w2[(261-shift)%259]];
+            let mut v:Vec<&QReg>=vec![&w2[258-shift],&w2[257-shift],&w2[256-shift]];
+            if four{b.push(&w2[(262-shift)%259]);v.push(&w2[255-shift]);}
             let allow_a1=circ.q797_a_support.map_or(true,|(lo,hi)|lo<=1&&1<hi);
             let allow_a0=!mux::active("Q793_R01_A_SUPPORT_TERMS")
                 ||circ.q797_a_support.map_or(true,|(lo,hi)|lo==0&&hi>0);
@@ -262,16 +264,33 @@ impl Scan<'_>{
                 if shift==0&&target==2&&allow_a1{for flag in a_flags(self.rank,self.a,1){let mut ex=cs.clone();ex.extend(flag);gate(circ,&ex,b[target],self.dirty);}}
                 // Suppress physical v bits that are actually gap/cargo above
                 // the proven source width. The semantic high source is zero.
-                for ac in [252,253]{let keep=256usize.saturating_sub(ac+shift).min(3);
-                    if extra.iter().any(|&(q,_)|(keep..3).any(|i|q.id()==v[i].id())){
+                for ac in [252,253]{let keep=256usize.saturating_sub(ac+shift).min(if four{4}else{3});
+                    if extra.iter().any(|&(q,_)|(keep..(if four{4}else{3})).any(|i|q.id()==v[i].id())){
                         for flag in a_flags(self.rank,self.a,ac){let mut ex=cs.clone();ex.extend(flag);gate(circ,&ex,b[target],self.dirty);}
                     }
                 }
             };
             if shift==0{
-                change(2,&[(v[2],true)]);change(2,&[(v[1],true),(b[1],false)]);
-                change(2,&[(v[0],true),(b[0],false),(b[1],false)]);change(2,&[(v[0],true),(b[0],false),(v[1],true)]);
-                change(1,&[(v[1],true)]);change(1,&[(v[0],true),(b[0],false)]);change(0,&[(v[0],true)]);
+                if four{
+                    // mod16 u' = u - v (chained borrow), raw ANF terms.
+                    change(0,&[(v[0],true)]);
+                    change(1,&[(v[0],true)]);change(1,&[(b[0],true),(v[0],true)]);change(1,&[(v[1],true)]);
+                    change(2,&[(v[0],true)]);change(2,&[(b[0],true),(v[0],true)]);change(2,&[(b[1],true),(v[0],true)]);change(2,&[(b[0],true),(b[1],true),(v[0],true)]);
+                    change(2,&[(v[1],true)]);change(2,&[(b[1],true),(v[1],true)]);change(2,&[(v[0],true),(v[1],true)]);change(2,&[(b[0],true),(v[0],true),(v[1],true)]);
+                    change(2,&[(v[2],true)]);
+                    change(3,&[(v[0],true)]);change(3,&[(b[0],true),(v[0],true)]);change(3,&[(b[1],true),(v[0],true)]);change(3,&[(b[0],true),(b[1],true),(v[0],true)]);
+                    change(3,&[(b[2],true),(v[0],true)]);change(3,&[(b[0],true),(b[2],true),(v[0],true)]);change(3,&[(b[1],true),(b[2],true),(v[0],true)]);change(3,&[(b[0],true),(b[1],true),(b[2],true),(v[0],true)]);
+                    change(3,&[(v[1],true)]);change(3,&[(b[1],true),(v[1],true)]);change(3,&[(b[2],true),(v[1],true)]);change(3,&[(b[1],true),(b[2],true),(v[1],true)]);
+                    change(3,&[(v[0],true),(v[1],true)]);change(3,&[(b[0],true),(v[0],true),(v[1],true)]);change(3,&[(b[2],true),(v[0],true),(v[1],true)]);change(3,&[(b[0],true),(b[2],true),(v[0],true),(v[1],true)]);
+                    change(3,&[(v[2],true)]);change(3,&[(b[2],true),(v[2],true)]);change(3,&[(v[0],true),(v[2],true)]);change(3,&[(b[0],true),(v[0],true),(v[2],true)]);
+                    change(3,&[(b[1],true),(v[0],true),(v[2],true)]);change(3,&[(b[0],true),(b[1],true),(v[0],true),(v[2],true)]);
+                    change(3,&[(v[1],true),(v[2],true)]);change(3,&[(b[1],true),(v[1],true),(v[2],true)]);change(3,&[(v[0],true),(v[1],true),(v[2],true)]);change(3,&[(b[0],true),(v[0],true),(v[1],true),(v[2],true)]);
+                    change(3,&[(v[3],true)]);
+                }else{
+                    change(2,&[(v[2],true)]);change(2,&[(v[1],true),(b[1],false)]);
+                    change(2,&[(v[0],true),(b[0],false),(b[1],false)]);change(2,&[(v[0],true),(b[0],false),(v[1],true)]);
+                    change(1,&[(v[1],true)]);change(1,&[(v[0],true),(b[0],false)]);change(0,&[(v[0],true)]);
+                }
             }else if shift==1{change(2,&[(v[1],true)]);change(2,&[(v[0],true),(b[1],false)]);change(1,&[(v[0],true)]);}
             else{change(2,&[(v[0],true)]);}
         }
