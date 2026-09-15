@@ -57,3 +57,31 @@ Owner: `/root/lane_refreeze` (deepseek-v4-pro, max, Codex). Route:
 - Deadline 13:35Z (window 2). If gates 2/3 cannot both complete in time, the
   frozen artifact + note + receipts are the handoff; do not submit past the
   deadline without a fresh user order.
+
+## FINAL (13:10Z) — lane closeout: NO SUBMISSION
+
+Verdict: **HARD_NACK** on the Q792 four-hole route for this window. All four
+terminal-head/INV16 combinations fail the 64-shot semantic gate 64/64 with
+zero dirty ancillas (see `lanes/laneRoot/Q792-FOURHOLE-VERDICT.md` addendum
+for the matrix). The break is upstream of the terminal return — the
+unfactored `xor_u16`/`xor_r16` full-cube ANF in `q793_exit_low::length_xor`
+is the leading suspect and costs the +139.6M T anomaly.
+
+What this lane delivered (committed `6f4b683e` on `codex/lane_refreeze`):
+- exact refreeze machinery (baked flags, measured resource binding,
+  `candidate_configuration` for the four-hole+borrow combo);
+- the `u32::MAX` marker diagnosis/hardening (sprint scan, `push_op` leak
+  panic, dirty-lane dump);
+- the INV16 inverse-table fix (5->13, 13->5);
+- the w1[254] and w2[257]/[258] head variants, both kept on file.
+
+Nothing was submitted. The official Q792 row remains `cf39122`
+(T=893,988,754). Window result stands at the accepted A24 Q793 point
+(`2dc9b2b`, T=671,563,551).
+
+Next window (per verdict doc): port `q793_r00_physical_check_r02`,
+`q793_t10_full_check_v10`, and `q793_lifecycle_r01_check::run_boundaries` to
+the 255-rail geometry, factor the mod16 chart, then a single 64-shot stream.
+Submission runbook and corrected note skeleton remain at
+`lanes/laneRoot/SUBMIT-RUNBOOK-q792.md` and
+`runtime/q792-submission-note-rootfix.md`.
