@@ -105,12 +105,16 @@ kept a placeholder — and resolve or drop it.
 
 Also note for the eventual submission: the whole-artifact exact CCX cancellation
 sweep in `mod.rs` (`cancel_adjacent_ccx_in_memory` + `cancel_commuting_ccx_in_memory`)
-was being skipped by a guard; it is now enabled in the root tree and was measured
-to remove **62,152,364 CCX** from the A24 artifact (window 64). The committed
-submission with it is `7351d318`. Once the Q792 port is its own tree, it should
-carry the same sweep for the same reason — it will cut ~9% of Toffoli there too,
-and the drift armour in `trailmix_port/mod.rs:4412` now accepts a bound when
-`Q793_CANCEL_SWEEP_APPLIED=1` is set by `build()`.
+was being skipped by a guard; it is now enabled in the root tree. Its trusted
+effect on the A24 artifact was **−215,049 executed Toffoli** (official
+submission `7351d31`, Q793), not the 62,152,364 figure that the stream census
+reported — that census over-counts by construction and is a class finder only
+(`../../lanes/laneRoot/repo-a24/CORRECTION-census-yield-20260915.md`). The
+committed submission with it is `7351d318`. Once the Q792 port is its own tree,
+it should carry the same sweep for the same reason, but **do not budget its
+yield from the A24 delta or from the census**: measure it on the Q792 artifact's
+own stream. The drift armour in `trailmix_port/mod.rs:4412` now accepts a bound
+when `Q793_CANCEL_SWEEP_APPLIED=1` is set by `build()`.
 
 ## ROOT NEGATIVE RESULTS + VERDICT (2026-09-15T12:42Z)
 
@@ -138,8 +142,26 @@ Two hard results from the root session, so nobody re-derives them:
    the cheapest test of the paper-style recovery is: does the walk's terminal
    state determine `p` without the dialog tape?
 
-4. Instrument calibration: my CCX-sweep census (62,152,364 removable) was
-   audited pair-by-pair and its *count* retracted — sampled pairs are genuinely
-   removable, but the census reconciles only ~1% against the pass's actual
-   yield (215,049 executed). Treat pair censuses as class finders, not yield
-   estimates.
+4. Instrument calibration: my CCX-sweep census (62,152,364 pairs) was audited
+   pair-by-pair and its *count* retracted — sampled pairs are individually
+   removable, but the tool's scan keeps candidates alive across ops that do not
+   commute past them, so its total is not a yield and not a bound. The trusted
+   effect is −215,049 executed Toffoli. Treat pair censuses as class finders,
+   never as yield estimates, and record the pass's own
+   `CANCEL adjacent=.. commuting=..` line when it runs.
+
+## ROOT STOP-SIGNAL: Q792 port fails 64/64 on every variant (2026-09-15T13:10Z)
+
+Recorded in full at `../../lanes/laneRoot/Q792-SYSTEMATIC-FAILURE.md`. Summary:
+four independently-configured whole-stream runs (both head-lane assignments,
+with and without inv16) all report `classical_failures=64`, identical
+`structural_T=747,320,144` / `executed_average_T=737,780,471`, different failure
+phases. Every shot is wrong ⇒ structural function error, not an edge case.
+
+Consequence: `peak=792` measured by the count pass is real but cannot support any
+Q792 claim. Stop generating head-lane variants — the failure is invariant to that
+choice. The productive move is a **bisect**: compare full simulator state between
+the four-hole variant and the known-good three-hole artifact up to successive cuts
+of the op stream; the first unexplained divergence identifies the mis-homing site
+among the eight production sites listed in the earlier note. That instrument (a
+cut-by-cut state differential) is a bounded build with a decisive output.

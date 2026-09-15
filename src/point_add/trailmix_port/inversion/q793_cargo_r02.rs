@@ -49,10 +49,10 @@ pub(super) fn inbound(circ:&mut Circuit,rank:&[QReg],a:&[QReg],w1:&[QReg],w2:&[Q
     moves::adjacent_a_terms_flip(circ,rank,a,&w1[..256],from,3,&below253(rank,a,terms),dirty);
     if super::q793_lifecycle_r03::four_hole(){
         let a252=at(rank,a,252,terms);let a253=at(rank,a,253,terms);
-        swap(circ,&a252,&w2[256],&w2[255],dirty);
+        swap(circ,&a252,&w1[254],&w2[255],dirty);
         if from==0 {swap(circ,&a252,&w1[252],&w2[255],dirty);}
         if from==0 {swap(circ,&a253,&w1[253],&w2[257],dirty);}
-        else {swap(circ,&a253,&w2[253],&w2[257],dirty);flip(circ,&a253,&w2[253],dirty);}
+        else {swap(circ,&a253,&w2[254],&w2[257],dirty);flip(circ,&a253,&w2[254],dirty);}
     }else{
         let a253=at(rank,a,253,terms);let a254=at(rank,a,254,terms);
         swap(circ,&a253,&w1[255],&w2[255],dirty);
@@ -73,7 +73,7 @@ pub(super) fn head_to_two(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],w1:
         let copy=cs.clone();for term in copy {if let Some(term)=joined(&term,&one){cs.push(term);}}
         if av==253&&super::q793_lifecycle_r03::four_hole(){swap(circ,&cs,&w1[253],&w2[255],dirty);flip(circ,&cs,&w1[253],dirty);}
         else if av==253 {swap(circ,&cs,&w1[253],&w1[255],dirty);}
-        else if av==252 {swap(circ,&cs,&w1[252],&w2[256],dirty);}
+        else if av==252 {swap(circ,&cs,&w1[252],&w1[254],dirty);}
         else {swap(circ,&cs,&w1[254],&w2[255],dirty);flip(circ,&cs,&w1[254],dirty);}
     }
 }

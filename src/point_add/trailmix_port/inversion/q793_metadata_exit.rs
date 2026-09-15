@@ -34,10 +34,9 @@ fn second(circ:&mut Circuit,rank:&[QReg],a:&[QReg],g:&QReg,passenger:&QReg,w1:&[
     let mut nodes:Vec<_>=(0..256).map(|v|match v{
         0..=253 if (lo..hi).contains(&v)&&!four=>Some(&w1[v+2]),
         0..=251 if (lo..hi).contains(&v)&&four=>Some(&w1[v+3]),
+        252 if four=>Some(&w1[254]),
         254 if !four=>Some(&w2[256]),
-        252 if four=>Some(&w2[256]),
-        253 if four=>Some(&w2[257]),
-        254 if four=>Some(&w2[258]),
+        253 if four=>Some(&w2[256]),
         _=>None}).collect();
     for level in 0..8{let mut next=Vec::new();for pair in nodes.chunks_exact(2){next.push(match(pair[0],pair[1]){
         (Some(l),Some(r))=>{if level<6{circ.cswap(&a[level],l,r);}else{super::metadata_muxlease::predicate_swap(circ,rank,0,level-6,l,r,dirty);}Some(l)},
