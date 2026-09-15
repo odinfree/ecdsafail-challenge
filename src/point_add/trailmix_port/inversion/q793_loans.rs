@@ -62,6 +62,10 @@ pub(super) fn global_a(
         });}nodes=next;
     }
     let route=circ.b.ops[all_start..].to_vec();let root=nodes[0].expect("nonempty loan selector");
+    if std::env::var("Q792_LOAN_DUMP").ok().as_deref()==Some("1"){
+        eprintln!("Q792_LOAN_DUMP four={four} support={:?} root_id={} passenger_id={} word255={} word256={}",
+            (lo,hi),root.id(),passenger.id(),word[255].id(),word[256].id());
+    }
     if let Some(g)=guard{controlled_swap(circ,&[(g,true)],root,passenger,dirty);}
     else{circ.cx(root,passenger);circ.cx(passenger,root);circ.cx(root,passenger);}
     circ.b.ops.extend(route.into_iter().rev());assert_eq!(circ.b.next_qubit,owned);
