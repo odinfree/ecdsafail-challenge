@@ -148,6 +148,7 @@ pub fn run(){
             // the official artifact's behavior.
             let mut seed=Shake256::default();
             seed.update(b"Q799-independent-whole-stream-sprint-v2");
+            if let Ok(s)=std::env::var("SPRINT_STREAM_SEED"){seed.update(s.as_bytes());}
             if b>0{seed.update(b"\0Q795-independent-additional-batch-v1\0");seed.update(&(b as u64).to_le_bytes());}
             Simulator::new(owned,bits,Box::leak(Box::new(seed.finalize_xof())))
         }).collect();
