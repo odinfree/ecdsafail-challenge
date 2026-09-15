@@ -419,7 +419,8 @@ pub fn run_sprint(){
         rows.push((x.to_vec(),y.to_vec(),lo.to_vec()));
     }
     if std::env::var("LOWQ_Q792_DIFF_SUBSET").ok().as_deref()==Some("few"){rows.truncate(4);}
-    for four in [false,true]{
+    let four_only=std::env::var("LOWQ_Q792_SPRINT_FOUR_ONLY").ok().as_deref()==Some("1");
+    for four in if four_only{[true].as_slice()}else{[false,true].as_slice()}{
         std::env::set_var("LOWQ_Q792_EEA",if four{"1"}else{"0"});
         std::env::set_var("Q792_QUOTIENT_TOP_BORROW","0");
         eprintln!("Q792_SPRINT four={four} rows={}",rows.len());
