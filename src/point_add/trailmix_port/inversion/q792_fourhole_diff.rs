@@ -136,6 +136,9 @@ pub fn run(){
         let rebuild=std::mem::take(&mut circ.b.ops);
         let dxo=finish(&mut circ,core);
         let finishing=std::mem::take(&mut circ.b.ops);
+        // MBU reverse measurement bit (production emit_schedule allocates it
+        // during emission; must exist before the sim bit-count is captured).
+        let mbu_measurement=if super::super::q793_mbu::reverse(){Some(circ.b.alloc_bit())}else{None};
         let owned=circ.b.next_qubit as usize;
         let bits=circ.b.next_bit as usize;
         eprintln!("Q792_FOURHOLE_DIFF built four={four} owned={owned} bits={bits} peak={}",circ.b.peak_qubits);
@@ -318,9 +321,24 @@ pub fn run(){
         cut(&sims,"restore_sign",&mapping,&passenger,owned,&mut snaps);
         for sim in &mut sims{sim.apply_iter(rebuild.iter());}
         cut(&sims,"rebuild_terminal",&rebuilt_map,&passenger,owned,&mut snaps);
+        // Production emit_reverse brackets the reverse traversal with the
+        // loan bracket remapped with inverse=true.
+        let loan_rev=remap(loan_bracket_ops(),&rebuilt_map,&passenger,true);
+        for sim in &mut sims{sim.apply_iter(loan_rev.iter());}
+        cut(&sims,"loan_rev_open",&rebuilt_map,&passenger,owned,&mut snaps);
+        // Production emit_schedule reverse uses the MBU measurement-based
+        // uncomputation templates (q793_mbu::template with a fresh classical
+        // bit), NOT the plain forward templates reversed.
+        let measurement=mbu_measurement;
         for z in 0..26{
             let block=25-z;
-            let templates:Vec<_>=(0..4).map(|j|remap(template(block,j),&rebuilt_map,&passenger,true)).collect();
+            let templates:Vec<_>=(0..4).map(|j|{
+                if let Some(bit)=measurement{
+                    remap(super::super::q793_mbu::template(block,j,bit),&rebuilt_map,&passenger,false)
+                }else{
+                    remap(template(block,j),&rebuilt_map,&passenger,true)
+                }
+            }).collect();
             let first=block*64;let end=(first+64).min(1616);
             for i in 0..end-first{
                 let step=end-1-i;
@@ -330,6 +348,8 @@ pub fn run(){
             let name:&'static str=Box::leak(format!("rev_block{block}").into_boxed_str());
             cut(&sims,name,&rebuilt_map,&passenger,owned,&mut snaps);
         }
+        for sim in &mut sims{sim.apply_iter(loan_rev.iter());}
+        cut(&sims,"loan_rev_close",&rebuilt_map,&passenger,owned,&mut snaps);
         for sim in &mut sims{sim.apply_iter(finishing.iter());}
         let mut state=vec![0u64;257+256];
         for(i,q)in dxo.iter().enumerate(){state[i]=sims[0].qubits[q.id()as usize];}
