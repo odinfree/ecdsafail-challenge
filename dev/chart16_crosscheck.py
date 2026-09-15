@@ -124,11 +124,75 @@ def main():
         r_ok &= same
         print(f"r bit{i}: primitive_terms={len(prim)} reader_terms={len(reader)} equal={same}")
     print()
-    print("VERDICT:",
-          "readers AGREE with the primitive (readers exonerated; traversal port is the critical path)"
-          if (ok and r_ok) else
-          "readers DIFFER from the primitive (readers are the defect)")
+    if ok and r_ok:
+        print("VERDICT: readers AGREE with the primitive (readers exonerated)")
+    elif ok:
+        print("VERDICT: u reader AGREE (faithful on all 4096 codes); r half NOT adjudicated:")
+        print("         xor_r16 emits each cube twice (boundary cofactor 't*r<=p'), so its raw ANF")
+        print("         is not the reader's reachable-domain function. Model the cofactor before")
+        print("         reading anything into the r numbers above.")
+    else:
+        print("VERDICT: readers DIFFER from the primitive (readers are the defect)")
     return 0 if (ok and r_ok) else 1
+
+def r_full_check():
+    """Evaluate xor_r16 exactly: ANF cubes (with the four A-case t overrides),
+    each followed by the boundary-cofactor gate, as a function of
+    (chart, boundary). For every chart code ask whether SOME boundary value
+    makes the reader agree with the primitive's r bit, which is the weakest
+    form of 'the reader is right somewhere reachable'."""
+    inv16 = [0, 1, 9, 11, 13, 13, 3, 7, 0, 9, 5, 3, 5, 5, 7, 15]
+
+    def reader_tables(bit):
+        anf = [0] * (1 << 16)
+        for z in range(1 << 16):
+            t, b, v = z & 15, z >> 4 & 15, z >> 8 & 15
+            if z >> 12 & 1:
+                t = 1
+            elif z >> 13 & 1:
+                t = (t & 1) | 2
+            elif z >> 14 & 1:
+                t = (t & 3) | 4
+            elif z >> 15 & 1:
+                t |= 8
+            r = (15 - b * v) * inv16[t] % 16 if t & 1 else b
+            anf[z] = r >> bit & 1
+        for k in range(16):
+            for z in range(1 << 16):
+                if z >> k & 1:
+                    anf[z] ^= anf[z ^ (1 << k)]
+        cubes = []
+        for z, on in enumerate(anf):
+            if not on or bin(z >> 12).count("1") > 1:
+                continue
+            chart = z & 0xFFF
+            flags = [(val, z >> (12 + val) & 1) for val in range(4)]
+            cubes.append((chart, [val for val, on in flags if on]))
+        out = [[0] * 256 for _ in range(4096)]
+        for code in range(4096):
+            for bnd in range(256):
+                acc = 0
+                for chart, flags in cubes:
+                    if chart & ~code:
+                        continue
+                    if flags:
+                        val = flags[0]
+                        if (bnd & 15) != val or (bnd >> 4) != 0:
+                            continue
+                    acc ^= 1
+                    if all(bnd >> j & 1 for j in range(bit - 1, 8)):
+                        acc ^= 1
+                out[code][bnd] = acc
+        return out
+
+    prim_r, _ = scalar_tables()
+    print("--- exact xor_r16 evaluation (ANF + boundary cofactor) ---")
+    for bit in range(1, 4):
+        out = reader_tables(bit)
+        target = [prim_r[bit][code] for code in range(4096)]
+        unachievable = [c for c in range(4096) if not any(out[c][b] == target[c] for b in range(256))]
+        print(f"r bit{bit}: chart codes with NO boundary value reproducing the primitive: "
+              f"{len(unachievable)}/4096")
 
 if __name__ == "__main__":
     sys.exit(main())
