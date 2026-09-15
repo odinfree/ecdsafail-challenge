@@ -349,6 +349,49 @@ impl B {
     }
     fn push_op(&mut self, op: Op) {
         self.counted_ops += 1;
+        if self.sprint_sim.is_some() {
+            // A marker id (u32::MAX) or NO_QUBIT (u64::MAX) in any operand the
+            // simulator dereferences is a latent omitted-rail leak: the count
+            // path tolerates it, sim.rs panics with an opaque index error.
+            let bad = match op.kind {
+                crate::circuit::OperationType::CCX | crate::circuit::OperationType::CCZ => {
+                    op.q_target.0 == u32::MAX as u64
+                        || op.q_target.0 == u64::MAX
+                        || op.q_control1.0 == u32::MAX as u64
+                        || op.q_control1.0 == u64::MAX
+                        || op.q_control2.0 == u32::MAX as u64
+                        || op.q_control2.0 == u64::MAX
+                }
+                crate::circuit::OperationType::CX
+                | crate::circuit::OperationType::Swap
+                | crate::circuit::OperationType::CZ => {
+                    op.q_target.0 == u32::MAX as u64
+                        || op.q_target.0 == u64::MAX
+                        || op.q_control1.0 == u32::MAX as u64
+                        || op.q_control1.0 == u64::MAX
+                }
+                crate::circuit::OperationType::X
+                | crate::circuit::OperationType::Z
+                | crate::circuit::OperationType::Hmr
+                | crate::circuit::OperationType::R => {
+                    op.q_target.0 == u32::MAX as u64 || op.q_target.0 == u64::MAX
+                }
+                _ => false,
+            };
+            if bad {
+                panic!(
+                    "Q792_STREAM_MARKER_LEAK phase={} op_idx={} kind={:?} t={} c1={} c2={} ct={} cc={}",
+                    self.phase,
+                    self.counted_ops,
+                    op.kind,
+                    op.q_target.0,
+                    op.q_control1.0,
+                    op.q_control2.0,
+                    op.c_target.0,
+                    op.c_condition.0
+                );
+            }
+        }
         self.counted_kind_ops[op.kind as usize] += 1;
         self.counted_phase_kind_ops[op.kind as usize] += 1;
         if let Some(hasher) = &mut self.fiat_hash {
@@ -2542,6 +2585,10 @@ pub fn build() -> Vec<Op> {
     for name in ["Q793_R01_A_SUPPORT_TERMS","Q793_T10_C1_P1","Q793_T10_SUM_MASK","Q793_T10_PREFIX_FREE","Q793_T10_PREFIX_TREE","Q793_T10_C1_SUM_LOAN","Q793_T10_MASK_SUM_LOAN"] {
         set_default_env(name,"1");
     }
+    // Four-hole A24-analog: support-gated cargo pruning of the tail A-values
+    // (A=252/253 under four-hole; A=253/254 off four-hole). Default OFF during
+    // development; baked ON only after t-census + whole-stream + whole-9024.
+    set_default_env("Q793_CARGO_A_SUPPORT","0");
     // Whole-template NCT cube combine (q793_nct_frame_r03): no 1024-op
     // chunking, wider exact window. Identity on every basis state.
     // Exact grouped counter reflections use only existing metadata rails.
