@@ -60,8 +60,8 @@ fn compare(a:&Snapshot,b:&Snapshot,tag:&str,strict_phase:bool)->bool{
     }
     if tag=="t10_bisect_36"&&a.state.len()>540{
         // loan probe: 3-hole w1[255] (logical 279) vs 4-hole w2[257] (logical 540)
-        eprintln!("DIFF_LOAN_PROBE w1_255_3h={:#x} w2_257_3h={:#x} w2_257_4h={:#x} g3={:#x} g4={:#x}",
-            a.state[279],a.state[540],b.state[540],a.state[544],b.state[544]);
+        eprintln!("DIFF_LOAN_PROBE w1_255_3h={:#x} w2_258_3h={:#x} w2_258_4h={:#x} w2_257_3h={:#x} w2_257_4h={:#x} g3={:#x} g4={:#x}",
+            a.state[279],a.state[541],b.state[541],a.state[540],b.state[540],a.state[544],b.state[544]);
     }
     ok
 }
