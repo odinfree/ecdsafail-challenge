@@ -229,6 +229,7 @@ fn fill_block(st:&Stage,j:usize,pattern:usize,batch:usize,triples:&[[usize;3]])-
 pub fn run_stage_diff(){
     std::env::set_var("Q796_PARITY","1");
     std::env::set_var("Q794_MOD4","1");
+    let override_call=std::env::var("Q793_R00_SEED_CALL_INDEX").ok();
     let triples:Vec<_>=(0..4).flat_map(|a|(0..4).flat_map(move|c|(0..4).filter(move|&s|a+c+s<=4).map(move|s|[a,c,s]))).collect();
     let patterns:usize=if std::env::var("Q793_R00_MOD16_STAGE_SUBSET").ok().as_deref()==Some("1"){1}else{8};
     let batches:usize=if std::env::var("Q793_R00_MOD16_STAGE_SUBSET").ok().as_deref()==Some("1"){1}else{4};
@@ -237,6 +238,7 @@ pub fn run_stage_diff(){
         std::env::set_var("LOWQ_Q792_EEA","0");std::env::remove_var("Q793_R00_SEED_CALL_INDEX");
         let (st3,ops3,marks3)=build_stage(j);
         std::env::set_var("LOWQ_Q792_EEA","1");
+        if let Some(v)=&override_call{std::env::set_var("Q793_R00_SEED_CALL_INDEX",v);}
         let (st4,ops4,marks4)=build_stage(j);
         if first_report<6{
             eprintln!("Q793_R00_STAGE_DIFF_BUILT j={j} three_ops={} three_marks={:?} four_ops={} four_marks={:?}",ops3.len(),marks3,ops4.len(),marks4);
@@ -251,7 +253,25 @@ pub fn run_stage_diff(){
             let d=sign3^sign4;
             if d!=0{
                 mismatched+=d.count_ones()as usize;
-                let ev:Vec<String>=(0..64).filter(|l|d>>l&1!=0).map(|l|format!("{} sign3={} sign4={}",diag[l],sign3>>l&1,sign4>>l&1)).collect();
+                // Reachability probe: the four-hole frame takes the residual's
+                // bit 3 from the mod16 reconstruction, the three-hole frame
+                // takes it from the physical cell w1[258-3]. A lane whose cell
+                // disagrees with the reconstruction is not a consistent walk
+                // state at the port's own width, so a divergence there is a
+                // synthetic artifact, not a port defect.
+                let ev:Vec<String>=(0..64).filter(|l|d>>l&1!=0).map(|l|{
+                    let av=(64*batch+l)%256;let j2=j;
+                    let sv=if av<255&&av+j2<=255{j2+4*if pattern<2{0}else{(pattern*37+av)%((255-av-j2)/4+1)}}else{j2};
+                    let rk=triples.iter().position(|&x|x==[av/64,0,sv/64]).unwrap();
+                    let shift=j2+1;
+                    let raw=|q:&QReg|((before[q.id()as usize]>>l)&1)as usize;
+                    let t=(0..4).map(|kk|raw(&st4.w1[kk])<<kk).sum::<usize>();
+                    let b=(0..4).map(|kk|raw(&st4.w2[(259+kk-shift)%259])<<kk).sum::<usize>();
+                    let v=(0..4).map(|kk|raw(&st4.w2[258-shift-kk])<<kk).sum::<usize>();
+                    let r=rr_model(true,shift,t,b,v,case_of(rk,av,j2));
+                    let cell3=raw(&st4.w1[258-3]);
+                    format!("{} sign3={} sign4={} rr4_bit3={} cell3={} bit3_consistent={}",diag[l],sign3>>l&1,sign4>>l&1,(r>>3)&1,cell3,((r>>3)&1)==cell3)
+                }).collect();
                 eprintln!("Q793_R00_STAGE_DIFF_SIGN j={j} pattern={pattern} batch={batch} active={:#x} evidence={:?}",active_bits,ev);
             }
             let mask3=s3.qubits[st3.cc[0].id()as usize];let mask4=s4.qubits[st4.cc[0].id()as usize];
@@ -263,6 +283,82 @@ pub fn run_stage_diff(){
         }}
     }
     eprintln!("Q793_R00_STAGE_DIFF_DONE lanes={lanes_total} sign_mismatches={mismatched} (three-hole vs four-hole, identical inputs)");
+}
+
+/// Consistency-construction differential: instead of the shipped checker's
+/// synthetic rails, the lanes here satisfy the walk's modular relation by
+/// construction. Chart (t,u,v) with t odd is drawn first, the residual's low
+/// window is the relation's own solution `r = (2^k-1-b*v)*t^-1 (mod 2^k)`, the
+/// bit-3 DATA cell is filled with that solution's bit 3 (the three-hole frame
+/// reads it there, the four-hole frame reconstructs it), and only cells with
+/// i >= 4 are free. So the two frames see the SAME residual on every lane, and
+/// any sign difference is a genuine port defect rather than an unreachable
+/// synthetic state. A-class lanes additionally need the integer bounds
+/// (`r<4`, `v<<S<=r`), which this construction cannot enforce; they are
+/// reported separately as the residual open risk.
+pub fn run_stage_diff_consistent(){
+    std::env::set_var("Q796_PARITY","1");
+    std::env::set_var("Q794_MOD4","1");
+    let override_call=std::env::var("Q793_R00_SEED_CALL_INDEX").ok();
+    // (a-value, rank) per A-case class plus one generic mid A.
+    let classes:[(usize,usize);6]=[(0,0),(1,0),(2,0),(29,7),(253,29),(254,29)];
+    let mut lanes_total=0usize;let mut mismatched=0usize;let mut cargo_mismatched=0usize;
+    for j in 0..2usize{
+        let shift=j+1;
+        std::env::set_var("LOWQ_Q792_EEA","0");std::env::remove_var("Q793_R00_SEED_CALL_INDEX");
+        let (st3,ops3,_)=build_stage(j);
+        std::env::set_var("LOWQ_Q792_EEA","1");
+        if let Some(v)=&override_call{std::env::set_var("Q793_R00_SEED_CALL_INDEX",v);}
+        let (st4,ops4,_)=build_stage(j);
+        for (av,rk) in classes{for batch in 0..4usize{
+            let mut rs=0x1600_5eedu64^((j as u64)<<56)^((av as u64)<<32)^(batch as u64);
+            let mut before3=vec![0u64;st3.owned];let mut before4=before3.clone();
+            let mut diag:Vec<String>=vec![String::new();64];
+            for lane in 0..64usize{
+                let sv=if av<255&&av+j<=255{j+4*((batch*29+av+lane)%((255-av-j)/4+1).max(1))}else{j};
+                // chart draw: t odd, u and v free 4-bit values
+                let t=(1+2*((rnd(&mut rs)&7)as usize))&15;
+                let b=(rnd(&mut rs)&15)as usize;
+                let v=(rnd(&mut rs)&15)as usize;
+                let case=case_of(rk,av,j);
+                let r=rr_model(true,shift,t,b,v,case);
+                for w in [&mut before3,&mut before4]{
+                    for i in 0..5{put(w,&st3.rank[i],lane,rk>>i&1!=0);}
+                    for i in 0..6{put(w,&st3.a[i],lane,av>>i&1!=0);}
+                    for i in 0..4{put(w,&st3.sm[i],lane,sv>>(i+2)&1!=0);}
+                    put(w,&st3.p1,lane,false);put(w,&st3.p2,lane,false);
+                    // chart rails (both frames read the same rails, the
+                    // four-hole frame reads one bit more)
+                    for kk in 0..4{
+                        put(w,&st3.w1[kk],lane,t>>kk&1!=0);
+                        put(w,&st3.w2[(259+kk-shift)%259],lane,b>>kk&1!=0);
+                        put(w,&st3.w2[258-shift-kk],lane,v>>kk&1!=0);
+                    }
+                    // residual cells: bit 3 is the relation's own solution, the
+                    // higher cells are free (unconstrained by the mod-2^k part)
+                    put(w,&st3.w1[258-3],lane,r>>3&1!=0);
+                    for i in 4..259{put(w,&st3.w1[258-i],lane,rnd(&mut rs)&1==1);}
+                }
+                let cargo=av>=253;
+                diag[lane]=format!("lane={lane} av={av} sv={sv} rk={rk} case={case:?} t={t} b={b} v={v} r={r} cargo={cargo}");
+                if cargo{cargo_mismatched+=0;}
+            }
+            let mut x3=Fixed(3);let mut s3=Simulator::new(st3.owned,0,&mut x3);s3.qubits.copy_from_slice(&before3);s3.apply_iter(ops3.iter());
+            let mut x4=Fixed(4);let mut s4=Simulator::new(st4.owned,0,&mut x4);s4.qubits.copy_from_slice(&before4);s4.apply_iter(ops4.iter());
+            let sign3=s3.qubits[st3.sign.id()as usize];let sign4=s4.qubits[st4.sign.id()as usize];
+            let d=sign3^sign4;
+            if d!=0{
+                mismatched+=d.count_ones()as usize;
+                let ev:Vec<String>=(0..64).filter(|l|d>>l&1!=0).map(|l|format!("{} sign3={} sign4={}",diag[l],sign3>>l&1,sign4>>l&1)).collect();
+                let cargo_here:usize=ev.iter().filter(|e|e.contains("cargo=true")).count();
+                cargo_mismatched+=cargo_here;
+                eprintln!("Q793_R00_STAGE_DIFF_CONSISTENT_SIGN j={j} av={av} rk={rk} batch={batch} cargo_lanes={cargo_here} evidence={:?}",ev);
+            }
+            lanes_total+=64;
+        }}
+        eprintln!("Q793_R00_STAGE_DIFF_CONSISTENT_DONE j={j} lanes={lanes_total} sign_mismatches={mismatched} cargo_class_mismatches={cargo_mismatched} (modularly consistent lanes only)");
+    }
+    eprintln!("Q793_R00_STAGE_DIFF_CONSISTENT_TOTAL lanes={lanes_total} sign_mismatches={mismatched} cargo={cargo_mismatched} generic={}",mismatched-cargo_mismatched);
 }
 
 /// Stage-level four-hole check: the full R00 comparator (`phase00_with_support`,

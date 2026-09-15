@@ -2669,6 +2669,7 @@ pub fn build() -> Vec<Op> {
             "r00-mod16-check" => trailmix_port::inversion::q793_r00_seed_mod16_check::run(),
             "r00-mod16-stage" => trailmix_port::inversion::q793_r00_seed_mod16_check::run_stage(),
             "r00-stage-diff" => trailmix_port::inversion::q793_r00_seed_mod16_check::run_stage_diff(),
+            "r00-stage-diff-consistent" => trailmix_port::inversion::q793_r00_seed_mod16_check::run_stage_diff_consistent(),
             "r00" | "r00-all" => trailmix_port::inversion::q793_r00_check::run(),
             "dual-exit" | "dual-exit-offguard" => trailmix_port::inversion::q793_exit_check::run(),
             _ => panic!("unknown own Q793 native mode: {mode}"),
