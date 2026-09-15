@@ -65,6 +65,12 @@ const U16_TERMS:&[&[u16]]=&[
 pub(super) fn xor_u16(circ:&mut Circuit,chart:[&QReg;12],bit:usize,controls:&[(&QReg,bool)],target:&QReg,dirty:&[QReg]) {
     assert!((1..=3).contains(&bit));
     for &m in U16_TERMS[bit-1] {
+        // The four-hole geometry omits the rail the chart's twelfth wire (v3)
+        // refers to; that rail is identically |0> wherever this chart applies,
+        // so every ANF cube requiring v3=1 is vacuous and must be dropped. This
+        // is the exact fix for the 64/64 value failure — it replaces reading a
+        // live non-zero rail with the constant the geometry guarantees.
+        if m>>11&1!=0 {continue;}
         let mut cs=controls.to_vec();
         cs.extend((0..12).filter(|&i|m>>i&1!=0).map(|i|(chart[i],true)));
         gate(circ,&cs,target,dirty);
@@ -93,6 +99,10 @@ pub(super) fn xor_r16(circ:&mut Circuit,chart:[&QReg;12],a_bits:&[&QReg],bit:usi
     for k in 0..16{for z in 0..1<<16{if z>>k&1!=0{anf[z]^=anf[z^(1<<k)];}}}
     for(z,on) in anf.into_iter().enumerate(){
         if !on || (z>>12).count_ones()>1{continue;}
+        // Drop every cube that requires the omitted twelfth wire (v3, bit 11) to
+        // be 1: that rail is identically |0> on the reachable domain, so those
+        // cubes are vacuous. Same fix as xor_u16 above.
+        if z>>11&1!=0 {continue;}
         let mut cs=controls.to_vec();
         cs.extend((0..12).filter(|&i|z>>i&1!=0).map(|i|(chart[i],true)));
         for value in 0..4{if z>>(12+value)&1!=0{cs.extend(a_bits.iter().enumerate().map(|(i,&q)|(q,value>>i&1!=0)));}}

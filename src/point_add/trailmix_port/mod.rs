@@ -20,6 +20,7 @@ pub mod arith {
 pub mod inversion {
     pub mod q793_mod8;
     pub mod q792_mod16;
+    pub mod q792_constzero;
     pub mod q793_table_affine;
     pub mod q793_table_harvest;
     pub mod q793_r01_fused_low;
