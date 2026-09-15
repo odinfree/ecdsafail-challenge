@@ -231,12 +231,14 @@ pub(crate) const CANDIDATE_TOFFOLI:usize=757_462_324;
 // Source c17977f5; exact count receipt is retained in the private 10h packet.
 pub(crate) fn codex10h_resources()->Option<(usize,usize)>{
     if ["Q793_R01_A_SUPPORT_TERMS","Q793_T10_C1_P1","Q793_T10_SUM_MASK","Q793_T10_PREFIX_FREE","Q793_T10_PREFIX_TREE","Q793_T10_C1_SUM_LOAN","Q793_T10_MASK_SUM_LOAN"].iter().all(|s|super::metadata_muxlease::active(s))
+        && super::metadata_muxlease::active("Q793_CARGO_A_SUPPORT")
         && !super::metadata_muxlease::active("Q793_A18")
         && !super::metadata_muxlease::active("Q793_A19_SM0")
         && !helpers_25()
         && !quotient_top_borrow()
         && !four_hole(){
-        Some((1_243_369_959,692_077_100))
+        // Refrozen for the A24 support-gated cargo prune (flag baked ON).
+        Some((1_231_960_915,681_079_356))
     }else{None}
 }
 pub(crate) fn candidate_resources()->(usize,usize){

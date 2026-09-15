@@ -2542,6 +2542,14 @@ pub fn build() -> Vec<Op> {
     for name in ["Q793_R01_A_SUPPORT_TERMS","Q793_T10_C1_P1","Q793_T10_SUM_MASK","Q793_T10_PREFIX_FREE","Q793_T10_PREFIX_TREE","Q793_T10_C1_SUM_LOAN","Q793_T10_MASK_SUM_LOAN"] {
         set_default_env(name,"1");
     }
+    // FLASH A24: support-gated cargo A=253/254 pruning. BAKED ON after the
+    // whole-count gate measured peak=793 / ops=1231960915 / structural_T=681079356
+    // (delta vs the 88dc9f4 binding: -11,409,044 ops, -10,997,744 structural T).
+    // The prune is exact: it fires only when the block's reachable A-interval
+    // upper bound is <=253, so A=253/254 cargo monomials are unreachable there,
+    // and the A=255 sentinel is never pruned. Remaining gates: whole-stream
+    // 0/0/0 and the official 9,024-shot verdict.
+    set_default_env("Q793_CARGO_A_SUPPORT","1");
     // Whole-template NCT cube combine (q793_nct_frame_r03): no 1024-op
     // chunking, wider exact window. Identity on every basis state.
     // Exact grouped counter reflections use only existing metadata rails.
