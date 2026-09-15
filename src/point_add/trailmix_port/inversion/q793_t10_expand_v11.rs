@@ -197,8 +197,18 @@ fn emit16(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg
             let hp=replace(wire(h),spec.clone(),known);let all_even=mul(&base,&vec![vec![(&w1[0],false)]]);
             gates(circ,mul(&all_even,&hp),b2,dirty,g,scratch,&metadata);
             let q0=if rwidth==3{qq[0].clone()}else if rwidth==2{hp.clone()}else{bb[1].clone()};let q1=if rwidth==1{hp}else{qq[1].clone()};
-            let mut vars=Vec::new();vars.extend(tt.clone());vars.push(if rwidth==1{Vec::new()}else{bb[0].clone()});vars.push(if rwidth==1{Vec::new()}else{bb[1].clone()});vars.extend(vv.clone());vars.push(q0);vars.push(q1);
-            anf(circ,&vars,|x|{let t=x&15;let r=x>>4&15;let v=x>>8&15;let qs=x>>12&7;(v.wrapping_mul(15usize.wrapping_sub(t*r)).wrapping_sub((qs<<shift)*t))>>2&1!=0},&all_even,b2,dirty,g,scratch,&metadata);
+            let mut vars=Vec::new();vars.extend(tt.clone());
+            if rwidth==1{
+                // rwidth==1 mirrors the 3-hole empty r slots: r=0 on the
+                // active domain, so the closure reads only t/v/qs.
+                vars.extend(vv.clone());vars.push(q0);vars.push(q1);
+                anf(circ,&vars,|x|{let t=x&15;let r=x>>4&3;let v=x>>6&15;let qs=x>>10&3;(v.wrapping_mul(15usize.wrapping_sub(t*r)).wrapping_sub((qs<<shift)*t))>>2&1!=0},&all_even,b2,dirty,g,scratch,&metadata);
+            }else{
+                // lane_t10_port exact-shared-domain audit: r is 3-bit
+                // (bb0..bb2), decode t=x&15 r=x>>4&7 v=x>>7&15 qs=x>>11&3.
+                vars.push(bb[0].clone());vars.push(bb[1].clone());vars.push(bb[2].clone());vars.extend(vv.clone());vars.push(q0);vars.push(q1);
+                anf(circ,&vars,|x|{let t=x&15;let r=x>>4&7;let v=x>>7&15;let qs=x>>11&3;(v.wrapping_mul(15usize.wrapping_sub(t*r)).wrapping_sub((qs<<shift)*t))>>2&1!=0},&all_even,b2,dirty,g,scratch,&metadata);
+            }
         }
     }
     let poly_end=circ.b.ops.len();
