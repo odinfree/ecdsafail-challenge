@@ -433,6 +433,7 @@ pub fn run_sprint(){
     if std::env::var("LOWQ_Q792_DIFF_SUBSET").ok().as_deref()==Some("few"){rows.truncate(4);}
     let four_only=std::env::var("LOWQ_Q792_SPRINT_FOUR_ONLY").ok().as_deref()==Some("1");
     let fours:Vec<bool>=if four_only{vec![true]}else{vec![false,true]};
+    let mut traces:Vec<(bool,Vec<Vec<U256>>)>=Vec::new();
     for four in fours{
         std::env::set_var("LOWQ_Q792_EEA",if four{"1"}else{"0"});
         std::env::set_var("Q792_QUOTIENT_TOP_BORROW","0");
@@ -443,7 +444,23 @@ pub fn run_sprint(){
         let initial_ops=circ.b.counted_ops;
         circ.b.sprint_sim=Some(crate::point_add::sprint_stream_check::Check::new_divide(&dx,&dy,initial_ops,&rows));
         let (_dxo,_dyo,lambda)=divide_forward(&mut circ,dx,dy);
+        if let Some(check)=&circ.b.sprint_sim{traces.push((four,check.trace.borrow().clone()));}
         let check=circ.b.sprint_sim.take().expect("sprint check attached");
         check.finish_divide(&circ.b,&lambda);
+    }
+    if traces.len()==2{
+        let (blocks3,blocks4)=(&traces[0].1,&traces[1].1);
+        eprintln!("Q792_SPRINT_W2_TRACE blocks_3h={} blocks_4h={}",blocks3.len(),blocks4.len());
+        let mut reported=false;
+        for b in 0..blocks3.len().min(blocks4.len()){
+            for lane in 0..64{
+                if blocks3[b][lane]!=blocks4[b][lane]{
+                    eprintln!("Q792_SPRINT_W2_TRACE first_divergence block={b} lane={lane} w2_3h={} w2_4h={}",blocks3[b][lane],blocks4[b][lane]);
+                    reported=true;break;
+                }
+            }
+            if reported{break;}
+        }
+        if !reported{eprintln!("Q792_SPRINT_W2_TRACE all blocks identical");}
     }
 }

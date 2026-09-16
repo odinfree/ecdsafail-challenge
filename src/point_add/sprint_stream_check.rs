@@ -103,7 +103,7 @@ impl Batch {
     /// contract is lam = y * x^-1, hence x^-1 = lam * y^-1.  Report-only.
     pub fn check_forward_w2(&self,work2:&[super::trailmix_port::circuit::QReg]) {
         use alloy_primitives::U256;
-        let p=U256::from_le_bytes(super::super::trailmix_port::mod_arith::SECP256K1_P_LE);
+        let p=U256::from_le_bytes(super::trailmix_port::mod_arith::SECP256K1_P_LE);
         let regs:Vec<QubitOrBit>=work2.iter().map(|q|QubitOrBit::Qubit(QubitId(q.id() as u64))).collect();
         let mut bad=0;
         for lane in 0..64{
@@ -118,13 +118,23 @@ impl Batch {
  
 // Diagnostic-only fan-out: every independent simulator sees the SAME immutable
 // emitted operations. Default one batch preserves the prior developer behavior.
-pub(crate) struct Check { batches:Vec<Batch> }
+pub(crate) struct Check { batches:Vec<Batch>,pub trace:std::cell::RefCell<Vec<Vec<alloy_primitives::U256>>> }
 impl Check {
     pub fn new_divide(tx:&[super::trailmix_port::circuit::QReg],ty:&[super::trailmix_port::circuit::QReg],initial_ops:usize,rows:&[(Vec<u8>,Vec<u8>,Vec<u8>)])->Self {
         let batches=(0..1).map(|index|Batch::new_divide(tx,ty,initial_ops,rows)).collect();
-        Self{batches}
+        Self{batches,trace:std::cell::RefCell::new(Vec::new())}
     }
     pub fn finish_divide(self,b:&super::B,lambda:&[super::trailmix_port::circuit::QReg]){for batch in self.batches.into_iter(){batch.finish_divide(b,lambda);}}
+    pub fn check_forward_w2(&self,work2:&[super::trailmix_port::circuit::QReg]){for batch in &self.batches{batch.check_forward_w2(work2);}}
+    /// Per-block forward trace of the work2 data register (257 rails x 64
+    /// lanes).  Both geometries trace into their own Check, so the caller can
+    /// diff block by block to find the first divergent block.
+    pub fn trace_w2(&self,work2:&[super::trailmix_port::circuit::QReg]){
+        let regs:Vec<QubitOrBit>=work2.iter().map(|q|QubitOrBit::Qubit(QubitId(q.id() as u64))).collect();
+        let mut row=Vec::with_capacity(64);
+        for lane in 0..64{row.push(self.batches[0].sim.get_register(&regs,lane));}
+        self.trace.borrow_mut().push(row);
+    }
     pub fn new(tx:&[super::trailmix_port::circuit::QReg],ty:&[super::trailmix_port::circuit::QReg],ox:&[super::trailmix_port::circuit::Cbit],oy:&[super::trailmix_port::circuit::Cbit],initial_ops:usize)->Self {
         let count=std::env::var("SPRINT_STREAM_BATCHES").ok().map(|v|v.parse::<usize>().expect("integer independent batch count")).unwrap_or(1);
         assert!((1..=4).contains(&count),"one to four independent batches only");
@@ -132,7 +142,7 @@ impl Check {
             eprintln!("SPRINT_STREAM_BATCH_START index={index} batches={count}");
             Batch::new(tx,ty,ox,oy,initial_ops,index)
         }).collect();
-        Self{batches}
+        Self{batches,trace:std::cell::RefCell::new(Vec::new())}
     }
     pub fn apply(&mut self,ops:&[Op]) {for batch in &mut self.batches{batch.apply(ops);}}
     pub fn finish(self,b:&super::B) {
