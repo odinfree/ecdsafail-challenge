@@ -396,6 +396,20 @@ impl Scan<'_>{
         self.seed_all(circ,w1,w2);
         mark(circ,"seeds");
         let mut group=-1isize;let mut updates=Vec::new();
+        if four{
+            // value=253 (i=3): keep the mask/transition and the s ^= ha part
+            // of the carry (t=w1[255] is the omitted p-bit-3 rail).  The
+            // mask-gated ha toggle reduces to mask & ha & !s, which is
+            // identically zero on the reachable domain (mask(C==253) => s=1),
+            // so only cx(ha,w2[255]) remains.
+            let at=circ.b.ops.len();self.lower(circ,3);let value=253usize;let h=(value/64)as isize;
+            if super::q795_r01_cache_clean::enabled(){super::q795_r01_cache_clean::transition(circ,self.rank,self.a,self.c,self.g,self.hs,&self.dirty[0],&self.dirty[1..],group,h);}
+            else{arithmetic::sum_flag_transition(circ,self.rank,self.a,self.c,self.g,self.hs,&self.dirty[0],&self.dirty[1..],group,h);}group=h;
+            let mut cs=vec![(self.hs,true)];cs.extend((0..6).map(|b|(&self.c[b],value>>b&1!=0)));
+            circ.x(self.g);super::paired_clean_mcx::toggle(circ,&cs,self.mask,self.g);circ.x(self.g);
+            updates.push(circ.b.ops[at..].to_vec());
+            circ.cx(self.ha,&w2[255]);
+        }
         for i in (3+usize::from(four))..n{
             let at=circ.b.ops.len();self.lower(circ,i);let value=256-i;let h=(value/64)as isize;
             if super::q795_r01_cache_clean::enabled(){super::q795_r01_cache_clean::transition(circ,self.rank,self.a,self.c,self.g,self.hs,&self.dirty[0],&self.dirty[1..],group,h);}
@@ -409,6 +423,10 @@ impl Scan<'_>{
         for i in ((3+usize::from(four))..n).rev(){
             self.carry(circ,&w2[258-i],&w1[258-i],true);circ.cx(self.ha,&w2[258-i]);
             gate(circ,&[(self.g,true),(self.mask,true),(&w2[258-i],true),(decision,true)],&w1[258-i],self.dirty);circ.cx(self.ha,&w2[258-i]);
+            circ.b.ops.extend(updates.pop().unwrap().into_iter().rev());
+        }
+        if four{
+            circ.cx(self.ha,&w2[255]);
             circ.b.ops.extend(updates.pop().unwrap().into_iter().rev());
         }
         mark(circ,"carry_rev");
