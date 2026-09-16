@@ -1063,6 +1063,18 @@ pub fn run_step_bisect(){
             }
             eprintln!("Q792_STEP_BISECT four={four} rank0_write_seq={:?}",seq.iter().map(|&(k,k2,t,q1,q2,w)|(k,k2,t,q1,q2,format!("{w:#018x}"))).collect::<Vec<_>>());
             {
+                let mut rng1=Fixed(0x51ef46b9ac287d03u64);
+                let mut sim1=Simulator::new(circ.b.next_qubit as usize,0,&mut rng1);
+                sim1.qubits=circ.b.sprint_sim.as_ref().unwrap().snapshot();
+                let mut seq1=Vec::new();let mut last1=sim1.qubits[core.rank[1].id()as usize];
+                for (k,op) in span.iter().enumerate(){
+                    sim1.apply_iter(std::slice::from_ref(op).iter());
+                    let cur=sim1.qubits[core.rank[1].id()as usize];
+                    if cur!=last1{seq1.push((k,op.kind as u8,op.q_target.0,op.q_control1.0,op.q_control2.0,cur));last1=cur;}
+                }
+                eprintln!("Q792_STEP_BISECT four={four} rank1_write_seq={:?}",seq1.iter().map(|&(k,k2,t,q1,q2,w)|(k,k2,t,q1,q2,format!("{w:#018x}"))).collect::<Vec<_>>());
+            }
+            {
                 let mut rngp=Fixed(0x51ef46b9ac287d03u64);
                 let mut simp=Simulator::new(circ.b.next_qubit as usize,0,&mut rngp);
                 simp.qubits=circ.b.sprint_sim.as_ref().unwrap().snapshot();

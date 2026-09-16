@@ -47,6 +47,10 @@ pub(super) fn grouped_with_flag(circ:&mut Circuit,gates:&[Vec<(&QReg,bool)>],ran
     let d=&dirty[0];let rest=&dirty[1..];
     for gr in groups{
         if gr.truth.iter().all(|&t|!t){continue;}
+        if std::env::var("Q792_GUARD_MASK_TRACE").ok().as_deref()==Some("1"){
+            let mask=gr.truth.iter().enumerate().fold(0u32,|a,(i,&b)|a|if b{1u32<<i}else{0});
+            eprintln!("Q792_GUARD_MASK four={} flag={flag} key={:?} mask={mask:#010x} truth={:?}",super::q793_lifecycle_r03::four_hole(),gr.key.iter().map(|&(q,v)|(q.id(),v)).collect::<Vec<_>>(),gr.truth);
+        }
         let plan=mux::swap_plan(gr.truth.clone(),5,0,mux::McxModel::Dirty);
         let chart=plan.chart_t();
         let echo=2*chart+2*echo_cost(gr.key.len()+1);

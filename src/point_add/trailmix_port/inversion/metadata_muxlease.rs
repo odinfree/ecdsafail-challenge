@@ -55,11 +55,18 @@ fn swap_terms_selected(truth:Vec<bool>,width:usize)->(usize,Vec<usize>){
 /// arm brackets the chart with the G frame and its reverse.
 pub(super) fn emit_chart_compute(circ:&mut Circuit,rank:&[&QReg],plan:&SwapPlan,d:&QReg,rest:&[QReg]){
     let (frame,polarity,terms):(Vec<(usize,usize)>,usize,&Vec<usize>)=match plan{SwapPlan::Anf(p,t)=>(Vec::new(),*p,t),SwapPlan::Framed(f,p,t)=>(f.clone(),*p,t)};
+    let at=circ.b.ops.len();
+    if std::env::var("Q792_CHART_TRACE").ok().as_deref()==Some("1"){
+        eprintln!("Q792_CHART_TRACE four={} at={at} frame={frame:?} polarity={polarity:#07b} terms={terms:?} d={}",super::q793_lifecycle_r03::four_hole(),d.id());
+    }
     for &(c,t)in &frame{circ.cx(rank[c],rank[t]);}
     for i in 0..rank.len(){if polarity>>i&1!=0{circ.x(rank[i]);}}
     for &m in terms{let cs:Vec<(&QReg,bool)>=(0..rank.len()).filter(|&i|m>>i&1!=0).map(|i|(rank[i],true)).collect();match cs.len(){0=>circ.x(d),1=>circ.cx(cs[0].0,d),_=>mixed_mcx(circ,&cs,d,rest)}}
     for i in (0..rank.len()).rev(){if polarity>>i&1!=0{circ.x(rank[i]);}}
     for &(c,t)in frame.iter().rev(){circ.cx(rank[c],rank[t]);}
+    if std::env::var("Q792_CHART_TRACE").ok().as_deref()==Some("1"){
+        eprintln!("Q792_CHART_TRACE four={} at={at} end={}",super::q793_lifecycle_r03::four_hole(),circ.b.ops.len());
+    }
 }
 impl SwapPlan{
     /// Toffoli count of the rank chart alone (frame CXs are free), E=0.
@@ -97,6 +104,10 @@ fn mono(model:McxModel,n:usize)->(usize,usize){
     }
 }
 pub(super) fn swap_plan(truth:Vec<bool>,width:usize,ext:usize,model:McxModel)->SwapPlan{
+    if std::env::var("Q792_PLAN_TRACE").ok().as_deref()==Some("1"){
+        let mask=truth.iter().enumerate().fold(0u64,|a,(i,&b)|a|if b{1u64<<i}else{0});
+        eprintln!("Q792_PLAN_TRACE four={} width={width} ext={ext} mask={mask:#018x}",super::q793_lifecycle_r03::four_hole());
+    }
     let (polarity,terms)=swap_terms(truth.clone(),width);
     if std::env::var("Q793_TABLE_AFFINE").ok().as_deref()==Some("0"){return SwapPlan::Anf(polarity,terms);}
     let mask=truth.iter().enumerate().fold(0u64,|a,(i,&b)|a|if b{1u64<<i}else{0});

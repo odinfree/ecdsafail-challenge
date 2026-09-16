@@ -24,6 +24,9 @@ fn leaf_window(circ:&Circuit)->(usize,usize){
         if std::env::var("Q793_A12_V12").ok().as_deref()!=Some("0"){w.0=lo.min(top);}
         if std::env::var("Q793_A16_V10").ok().as_deref()!=Some("0"){w.1=(2*hi).saturating_sub(7).min(top);}
     }
+    if std::env::var("Q792_LEAFW_TRACE").ok().as_deref()==Some("1"){
+        eprintln!("Q792_LEAFW_TRACE four={} support={:?} w={w:?} top={top}",super::q793_lifecycle_r03::four_hole(),circ.q797_a_support);
+    }
     w
 }
 fn leaf_nodes<'a>(circ:&Circuit,w1:&'a[QReg],offset:isize)->Vec<Option<&'a QReg>>{
