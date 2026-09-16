@@ -135,6 +135,10 @@ impl Check {
         for lane in 0..64{row.push(self.batches[0].sim.get_register(&regs,lane));}
         self.trace.borrow_mut().push(row);
     }
+    pub fn read_w2(&self,work2:&[super::trailmix_port::circuit::QReg],lane:usize)->alloy_primitives::U256{
+        let regs:Vec<QubitOrBit>=work2.iter().map(|q|QubitOrBit::Qubit(QubitId(q.id() as u64))).collect();
+        self.batches[0].sim.get_register(&regs,lane)
+    }
     pub fn new(tx:&[super::trailmix_port::circuit::QReg],ty:&[super::trailmix_port::circuit::QReg],ox:&[super::trailmix_port::circuit::Cbit],oy:&[super::trailmix_port::circuit::Cbit],initial_ops:usize)->Self {
         let count=std::env::var("SPRINT_STREAM_BATCHES").ok().map(|v|v.parse::<usize>().expect("integer independent batch count")).unwrap_or(1);
         assert!((1..=4).contains(&count),"one to four independent batches only");

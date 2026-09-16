@@ -530,3 +530,109 @@ pub fn run_sprint_fwd_only(){
         if !reported{eprintln!("Q792_SPRINT_W2_TRACE all blocks identical");}
     }
 }
+
+/// Static diagnostic: emit block/j templates in both geometries and dump the
+/// ops touching the given work2 rails (logical ids 283+rail), to diff the
+/// write structure around a localized divergence rail.
+pub fn run_template_opdiff(){
+    let block:usize=std::env::var("Q792_OPDIFF_BLOCK").ok().map(|v|v.parse().unwrap()).unwrap_or(0);
+    let j:usize=std::env::var("Q792_OPDIFF_J").ok().map(|v|v.parse().unwrap()).unwrap_or(2);
+    let rail:usize=std::env::var("Q792_OPDIFF_RAIL").ok().map(|v|v.parse().unwrap()).unwrap_or(2);
+    let base=283+rail; // template logical: rank/a/c/sm/p1/p2/iter=24, w1=259 -> w2 starts at 283
+    for four in [false,true]{
+        std::env::set_var("LOWQ_Q792_EEA",if four{"1"}else{"0"});
+        let ops=template(block,j);
+        eprintln!("Q792_OPDIFF four={four} block={block} j={j} rail={rail} (logical {base}) total_ops={}",ops.len());
+        for (i,op)in ops.iter().enumerate(){
+            if op.q_target.0==base as u64||op.q_control1.0==base as u64||op.q_control2.0==base as u64||
+               (base+1..base+4).any(|r|op.q_target.0==r as u64||op.q_control1.0==r as u64||op.q_control2.0==r as u64){
+                eprintln!("Q792_OPDIFF four={four} i={i} kind={:?} q2={} q1={} t={} ct={} cc={}",op.kind,op.q_control2.0,op.q_control1.0,op.q_target.0,op.c_target.0,op.c_condition.0);
+            }
+        }
+    }
+}
+
+/// Empirical template bisect: replay steps 0..4, then apply the step-5
+/// template in fixed-size op chunks in BOTH geometries on the same inputs and
+/// trace the work2 value after every chunk.  The 3-hole chunk values are the
+/// correct evolution; the first 4-hole chunk whose value is foreign to the
+/// 3-hole sequence pins the buggy op range.
+pub fn run_template_bisect(){
+    std::env::set_var("POINT_ADD_COUNT_ONLY","1");
+    std::env::set_var("Q793_FRAME","0");
+    std::env::set_var("Q792_NO_CANCEL","1");
+    std::env::set_var("Q794_TFACTOR","0");
+    std::env::set_var("Q795_STAGE_CENSUS","1");
+    use alloy_primitives::U256;
+    let block=0usize;let step=5;let tj=(step+1)%4; // template index for global step 5
+    let p=U256::from_le_bytes(crate::point_add::trailmix_port::mod_arith::SECP256K1_P_LE);
+    let inv=|a:U256|->U256{a.pow_mod(p.wrapping_sub(U256::from(2)),p)};
+    let mut rows:Vec<(Vec<u8>,Vec<u8>,Vec<u8>)>=Vec::new();
+    let mut s=0x51ef46b9ac287d03u64;
+    for _ in 0..4{
+        let mut x=[0u8;32];for b in x.iter_mut(){*b=rnd(&mut s)as u8;}x[31]&=0x7f;
+        let mut y=[0u8;32];for b in y.iter_mut(){*b=rnd(&mut s)as u8;}y[31]&=0x7f;
+        let xu=U256::from_le_bytes(x);let yu=U256::from_le_bytes(y);
+        let l=inv(xu).mul_mod(yu,p);let lo:[u8;32]=l.to_le_bytes();
+        rows.push((x.to_vec(),y.to_vec(),lo.to_vec()));
+    }
+    let mut seqs:Vec<(bool,Vec<Vec<U256>>)>=Vec::new();
+    for four in [false,true]{
+        std::env::set_var("LOWQ_Q792_EEA",if four{"1"}else{"0"});
+        std::env::set_var("Q792_QUOTIENT_TOP_BORROW","0");
+        let mut circ=Circuit::new();
+        let dx=circ.alloc_qreg_bits("input",257);
+        let mut dy=circ.alloc_qreg_bits("passenger",257);
+        let initial_ops=circ.b.counted_ops;
+        circ.b.sprint_sim=Some(crate::point_add::sprint_stream_check::Check::new_divide(&dx,&dy,initial_ops,&rows));
+        let released=loan_canonical_top(&mut circ,&mut dy,"bisect dy");
+        let core=initialize(&mut circ,dx,&dy[0],&dy[1]);
+        let mapping=ids(&core);
+        // steps 0..4 use templates (s+1)%4 = 1,2,3,0,1
+        for st in 0..step{
+            let ops=remap(template(block,(st+1)%4),&mapping,&dy,false);
+            if let Some(check)=&mut circ.b.sprint_sim{check.apply(&ops);}
+        }
+        // stage-apply the step-5 template (no-cancel keeps marks aligned)
+        let ops=remap(template(block,tj),&mapping,&dy,false);
+        let marks=super::super::q793_step_r03::marks();
+        let boundaries:Vec<usize>=marks.iter().map(|&(_,i)|i).filter(|&i|i>0&&i<ops.len()).collect();
+        let mut seq=Vec::new();
+        let mut prev=0;
+        for &b in boundaries.iter().chain(std::iter::once(&ops.len())){
+            circ.b.sprint_sim.as_mut().unwrap().apply(&ops[prev..b]);
+            let mut row=Vec::with_capacity(64);
+            for lane in 0..64{
+                row.push(circ.b.sprint_sim.as_ref().unwrap().read_w2(&core.work2[..257],lane));
+            }
+            seq.push(row);
+            prev=b;
+        }
+        restore_canonical_top(&mut circ,&mut dy,released);
+        seqs.push((four,seq));
+        eprintln!("Q792_BISECT four={four} marks={:?} boundaries={:?} ops={}",marks.iter().map(|&(n,i)|(n,i)).collect::<Vec<_>>(),boundaries,ops.len());
+    }
+    // 3-hole value set per chunk index is NOT position-aligned across
+    // geometries; instead collect the multiset of all 3-hole visited values
+    // per lane and find the first 4-hole value outside it.
+    let (seq3,seq4)=(&seqs[0].1,&seqs[1].1);
+    eprintln!("Q792_BISECT stages_3h={} stages_4h={}",seq3.len(),seq4.len());
+    let mut found=None;
+    'outer: for (ci,row) in seq4.iter().enumerate(){
+        for lane in 0..64{
+            let want=seq3.get(ci).map(|r|r[lane]);
+            if let Some(w)=want{
+                if w!=row[lane]{found=Some((ci,lane,w,row[lane]));break 'outer;}
+            }else{
+                found=Some((ci,lane,row[lane],row[lane]));break 'outer;
+            }
+        }
+    }
+    match found{
+        Some((ci,lane,want,got))=>eprintln!("Q792_BISECT first_stage_divergence stage_idx={ci} lane={lane} w2_3h={want} w2_4h={got}"),
+        None=>{
+            if seq3.len()==seq4.len(){eprintln!("Q792_BISECT all stages identical");}
+            else{eprintln!("Q792_BISECT stage counts differ");}
+        }
+    }
+}

@@ -248,8 +248,12 @@ impl Scan<'_>{
                 for flag in a_flags(self.rank,self.a,1){let mut cs=vec![(self.g,true),(self.mask,true),(decision,true),(&w1[0],false),(&self.c[0],c0)];cs.extend(flag);gate(circ,&cs,self.hs,self.dirty);}
                 let flag_ops=circ.b.ops[start..].to_vec();let base=[(self.g,true),(self.hs,true)];
                 // r1 is preserved, r2 ^= decision*(r0 XOR r1 XOR qstored0).
-                for q in [b[0],b[1]]{let mut cs=base.to_vec();cs.push((q,true));gate(circ,&cs,v[2],self.dirty);}
-                super::q793_r01_a1normalize_timefix_r01::q0_xor(circ,self.rank,self.c,w1,&base,v[2],self.dirty);
+                // 4-hole: r3 (v[3]) ^= r0 ^ r1 ^ r2 ^ qstored0 (all lower
+                // r rails plus the stored quotient low bit).
+                for q in if four{[b[0],b[1],b[2]].as_slice()}else{[b[0],b[1]].as_slice()}{
+                    let mut cs=base.to_vec();cs.push((q,true));gate(circ,&cs,if four{v[3]}else{v[2]},self.dirty);
+                }
+                super::q793_r01_a1normalize_timefix_r01::q0_xor(circ,self.rank,self.c,w1,&base,if four{v[3]}else{v[2]},self.dirty);
                 circ.b.ops.extend(flag_ops.into_iter().rev());
             }
             let mut change=|target:usize,extra:&[(&QReg,bool)]|{

@@ -11,7 +11,11 @@ fn gate(circ:&mut Circuit,cs:&[(&QReg,bool)],out:&QReg,dirty:&[QReg]){
 /// Base implies A1/S1. Its possible rank codes are 0,4,8,11, where
 /// C_high bit0 = rank2 XOR rank0, bit1 = rank3. Off base U cancels.
 pub(super) fn q0_xor(circ:&mut Circuit,rank:&[QReg],c:&[QReg],w1:&[QReg],base:&[(&QReg,bool)],out:&QReg,dirty:&[QReg]){
-    let start=circ.b.ops.len();let mut nodes:Vec<_>=(0..256).map(|cv|if cv<=252{Some(&w1[cv+2])}else{None}).collect();
+    // 4-hole ladder slides one lane (w1[cv+3]); the top entry A=252 re-homes
+    // to w1[254] because w1[255] is omitted.  Same logical gather as the
+    // 3-hole cv<=252 -> w1[cv+2].
+    let four=super::q793_lifecycle_r03::four_hole();
+    let start=circ.b.ops.len();let mut nodes:Vec<_>=(0..256).map(|cv|if four{if cv<=251{Some(&w1[cv+3])}else if cv==252{Some(&w1[254])}else{None}}else if cv<=252{Some(&w1[cv+2])}else{None}).collect();
     for level in 0..8{let mut next=Vec::new();for pair in nodes.chunks_exact(2){next.push(match(pair[0],pair[1]){
         (Some(left),Some(right))=>{if level<6{circ.cswap(&c[level],left,right);}else if level==6{circ.cswap(&rank[2],left,right);circ.cswap(&rank[0],left,right);}else{circ.cswap(&rank[3],left,right);}Some(left)},
         (Some(q),None)|(None,Some(q))=>Some(q),(None,None)=>None,
@@ -34,10 +38,21 @@ fn flag(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],g:&QReg,ma
 pub(super) fn normalize(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],g:&QReg,mask:&QReg,w1:&[QReg],w2:&[QReg],dirty:&[QReg],j:usize,inverse:bool){
     if j&1==0||circ.q797_a_support.is_some_and(|(lo,hi)|!(lo<=1&&1<hi)){return;}
     let start=circ.b.ops.len();flag(circ,rank,a,c,sm,g,mask,&w1[0],j,dirty);
-    let base=[(g,true),(mask,true)];gate(circ,&base,&w2[256],dirty);
-    gate(circ,&[(g,true),(mask,true),(&w2[1],true)],&w2[256],dirty);
-    q0_xor(circ,rank,c,w1,&base,&w2[256],dirty);
-    circ.cx(&w2[256],&w2[2]);gate(circ,&[(g,true),(mask,true),(&w2[2],true)],&w2[256],dirty);circ.cx(&w2[256],&w2[2]);
+    let base=[(g,true),(mask,true)];
+    if super::q793_lifecycle_r03::four_hole(){
+        // mod16 analog: v3 = 1 XOR u2 XOR qstored0, then park b3 <-> v3
+        // (borrow_truth a_class==1: logical u bit3 lives in v3, the HA
+        // passenger parks in physical b3).  v3=w2[255], u2=w2[2], b3=w2[3].
+        gate(circ,&base,&w2[255],dirty);
+        gate(circ,&[(g,true),(mask,true),(&w2[2],true)],&w2[255],dirty);
+        q0_xor(circ,rank,c,w1,&base,&w2[255],dirty);
+        circ.cx(&w2[255],&w2[3]);gate(circ,&[(g,true),(mask,true),(&w2[3],true)],&w2[255],dirty);circ.cx(&w2[255],&w2[3]);
+    }else{
+        gate(circ,&base,&w2[256],dirty);
+        gate(circ,&[(g,true),(mask,true),(&w2[1],true)],&w2[256],dirty);
+        q0_xor(circ,rank,c,w1,&base,&w2[256],dirty);
+        circ.cx(&w2[256],&w2[2]);gate(circ,&[(g,true),(mask,true),(&w2[2],true)],&w2[256],dirty);circ.cx(&w2[256],&w2[2]);
+    }
     flag(circ,rank,a,c,sm,g,mask,&w1[0],j,dirty);
     if inverse{circ.b.ops[start..].reverse();}
 }
