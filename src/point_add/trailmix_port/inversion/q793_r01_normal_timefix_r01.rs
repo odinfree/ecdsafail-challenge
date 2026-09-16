@@ -263,10 +263,11 @@ impl Scan<'_>{
                 // A0 has logical t=1 even when the physical head passenger
                 // is zero. Its u chart is immutable under R01.
                 if allow_a0{for flag in a_flags(self.rank,self.a,0){let mut ex=cs.clone();ex.extend(flag);gate(circ,&ex,b[target],self.dirty);}}
-                // The unified A1/S1/t2 branch stores logical r2 in physical
-                // v2 and parks HA's passenger in physical b2. Cancel every
-                // general b2 write there; its exact replacement is below.
-                if shift==0&&target==2&&allow_a1{for flag in a_flags(self.rank,self.a,1){let mut ex=cs.clone();ex.extend(flag);gate(circ,&ex,b[target],self.dirty);}}
+                // The unified A1/S1/t2 branch parks HA's passenger in the
+                // digit's TOP physical rail: b2 in the 3-hole, b3 in the
+                // 4-hole (borrow_truth a_class==1).  Cancel every general
+                // write to that rail there; its exact replacement is below.
+                if shift==0&&target==2+usize::from(four)&&allow_a1{for flag in a_flags(self.rank,self.a,1){let mut ex=cs.clone();ex.extend(flag);gate(circ,&ex,b[target],self.dirty);}}
                 // Suppress physical v bits that are actually gap/cargo above
                 // the proven source width. The semantic high source is zero.
                 for ac in [252,253]{let keep=256usize.saturating_sub(ac+shift).min(if four{4}else{3});

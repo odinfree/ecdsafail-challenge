@@ -617,6 +617,17 @@ pub fn run_template_bisect(){
     // per lane and find the first 4-hole value outside it.
     let (seq3,seq4)=(&seqs[0].1,&seqs[1].1);
     eprintln!("Q792_BISECT stages_3h={} stages_4h={}",seq3.len(),seq4.len());
+    for (ci,(r3,r4))in seq3.iter().zip(seq4.iter()).enumerate(){
+        let mut xors=String::new();
+        for lane in 0..4{
+            let x=r3[lane]^r4[lane];
+            let bytes:[u8;32]=x.to_be_bytes();
+            let mut s=String::new();
+            for b in bytes.iter().take(32){s.push_str(&format!("{b:02x}"));}
+            if xors.is_empty(){xors=s;}else{xors.push(' ');xors.push_str(&s);}
+        }
+        eprintln!("Q792_BISECT stage{ci} xor_lanes0_3={xors}");
+    }
     let mut found=None;
     'outer: for (ci,row) in seq4.iter().enumerate(){
         for lane in 0..64{
@@ -634,5 +645,60 @@ pub fn run_template_bisect(){
             if seq3.len()==seq4.len(){eprintln!("Q792_BISECT all stages identical");}
             else{eprintln!("Q792_BISECT stage counts differ");}
         }
+    }
+}
+
+/// R01 differential falsifier: run q793_r01_dynamic_timefix_r01::signless in
+/// both geometries on identical logical states and compare every rail that
+/// must agree (rank/a/c/sm/p1/p2/iter, work2, helpers, w1[0..255]).  Random
+/// off-guard states are legal - the body restores everything off g.
+pub fn run_r01_diff(){
+    use crate::sim::Simulator;
+    let rows=64usize;
+    let mut out:Vec<(bool,Vec<Vec<u64>>)>=Vec::new();
+    for four in [false,true]{
+        std::env::set_var("LOWQ_Q792_EEA",if four{"1"}else{"0"});
+        let mut circ=Circuit::new();
+        let rank=circ.alloc_qreg_bits("rank",5);let a=circ.alloc_qreg_bits("a",6);let c=circ.alloc_qreg_bits("c",6);let sm=circ.alloc_qreg_bits("sm",4);
+        let p1=circ.alloc_qreg("p1");let p2=circ.alloc_qreg("p2");let iter=circ.alloc_qreg("iter");
+        let w1=circ.alloc_qreg_bits("w1",259);let w2=circ.alloc_qreg_bits("w2",259);
+        let helpers=circ.alloc_qreg_bits("helpers",23);
+        circ.q797_a_support=Some((0,5));
+        let owned=circ.b.next_qubit as usize;
+        super::q793_r01_dynamic_timefix_r01::signless(&mut circ,&rank,&a,&c,&sm,&p1,&p2,&w1,&w2,&helpers,1,257);
+        let b=circ.into_builder();
+        let mut rng=Fixed(0x51ef46b9ac287d03u64);
+        let mut sim=Simulator::new(owned,0,&mut rng);
+        let mut states=Vec::new();
+        for lane in 0..rows{
+            let mut state=vec![0u64;owned];
+            let mut seed=0x793_6015eedu64^((lane as u64)<<48);
+            for q in 0..owned{
+                state[q]=rnd(&mut seed);
+            }
+            // force A=1 (the A1 normalization domain) on even lanes
+            if lane%2==0{
+                for i in 0..5{state[rank[i].id()as usize]=0;}
+                for i in 0..6{state[a[i].id()as usize]=if i==0{u64::MAX}else{0};}
+            }
+            sim.qubits.copy_from_slice(&state);
+            sim.phase=0;
+            sim.apply_iter(b.ops.iter());
+            let mut row:Vec<u64>=rank.iter().chain(&a).chain(&c).chain(&sm).chain([&p1,&p2,&iter]).chain(&w2).chain(&helpers).chain(&w1[..255]).map(|q|sim.qubits[q.id()as usize]).collect();
+            row.push(sim.phase);
+            states.push(row);
+        }
+        out.push((four,states));
+    }
+    let (s3,s4)=(&out[0].1,&out[1].1);
+    let mut first=None;
+    'outer: for lane in 0..rows{
+        for i in 0..s3[lane].len(){
+            if s3[lane][i]!=s4[lane][i]{first=Some((lane,i,s3[lane][i],s4[lane][i]));break 'outer;}
+        }
+    }
+    match first{
+        Some((lane,i,v3,v4))=>eprintln!("Q792_R01_DIFF first_divergence lane={lane} rail={i} (0..24 meta,24..283 w2,283..306 helpers,306.. w1[0..255],last phase) 3h={v3:#018x} 4h={v4:#018x}"),
+        None=>eprintln!("Q792_R01_DIFF all rows identical"),
     }
 }
