@@ -291,8 +291,24 @@ impl Scan<'_>{
                     change(2,&[(v[0],true),(b[0],false),(b[1],false)]);change(2,&[(v[0],true),(b[0],false),(v[1],true)]);
                     change(1,&[(v[1],true)]);change(1,&[(v[0],true),(b[0],false)]);change(0,&[(v[0],true)]);
                 }
-            }else if shift==1{change(2,&[(v[1],true)]);change(2,&[(v[0],true),(b[1],false)]);change(1,&[(v[0],true)]);}
-            else{change(2,&[(v[0],true)]);}
+            }else if shift==1{
+                if four{
+                    change(1,&[(v[0],true)]);
+                    change(2,&[(v[0],true)]);change(2,&[(b[1],true),(v[0],true)]);change(2,&[(v[1],true)]);
+                    change(3,&[(v[0],true)]);change(3,&[(b[1],true),(v[0],true)]);change(3,&[(b[2],true),(v[0],true)]);change(3,&[(b[1],true),(b[2],true),(v[0],true)]);
+                    change(3,&[(v[1],true)]);change(3,&[(b[2],true),(v[1],true)]);change(3,&[(v[0],true),(v[1],true)]);change(3,&[(b[1],true),(v[0],true),(v[1],true)]);
+                    change(3,&[(v[2],true)]);
+                }else{
+                    change(2,&[(v[1],true)]);change(2,&[(v[0],true),(b[1],false)]);change(1,&[(v[0],true)]);
+                }
+            }else{
+                if four{
+                    change(2,&[(v[0],true)]);
+                    change(3,&[(v[0],true)]);change(3,&[(b[2],true),(v[0],true)]);change(3,&[(v[1],true)]);
+                }else{
+                    change(2,&[(v[0],true)]);
+                }
+            }
         }
     }
     fn seeds(&self,circ:&mut Circuit,w1:&[QReg],w2:&[QReg]){
@@ -367,13 +383,14 @@ impl Scan<'_>{
     }
     fn rank_fused(&self,circ:&mut Circuit,w1:&[QReg],w2:&[QReg],decision:&QReg){
         let n=self.support_end.min(257);assert!(n>=3);
+        let four=super::q793_lifecycle_r03::four_hole();
         let mut sub=vec![];let mut mark=|circ:&Circuit,name:&'static str|{sub.push((name,circ.b.ops.len()));};
         let start=circ.b.ops.len();for i in 0..3{self.lower(circ,i);}let low=circ.b.ops[start..].to_vec();
         mark(circ,"lower");
         self.seed_all(circ,w1,w2);
         mark(circ,"seeds");
         let mut group=-1isize;let mut updates=Vec::new();
-        for i in 3..n{
+        for i in (3+usize::from(four))..n{
             let at=circ.b.ops.len();self.lower(circ,i);let value=256-i;let h=(value/64)as isize;
             if super::q795_r01_cache_clean::enabled(){super::q795_r01_cache_clean::transition(circ,self.rank,self.a,self.c,self.g,self.hs,&self.dirty[0],&self.dirty[1..],group,h);}
             else{arithmetic::sum_flag_transition(circ,self.rank,self.a,self.c,self.g,self.hs,&self.dirty[0],&self.dirty[1..],group,h);}group=h;
@@ -383,7 +400,7 @@ impl Scan<'_>{
         }
         mark(circ,"carry_fwd");
         circ.cx(self.g,decision);circ.ccx(self.g,self.ha,decision);
-        for i in (3..n).rev(){
+        for i in ((3+usize::from(four))..n).rev(){
             self.carry(circ,&w2[258-i],&w1[258-i],true);circ.cx(self.ha,&w2[258-i]);
             gate(circ,&[(self.g,true),(self.mask,true),(&w2[258-i],true),(decision,true)],&w1[258-i],self.dirty);circ.cx(self.ha,&w2[258-i]);
             circ.b.ops.extend(updates.pop().unwrap().into_iter().rev());

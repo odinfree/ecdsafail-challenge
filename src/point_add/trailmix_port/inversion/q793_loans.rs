@@ -66,6 +66,16 @@ pub(super) fn global_a(
         eprintln!("Q792_LOAN_DUMP four={four} support={:?} root_id={} passenger_id={} word255={} word256={}",
             (lo,hi),root.id(),passenger.id(),word[255].id(),word[256].id());
     }
+    // 4-hole A=254 +1: the 3-hole's w1[255] carries the p-bit-3 initial 1;
+    // its four-hole loan host (w2[257]) is zero, so add the missing +1 as a
+    // direct A=254 predicate toggle of the passenger (a==0b111110,
+    // rank==0b11101, matching the validated seed decode).
+    if four&&(lo..hi).contains(&254){
+        let mut a254:Vec<(&QReg,bool)>=vec![(&a[0],false),(&a[1],true),(&a[2],true),(&a[3],true),(&a[4],true),(&a[5],true),
+            (&rank[0],true),(&rank[1],false),(&rank[2],true),(&rank[3],true),(&rank[4],true)];
+        if let Some(g)=guard{a254.push((g,true));}
+        mixed_mcx(circ,&a254,passenger,dirty);
+    }
     if let Some(g)=guard{controlled_swap(circ,&[(g,true)],root,passenger,dirty);}
     else{circ.cx(root,passenger);circ.cx(passenger,root);circ.cx(root,passenger);}
     circ.b.ops.extend(route.into_iter().rev());assert_eq!(circ.b.next_qubit,owned);
