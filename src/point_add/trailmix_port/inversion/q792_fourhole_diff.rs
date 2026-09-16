@@ -1062,6 +1062,28 @@ pub fn run_step_bisect(){
                 if cur!=last{seq.push((k,op.kind as u8,op.q_target.0,op.q_control1.0,op.q_control2.0,cur));last=cur;}
             }
             eprintln!("Q792_STEP_BISECT four={four} rank0_write_seq={:?}",seq.iter().map(|&(k,k2,t,q1,q2,w)|(k,k2,t,q1,q2,format!("{w:#018x}"))).collect::<Vec<_>>());
+            {
+                let mut rngp=Fixed(0x51ef46b9ac287d03u64);
+                let mut simp=Simulator::new(circ.b.next_qubit as usize,0,&mut rngp);
+                simp.qubits=circ.b.sprint_sim.as_ref().unwrap().snapshot();
+                let mut seqp=Vec::new();let mut lastp=simp.qubits[core.phase1.id()as usize];
+                for (k,op) in span.iter().enumerate(){
+                    simp.apply_iter(std::slice::from_ref(op).iter());
+                    let cur=simp.qubits[core.phase1.id()as usize];
+                    if cur!=lastp{seqp.push((k,op.kind as u8,op.q_target.0,op.q_control1.0,op.q_control2.0,cur));lastp=cur;}
+                }
+                eprintln!("Q792_STEP_BISECT four={four} phase1_write_seq={:?}",seqp.iter().map(|&(k,k2,t,q1,q2,w)|(k,k2,t,q1,q2,format!("{w:#018x}"))).collect::<Vec<_>>());
+                let mut rngg=Fixed(0x51ef46b9ac287d03u64);
+                let mut simg=Simulator::new(circ.b.next_qubit as usize,0,&mut rngg);
+                simg.qubits=circ.b.sprint_sim.as_ref().unwrap().snapshot();
+                let mut seqg=Vec::new();let mut lastg=simg.qubits[dy[2].id()as usize];
+                for (k,op) in span.iter().enumerate(){
+                    simg.apply_iter(std::slice::from_ref(op).iter());
+                    let cur=simg.qubits[dy[2].id()as usize];
+                    if cur!=lastg{seqg.push((k,op.kind as u8,op.q_target.0,op.q_control1.0,op.q_control2.0,cur));lastg=cur;}
+                }
+                eprintln!("Q792_STEP_BISECT four={four} g_write_seq={:?}",seqg.iter().map(|&(k,k2,t,q1,q2,w)|(k,k2,t,q1,q2,format!("{w:#018x}"))).collect::<Vec<_>>());
+            }
             let mut rngr=Fixed(0x51ef46b9ac287d03u64);
             let mut simr=Simulator::new(circ.b.next_qubit as usize,0,&mut rngr);
             simr.qubits=circ.b.sprint_sim.as_ref().unwrap().snapshot();
@@ -1072,6 +1094,23 @@ pub fn run_step_bisect(){
                 if cur!=lasts{seqs.push((k,op.kind as u8,op.q_target.0,op.q_control1.0,op.q_control2.0,cur));lasts=cur;}
             }
             eprintln!("Q792_STEP_BISECT four={four} sm3_write_seq={:?}",seqs.iter().map(|&(k,k2,t,q1,q2,w)|(k,k2,t,q1,q2,format!("{w:#018x}"))).collect::<Vec<_>>());
+            {
+                // state tuple at each sm3 flip: w1[0..3], c[0..5], sm[0..3], rank[0..4], a[0..5], g(=dy[2])
+                let mut rngs2=Fixed(0x51ef46b9ac287d03u64);
+                let mut sims2=Simulator::new(circ.b.next_qubit as usize,0,&mut rngs2);
+                sims2.qubits=circ.b.sprint_sim.as_ref().unwrap().snapshot();
+                let mut outv:Vec<(usize,u64,u64,u64,u64,u64,u64,u64,u64,u64,u64)> = Vec::new();
+                for (k,op) in span.iter().enumerate(){
+                    let before=sims2.qubits[core.sm[3].id()as usize];
+                    sims2.apply_iter(std::slice::from_ref(op).iter());
+                    let after=sims2.qubits[core.sm[3].id()as usize];
+                    if before!=after{
+                        let nib=|q:&crate::point_add::trailmix_port::circuit::QReg|sims2.qubits[q.id()as usize]&0xf;
+                        outv.push((k,nib(&core.work1[0]),nib(&core.work1[1]),nib(&core.work1[2]),nib(&core.work1[3]),nib(&core.c[0]),nib(&core.sm[0]),nib(&core.sm[1]),nib(&core.sm[2]),nib(&dy[2]),after&0xf));
+                    }
+                }
+                eprintln!("Q792_STEP_BISECT four={four} sm3_flip_state k|w10|w11|w12|w13|c0|sm0|sm1|sm2|g|val={:?}",outv);
+            }
         }
         for &(name,idx) in &boundaries{
             if idx>prev{if let Some(check)=&mut circ.b.sprint_sim{check.apply(&ops[prev..idx]);}}
@@ -1118,8 +1157,8 @@ pub fn run_step_bisect(){
         }).map(|r|(stage,r))
     }){
         let name=if stage==0{"step5_entry"}else{out[0].2[stage-1].0};
-        let rail=if wi>=24{format!("w2[{}]",wi-24)}else{match wi{22=>"phase1".to_string(),23=>"phase2".to_string(),w if w>=18=>format!("sm[{}]",w-18),w if w>=12=>format!("c[{}]",w-12),w if w>=6=>format!("a[{}]",w-6),_=>format!("rank[{wi}]")}};
-        eprintln!("Q792_STEP_BISECT first_any_lane_divergence stage={name} rail={rail} lane={lane} 3h_bit={} 4h_bit={}",(va>>lane)&1,(vb>>lane)&1);
+        let rail=if wi>=23{format!("w2[{}]",wi-23)}else{match wi{21=>"phase1".to_string(),22=>"phase2".to_string(),w if w>=17=>format!("sm[{}]",w-17),w if w>=11=>format!("c[{}]",w-11),w if w>=5=>format!("a[{}]",w-5),_=>format!("rank[{wi}]")}};
+        eprintln!("Q792_STEP_BISECT first_any_lane_divergence stage={name} rail={rail} lane={lane} 3h_bit={} 4h_bit={} 3h_word={va:#018x} 4h_word={vb:#018x}",(va>>lane)&1,(vb>>lane)&1);
     }else{
         eprintln!("Q792_STEP_BISECT all_lanes_all_registers_match");
     }
@@ -1134,7 +1173,7 @@ pub fn run_step_bisect(){
             if x!=0{for lane in 0..4{if (x>>lane)&1!=0{diffs.push((wi,lane));if diffs.len()>=10{break;}}}}
             if diffs.len()>=10{break;}
         }
-        let railname=|wi:usize|->String{if wi>=24{format!("w2[{}]",wi-24)}else{match wi{22=>"phase1".to_string(),23=>"phase2".to_string(),w if w>=18=>format!("sm[{}]",w-18),w if w>=12=>format!("c[{}]",w-12),w if w>=6=>format!("a[{}]",w-6),_=>format!("rank[{wi}]")}}};
+        let railname=|wi:usize|->String{if wi>=23{format!("w2[{}]",wi-23)}else{match wi{21=>"phase1".to_string(),22=>"phase2".to_string(),w if w>=17=>format!("sm[{}]",w-17),w if w>=11=>format!("c[{}]",w-11),w if w>=5=>format!("a[{}]",w-5),_=>format!("rank[{wi}]")}}};
         eprintln!("Q792_STEP_BISECT after_step{} j={} diffs={:?}",st,(st+1)%4,diffs.iter().map(|&(wi,lane)|(railname(wi),lane)).collect::<Vec<_>>());
     }
     // structural diff of the LOGICAL template streams (pre-remap): the first
