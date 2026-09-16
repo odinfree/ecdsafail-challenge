@@ -945,6 +945,7 @@ pub fn run_step_bisect(){
                 let mut rng4=Fixed(0x51ef46b9ac287d03u64);
                 let mut sim4=Simulator::new(circ.b.next_qubit as usize,0,&mut rng4);
                 sim4.qubits=circ.b.sprint_sim.as_ref().unwrap().snapshot();
+                sim4.apply_iter(ops[..marks[a].1].iter());
                 let mut seq=Vec::new();let mut last=sim4.qubits[core.c[1].id()as usize];
                 for (k,op) in span.iter().enumerate(){
                     sim4.apply_iter(std::slice::from_ref(op).iter());
