@@ -473,6 +473,8 @@ pub fn run_sprint(){
 /// block/lane.  Skips release/rebuild/mod_mul so each geometry costs roughly
 /// half the full divide sprint.
 pub fn run_sprint_fwd_only(){
+    std::env::set_var("Q792_SPRINT_W2_TRACE","1");
+    std::env::set_var("Q792_SPRINT_W2_TRACE_STEP","1");
     use alloy_primitives::U256;
     let p=U256::from_le_bytes(crate::point_add::trailmix_port::mod_arith::SECP256K1_P_LE);
     let inv=|a:U256|->U256{a.pow_mod(p.wrapping_sub(U256::from(2)),p)};
@@ -506,19 +508,20 @@ pub fn run_sprint_fwd_only(){
         let mut dy=circ.alloc_qreg_bits("passenger",257);
         let initial_ops=circ.b.counted_ops;
         circ.b.sprint_sim=Some(crate::point_add::sprint_stream_check::Check::new_divide(&dx,&dy,initial_ops,&rows));
-        let _released=loan_canonical_top(&mut circ,&mut dy,"fwd-trace dy");
+        let released=loan_canonical_top(&mut circ,&mut dy,"fwd-trace dy");
         let core=initialize(&mut circ,dx,&dy[0],&dy[1]);
         emit_forward(&mut circ,&core,&dy);
+        restore_canonical_top(&mut circ,&mut dy,released);
         if let Some(check)=&circ.b.sprint_sim{traces.push((four,check.trace.borrow().clone()));}
     }
     if traces.len()==2{
         let (b3,b4)=(&traces[0].1,&traces[1].1);
-        eprintln!("Q792_SPRINT_W2_TRACE blocks_3h={} blocks_4h={}",b3.len(),b4.len());
+        eprintln!("Q792_SPRINT_W2_TRACE steps_3h={} steps_4h={}",b3.len(),b4.len());
         let mut reported=false;
         for blk in 0..b3.len().min(b4.len()){
             for lane in 0..64{
                 if b3[blk][lane]!=b4[blk][lane]{
-                    eprintln!("Q792_SPRINT_W2_TRACE first_divergence block={blk} lane={lane} w2_3h={} w2_4h={}",b3[blk][lane],b4[blk][lane]);
+                    eprintln!("Q792_SPRINT_W2_TRACE first_divergence step={blk} block={} template_j={} lane={lane} w2_3h={} w2_4h={}",blk/8,(blk+1)%4,b3[blk][lane],b4[blk][lane]);
                     reported=true;break;
                 }
             }

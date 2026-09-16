@@ -292,6 +292,9 @@ fn emit_schedule(circ:&mut Circuit,core:&Core,passenger:&[QReg],inverse:bool) {
             if circ.b.compact_blocks.is_some(){assert!(circ.b.ops.is_empty());circ.b.compact_blocks.as_mut().unwrap().push(ops.clone());for kind in super::q793_mbu::KINDS{circ.b.add_counted_kind(kind,kinds[kind as usize]);}}
             else if circ.b.count_only&&circ.b.fiat_hash.is_none(){if let Some(check)=&mut circ.b.sprint_sim{check.apply(ops);}for kind in super::q793_mbu::KINDS{circ.b.add_counted_kind(kind,kinds[kind as usize]);}}
             else if mbu{for &op in ops.iter(){circ.b.push_op(op);}}else{circ.b.append_nct_template(ops,kinds);}
+            if !inverse&&std::env::var("Q792_SPRINT_W2_TRACE_STEP").ok().as_deref()==Some("1"){
+                if let Some(check)=&circ.b.sprint_sim{check.trace_w2(&core.work2[..257]);}
+            }
         }
         if !inverse&&std::env::var("Q792_SPRINT_W2_TRACE").ok().as_deref()==Some("1"){
             if let Some(check)=&circ.b.sprint_sim{check.trace_w2(&core.work2[..257]);}
