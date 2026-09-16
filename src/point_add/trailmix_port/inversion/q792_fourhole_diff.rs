@@ -952,6 +952,12 @@ pub fn run_step_bisect(){
                 eprintln!("SPANLOG four={four} {k} k{} t{} q1{} q2{}",o.kind as u8,o.q_target.0,o.q_control1.0,o.q_control2.0);
             }
         }
+        if std::env::var("Q792_STEPBISECT_DUMP_T10").ok().as_deref()==Some("1"){
+            let hi=marks.iter().find(|&(n,_)|*n=="T10").unwrap().1;
+            for (k,o) in logical[..hi].iter().enumerate(){
+                eprintln!("T10LOG four={four} {k} k{} t{} q1{} q2{}",o.kind as u8,o.q_target.0,o.q_control1.0,o.q_control2.0);
+            }
+        }
         {
             // dump the entry_transfer span ops (between entry_transfer and newborn marks)
             let p1=marks.iter().position(|&(n,_)|n=="counter");
