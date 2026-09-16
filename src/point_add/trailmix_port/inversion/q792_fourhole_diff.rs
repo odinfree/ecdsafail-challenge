@@ -939,9 +939,19 @@ pub fn run_step_bisect(){
             let p1=marks.iter().position(|&(n,_)|n=="counter");
             let p2=marks.iter().position(|&(n,_)|n=="entry_transfer");
             if let (Some(a),Some(b))=(p1,p2){
-                let span=&logical[marks[a].1..marks[b].1];
+                let span=&ops[marks[a].1..marks[b].1];
                 eprintln!("Q792_STEP_BISECT four={four} entry_transfer_span ops={} first10={:?}",span.len(),span.iter().take(10).map(|o|(format!("{:?}",o.kind),o.q_target.0,o.q_control1.0,o.q_control2.0)).collect::<Vec<_>>());
-                eprintln!("Q792_STEP_BISECT four={four} transfer_span_full={:?}",span.iter().enumerate().map(|(k,o)|(k,o.kind as u8,o.q_target.0,o.q_control1.0,o.q_control2.0)).collect::<Vec<_>>());
+                // c[1] write sequence over the span (lane 2)
+                let mut rng4=Fixed(0x51ef46b9ac287d03u64);
+                let mut sim4=Simulator::new(circ.b.next_qubit as usize,0,&mut rng4);
+                sim4.qubits=circ.b.sprint_sim.as_ref().unwrap().snapshot();
+                let mut seq=Vec::new();let mut last=sim4.qubits[core.c[1].id()as usize];
+                for (k,op) in span.iter().enumerate(){
+                    sim4.apply_iter(std::slice::from_ref(op).iter());
+                    let cur=sim4.qubits[core.c[1].id()as usize];
+                    if cur!=last{seq.push((k,op.kind as u8,op.q_target.0,op.q_control1.0,op.q_control2.0,(cur>>2)&1));last=cur;}
+                }
+                eprintln!("Q792_STEP_BISECT four={four} c1_write_seq={:?}",seq.iter().map(|&(k,k2,t,q1,q2,b)|(k,k2,t,q1,q2,b)).collect::<Vec<_>>());
             }
         }
         let mut boundaries:Vec<(&'static str,usize)>=marks.iter().filter(|&&(n,_)|n!="start").map(|&(n,i)|(n,i)).collect();
