@@ -97,6 +97,23 @@ impl Batch {
         eprintln!("SPRINT_DIVIDE_RESULT shots=64 peak={} physical={} classical_failures={failures} phase={:#018x} dirty_ancillas={garbage} elapsed={:.1}; divide-only development seed, not official acceptance",b.peak_qubits,b.next_qubit,self.sim.phase,self.started.elapsed().as_secs_f64());
         assert_eq!(failures,0);assert_eq!(self.sim.phase,0);
     }
+
+    /// Diagnostic: verify the forward terminal work2 equals x^-1 mod p
+    /// (lambda = work2 * dy, so work2 must be the canonical inverse).  The
+    /// contract is lam = y * x^-1, hence x^-1 = lam * y^-1.  Report-only.
+    pub fn check_forward_w2(&self,work2:&[super::trailmix_port::circuit::QReg]) {
+        use alloy_primitives::U256;
+        let p=U256::from_le_bytes(super::super::trailmix_port::mod_arith::SECP256K1_P_LE);
+        let regs:Vec<QubitOrBit>=work2.iter().map(|q|QubitOrBit::Qubit(QubitId(q.id() as u64))).collect();
+        let mut bad=0;
+        for lane in 0..64{
+            let inv_y=self.expected[lane].1.pow_mod(p.wrapping_sub(U256::from(2)),p);
+            let want=self.expected_lam[lane].mul_mod(inv_y,p);
+            let got=self.sim.get_register(&regs,lane);
+            if got!=want{bad+=1;if bad<=4{eprintln!("SPRINT_W2_MISMATCH lane={lane} got={got:?} want={want:?}");}}
+        }
+        eprintln!("SPRINT_W2_CHECK mismatches={bad}/64");
+    }
 }
  
 // Diagnostic-only fan-out: every independent simulator sees the SAME immutable

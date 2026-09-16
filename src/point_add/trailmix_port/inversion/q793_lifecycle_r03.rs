@@ -328,6 +328,9 @@ pub fn divide_forward(
     release_terminal_padding(circ,&mut terminal);
     canonicalize_terminal_work2(circ, &terminal);
     toggle_inverse_sign(circ, &terminal);
+    if std::env::var("Q792_SPRINT_W2_CHECK").ok().as_deref()==Some("1"){
+        if let Some(check)=&circ.b.sprint_sim{check.check_forward_w2(&terminal.work2[..FIELD_WIDTH]);}
+    }
 
     restore_canonical_top(circ, &mut dy, released_dy_top);
     let mut lambda = circ.alloc_qreg_bits("paper2607.lambda", FIELD_WIDTH);

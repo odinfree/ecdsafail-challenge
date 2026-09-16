@@ -51,7 +51,6 @@ fn compare(a:&Snapshot,b:&Snapshot,tag:&str,strict_phase:bool)->bool{
     // passengers (257, appended in identical order)
     for k in 0..257{let i=a.state.len()-257+k;let j=b.state.len()-257+k;
         if i<n&&j<n&&a.state[i]!=b.state[j]{if first.is_none(){first=Some(i);}}}
-    }
     let phase_diff=a.phase!=b.phase;
     let tail=if a.state.len()!=b.state.len(){Some((a.state.len(),b.state.len()))}else{None};
     let ok=first.is_none()&&(!phase_diff||!strict_phase)&&tail.is_none();
