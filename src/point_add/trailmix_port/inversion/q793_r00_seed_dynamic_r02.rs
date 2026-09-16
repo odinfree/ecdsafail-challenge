@@ -39,7 +39,9 @@ pub(super) fn emit(circ:&mut Circuit,rank:&[QReg],a:&[QReg],w1:&[QReg],w2:&[QReg
             if z>>15&1!=0{v&=if shift==1{7}else{3};} // A254 cargo
             if shift==2&&z>>16&1!=0{v&=7;}           // A253 second cargo occupies raw v3
             let r=if t&1!=0{(15usize.wrapping_sub(b*v).wrapping_mul(super::q793_exit_low::INV16[t]))&15}else{b};
-            (r>>shift)<(v&((1usize<<(4-shift))-1))
+            // The borrow must reduce to the 3-hole on the shared domain:
+            // compare the mod-8 truncation of r against the 3-bit mask.
+            ((r&7)>>shift)<(v&((1usize<<(3-shift))-1))
         }).collect();
         for bit in 0..17{for m in 0..1<<17{if m>>bit&1!=0{anf[m]^=anf[m^(1<<bit)];}}}
         (chart,anf,12,5)

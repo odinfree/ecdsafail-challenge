@@ -522,6 +522,14 @@ pub fn run_sprint_fwd_only(){
             for lane in 0..64{
                 if b3[blk][lane]!=b4[blk][lane]{
                     eprintln!("Q792_SPRINT_W2_TRACE first_divergence step={blk} block={} template_j={} lane={lane} w2_3h={} w2_4h={}",blk/8,(blk+1)%4,b3[blk][lane],b4[blk][lane]);
+                    let mut xors=String::new();
+                    for l in 0..64{
+                        let x=b3[blk][l]^b4[blk][l];
+                        let bytes:[u8;32]=x.to_be_bytes();
+                        let mut s=String::new();for bb in bytes.iter().rev().take(4).rev(){s.push_str(&format!("{bb:02x}"));}
+                        if x!=alloy_primitives::U256::ZERO{xors.push_str(&format!("{l}:{s} "));}
+                    }
+                    eprintln!("Q792_SPRINT_W2_TRACE step{blk}_xor_low4bytes={xors}");
                     reported=true;break;
                 }
             }
