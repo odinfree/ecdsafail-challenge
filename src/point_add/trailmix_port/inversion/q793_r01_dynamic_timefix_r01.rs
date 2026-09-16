@@ -73,7 +73,7 @@ fn phase_guard(circ:&mut Circuit,rank:&[QReg],a:&[QReg],p1:&QReg,p2:&QReg,g:&QRe
 }
 /// Metadata-only A+C=254/255 toggle. Original C on entry and return.
 fn endpoint_guard(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],p1:&QReg,p2:&QReg,g:&QReg,dirty:&[QReg],value:usize){
-    assert!([254,255].contains(&value));arithmetic::add(circ,a,c,None,false);
+    assert!([253,254,255].contains(&value));arithmetic::add(circ,a,c,None,false);
     let mut gates=Vec::new();
     for (rk,t)in triples().iter().enumerate(){
         let hi=t[0]+t[1];if hi!=3&&(value!=254||hi!=2){continue;}
@@ -103,7 +103,12 @@ fn terminal_guard(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],p1:&QReg,p2
 }
 fn normal_guard(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg,p2:&QReg,g:&QReg,dirty:&[QReg],j:usize){
     phase_guard(circ,rank,a,p1,p2,g,dirty);
-    endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,254);endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,aterm());
+    // The 4-hole walk has no A=255 terminal: the M=254 endpoint slides to
+    // M=253, so the explicit 254 guard becomes 253 (aterm() already slides
+    // the A-flag).  Without this the two identical 254 guards cancel and the
+    // endpoint domain is lost.
+    endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,if super::q793_lifecycle_r03::four_hole(){253}else{254});
+    endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,aterm());
     terminal_guard(circ,rank,a,c,p1,p2,g,dirty);
 }
 fn borrow_ha(circ:&mut Circuit,rank:&[QReg],a:&[QReg],g:&QReg,ha:&QReg,w2:&[QReg],dirty:&[QReg]){
@@ -126,7 +131,7 @@ fn short_permutation(circ:&mut Circuit,b:[&QReg;3],base:&[(&QReg,bool)],x:usize,
         while next!=root{assert!(!visited[next]);visited[next]=true;transpose(circ,b,base,root,next,dirty);next=perm[next];}}
 }
 fn endpoints(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],p1:&QReg,p2:&QReg,g:&QReg,w1:&[QReg],w2:&[QReg],dirty:&[QReg],j:usize){
-    endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,254);
+    endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,if super::q793_lifecycle_r03::four_hole(){253}else{254});
     // Logical t=1 at A0: cancel its physical-head interpretation.
     for flag in aflags(rank,a,0){let mut cs=vec![(g,true)];cs.extend(flag);gate(circ,&cs,p1,dirty);}
     // p1 is a zero cache only under g. It marks the excluded A0 branch.
