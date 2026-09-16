@@ -32,10 +32,9 @@ fn head_delta(circ:&mut Circuit,rank:&[QReg],a:&[QReg],source:&[QReg],c:&[QReg],
         // C4, like the existing C5 scratch, is zero under the transfer guard.
         // Save the first selected bit, inspect its neighbour, then uncompute.
         // The A support is exactly the caller's pre-existing lo..hi proof.
-        let four=super::q793_lifecycle_r03::four_hole();
-        let shift=2+usize::from(four);let top=if four{252}else{255};
+        let shift=2;let top=255;
         let first:Vec<_>=(lo..hi.min(top)).map(|v|(v,&source[v+shift])).collect();
-        let top2=if four{251}else{255};
+        let top2=255;
         let second:Vec<_>=(lo..hi.min(top2)).map(|v|(v,&source[v+shift+1])).collect();
         if first.is_empty(){return;}
         let (root,gather)=super::metadata_muxlease::gather_linear(circ,&address,&first);circ.ccx(guard,root,&c[4]);circ.b.ops.extend(gather.into_iter().rev());
@@ -113,6 +112,12 @@ pub(super) fn transfer_with_support(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&
     high.extend([p1,p2]);permutation(circ,&high,guard,helpers,programs::PACK_SWAPS);
     circ.cx(guard,p2);circ.cx(guard,p1);
     if inverse{circ.b.ops[start..].reverse();}
+    if std::env::var("Q792_TRANSFER_PRECANCEL_DUMP").ok().as_deref()==Some("1"){
+        let four=super::q793_lifecycle_r03::four_hole();
+        for (k,o) in circ.b.ops[start..].iter().enumerate(){
+            eprintln!("PRECANCEL four={four} {k} k{} t{} q1{} q2{}",o.kind as u8,o.q_target.0,o.q_control1.0,o.q_control2.0);
+        }
+    }
     let mut tail=circ.b.ops.split_off(start);super::shared_optimize::cancel_nct(&mut tail,256,8);super::shared_optimize::cancel_nct_live(&mut tail,256);circ.b.ops.extend(tail);
 }
 fn check_permutations() {
