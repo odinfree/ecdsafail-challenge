@@ -177,7 +177,7 @@ fn emit16(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg
     for shift in 0..=2{
         if j&1!=shift&1{continue;}
         let c0=((j>>1)^(j&1))^(shift>>1);let sb=vec![vec![(g,true),(&c[0],c0!=0)]];
-        let bb:[Poly<'_>;4]=std::array::from_fn(|k|wire(&w2[(259+k-shift)%259]));let b3=&w2[(262-shift)%259];
+        let bb:[Poly<'_>;4]=std::array::from_fn(|k|wire(&w2[(259+k-shift)%259]));let b2=&w2[(261-shift)%259];
         let vv:[Poly<'_>;4]=std::array::from_fn(|k|{
             let index=258-shift-k;let mut v=wire(&w2[index]);
             if index>=4&&index-3<=254{let cond=mul(&aeq_supported(circ,rank,a,index-3),&xor(one(),cc[1].clone()));v=replace(v,cond,false);}
@@ -189,41 +189,39 @@ fn emit16(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg
             let rb=if rwidth==3{vec![vec![(&sm[1],false),(&sm[2],false)]]}else if rwidth==2{wire(&sm[1])}else{wire(&sm[2])};
             let base=mul(&sb,&rb);let spec=match rwidth{3=>&spec3,2=>&spec2,_=>&spec1};let known=rwidth==1||(rwidth==2&&!inverse);
             let normal=mul(&base,&xor(one(),spec.clone()));let even=mul(&normal,&vec![vec![(&w1[0],false)]]);let odd=mul(&normal,&wire(&w1[0]));
-            gates(circ,mul(&even,&bb[3]),h,dirty,g,scratch,&metadata);
+            // h carries bit 2 of the r digit exactly as the 3-hole does
+            // (the port must reduce to the 3-hole on the shared domain;
+            // the 4th rail is carried by the exit chart, not here).
+            gates(circ,mul(&even,&bb[2]),h,dirty,g,scratch,&metadata);
             let mut vars=Vec::new();vars.extend(tt.clone());vars.extend(bb.clone());vars.extend(vv.clone());vars.extend(qq.clone());
             anf(circ,&vars,|x|{let t=x&15;let u=x>>4&15;let v=x>>8&15;let qs=x>>12&7;
-                // h carries the TOP bit of the 4-bit r digit: even t writes
-                // bb[3] (= r'=b's top bit), so odd t must extract bit 3 of
-                // r' = (15-u*v)*INV16[t] - (qs<<shift)*v mod 16.  The 3-hole
-                // extraction was bit 2 (top of the 3-bit digit).
-                if rwidth==3{(super::q793_exit_low::INV16[t].wrapping_mul(15usize.wrapping_sub(u*v)).wrapping_sub((qs<<shift)*v))>>3&1!=0}
+                // bit 2 of r' = (15-u*v)*INV16[t] - (qs<<shift)*v mod 16:
+                // reduces to the 3-hole bit-2 extraction on 3-bit states.
+                if rwidth==3{(super::q793_exit_low::INV16[t].wrapping_mul(15usize.wrapping_sub(u*v)).wrapping_sub((qs<<shift)*v))>>2&1!=0}
                 else if rwidth==2{if t&1==0||v==0||(v<<shift)>=16{return false;}let d=(super::q793_exit_low::INV16[t].wrapping_mul(15usize.wrapping_sub(u*v)).wrapping_sub(((qs&6)<<shift)*v))&15;d>=v<<shift}
                 else{((15usize.wrapping_sub(u)).wrapping_mul(super::q793_exit_low::INV16[t]))>>1&1!=0}
             },&odd,h,dirty,g,scratch,&metadata);
             let hp=replace(wire(h),spec.clone(),known);let all_even=mul(&base,&vec![vec![(&w1[0],false)]]);
-            // The 4-hole u digit has four rails, so its top bit is b3 and the
-            // even-t old-value cancel must land on b3 (the 3-hole top was b2).
-            gates(circ,mul(&all_even,&hp),b3,dirty,g,scratch,&metadata);
+            gates(circ,mul(&all_even,&hp),b2,dirty,g,scratch,&metadata);
             let q0=if rwidth==3{qq[0].clone()}else if rwidth==2{hp.clone()}else{bb[1].clone()};let q1=if rwidth==1{hp}else{qq[1].clone()};
             let mut vars=Vec::new();vars.extend(tt.clone());
             if rwidth==1{
                 // rwidth==1 mirrors the 3-hole r slots: r=(v0,v1),
                 // v_eff=(v2,bb1,hp) (THREE bits - v3 is the swapped h
                 // passenger on the 4th rail, not part of the divisor value),
-                // qs=0.  The divisor factor is INV16[v_eff], matching the
-                // first-closure rwidth==1 INV16[t] lift (the 3-hole literals
-                // were self-inverse mod 8).  The update writes the TOP u bit
-                // (b3), extracted as bit 3 of the mod16 product.
+                // qs=0.  Literal v_eff (the 3-hole literal was self-inverse
+                // mod 8; literal vs INV16 differ only at bit 3, which is not
+                // read here).  The update writes u bit 2, extracted as bit 2
+                // of the mod16 product, exactly like the 3-hole.
                 vars.push(vv[0].clone());vars.push(vv[1].clone());vars.push(vv[2].clone());vars.push(q0);vars.push(q1);
-                anf(circ,&vars,|x|{let t=x&15;let r=x>>4&3;let v=x>>6&7;let qs=x>>9&3;(super::q793_exit_low::INV16[v].wrapping_mul(15usize.wrapping_sub(t*r)).wrapping_sub((qs<<shift)*t))>>3&1!=0},&all_even,b3,dirty,g,scratch,&metadata);
+                anf(circ,&vars,|x|{let t=x&15;let r=x>>4&3;let v=x>>6&7;let qs=x>>9&3;(v.wrapping_mul(15usize.wrapping_sub(t*r)).wrapping_sub((qs<<shift)*t))>>2&1!=0},&all_even,b2,dirty,g,scratch,&metadata);
             }else{
                 // lane_t10_port exact-shared-domain audit: r is 3-bit
                 // (bb0..bb2), decode t=x&15 r=x>>4&7 v=x>>7&15 qs=x>>11&3;
-                // output is the TOP u bit (b3) and the even-t divisor is
-                // INV16[v] (literal v differs by +-8 for v in {3,5,11,13},
-                // which is invisible at bit 2 but decisive at bit 3).
+                // output is u bit 2 and the multiplier is literal v (v and
+                // INV16[v] differ only by +-8, invisible at bit 2).
                 vars.push(bb[0].clone());vars.push(bb[1].clone());vars.push(bb[2].clone());vars.extend(vv.clone());vars.push(q0);vars.push(q1);
-                anf(circ,&vars,|x|{let t=x&15;let r=x>>4&7;let v=x>>7&15;let qs=x>>11&3;(super::q793_exit_low::INV16[v].wrapping_mul(15usize.wrapping_sub(t*r)).wrapping_sub((qs<<shift)*t))>>3&1!=0},&all_even,b3,dirty,g,scratch,&metadata);
+                anf(circ,&vars,|x|{let t=x&15;let r=x>>4&7;let v=x>>7&15;let qs=x>>11&3;(v.wrapping_mul(15usize.wrapping_sub(t*r)).wrapping_sub((qs<<shift)*t))>>2&1!=0},&all_even,b2,dirty,g,scratch,&metadata);
             }
         }
     }
