@@ -146,13 +146,15 @@ pub(super) fn emit(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg]
     if inverse{circ.b.ops[start..].reverse();}
 }
 
-/// 4-hole (mod16) T10 expansion: 4-bit t/u/v charts, INV16 arithmetic, and the
-/// endpoint specs slid one A value down (A=253/254 -> A=252/253). Mirrors the
-/// verified mod16 semantics of q792_mod16::scalar and q793_exit_low::xor_r16.
+/// 4-hole (mod16) T10 expansion: 4-bit t/u/v charts and INV16 arithmetic
+/// mirroring the verified mod16 semantics of q792_mod16::scalar and
+/// q793_exit_low::xor_r16.  Endpoint A-values are LOGICAL and do not slide:
+/// w2[256..258] keep their 3-hole cargo roles (A=index-3), and the new 4th
+/// rail w2[255-shift] simply extends the pattern one A value lower.
 fn emit16(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg,p2:&QReg,g:&QReg,w1:&[QReg],w2:&[QReg],helpers:&[QReg],j:usize,inverse:bool,last:bool){
     assert!(helpers.len()>=22);let start=circ.b.ops.len();let h=&sm[3];let q=&helpers[..3];let dirty=&helpers[3..];let scratch=&sm[0];let metadata:Vec<_>=rank.iter().chain(a).chain(c).chain(&sm[1..3]).chain(std::iter::once(g)).map(QReg::id).collect();
     let cc:Vec<_>=(0..=3).map(|i|if last{if i==1{one()}else{Vec::new()}}else if i<=1{Vec::new()}else{ceq_small(rank,c,i)}).collect();let aa0=aeq_supported(circ,rank,a,0);let aa1=aeq_supported(circ,rank,a,1);let aa2=aeq_supported(circ,rank,a,2);
-    let spec3=mul(&aeq_supported(circ,rank,a,252),&cc[1]);let spec2=mul(&aeq_supported(circ,rank,a,253),&cc[1]);let spec1=mul(&aeq_supported(circ,rank,a,253),&cc[2]);
+    let spec3=mul(&aeq_supported(circ,rank,a,253),&cc[1]);let spec2=mul(&aeq_supported(circ,rank,a,254),&cc[1]);let spec1=mul(&aeq_supported(circ,rank,a,254),&cc[2]);
     let specs=xor(xor(spec3.clone(),spec2.clone()),spec1.clone());
     swap(circ,mul(&wire(g),&specs),h,&w2[255],dirty,g,scratch,&metadata);
     let readout_start=circ.b.ops.len();circ.cx(g,p1);
@@ -178,8 +180,8 @@ fn emit16(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg
         let bb:[Poly<'_>;4]=std::array::from_fn(|k|wire(&w2[(259+k-shift)%259]));let b3=&w2[(262-shift)%259];
         let vv:[Poly<'_>;4]=std::array::from_fn(|k|{
             let index=258-shift-k;let mut v=wire(&w2[index]);
-            if index>=4&&index-4<=253{let cond=mul(&aeq_supported(circ,rank,a,index-4),&xor(one(),cc[1].clone()));v=replace(v,cond,false);}
-            if index==256{v=replace(v,mul(&aeq_supported(circ,rank,a,253),&cc[1]),true);}v
+            if index>=4&&index-3<=254{let cond=mul(&aeq_supported(circ,rank,a,index-3),&xor(one(),cc[1].clone()));v=replace(v,cond,false);}
+            if index==257{v=replace(v,mul(&aeq_supported(circ,rank,a,254),&cc[1]),true);}v
         });
         for rwidth in [3usize,2,1]{
             if rwidth==2&&shift>1||rwidth==1&&shift!=0{continue;}
