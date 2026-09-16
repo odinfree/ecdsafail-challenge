@@ -200,9 +200,13 @@ fn emit16(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg
             let mut vars=Vec::new();vars.extend(tt.clone());
             if rwidth==1{
                 // rwidth==1 mirrors the 3-hole empty r slots: r=0 on the
-                // active domain, so the closure reads only t/v/qs.
-                vars.extend(vv.clone());vars.push(q0);vars.push(q1);
-                anf(circ,&vars,|x|{let t=x&15;let r=x>>4&3;let v=x>>6&15;let qs=x>>10&3;(v.wrapping_mul(15usize.wrapping_sub(t*r)).wrapping_sub((qs<<shift)*t))>>2&1!=0},&all_even,b2,dirty,g,scratch,&metadata);
+                // active domain, so the closure reads only t/v/qs.  Mirror the
+                // 3-hole rail layout exactly: r=(v0,v1), v_eff=(v2,bb1,hp),
+                // qs=0.  The 3-hole v has no fourth rail, so v3 must NOT be
+                // spliced between v2 and bb1 (that shifts q0/q1 and diverges
+                // from the 3-hole oracle on the shared domain: 64/128 states).
+                vars.push(vv[0].clone());vars.push(vv[1].clone());vars.push(vv[2].clone());vars.push(q0);vars.push(q1);
+                anf(circ,&vars,|x|{let t=x&15;let r=x>>4&3;let v=x>>6&7;let qs=x>>9&3;(v.wrapping_mul(15usize.wrapping_sub(t*r)).wrapping_sub((qs<<shift)*t))>>2&1!=0},&all_even,b2,dirty,g,scratch,&metadata);
             }else{
                 // lane_t10_port exact-shared-domain audit: r is 3-bit
                 // (bb0..bb2), decode t=x&15 r=x>>4&7 v=x>>7&15 qs=x>>11&3.
