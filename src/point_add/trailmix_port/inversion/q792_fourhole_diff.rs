@@ -33,17 +33,24 @@ fn compare(a:&Snapshot,b:&Snapshot,tag:&str,strict_phase:bool)->bool{
     let n=a.state.len().min(b.state.len());
     let w2shift=std::env::var("LOWQ_Q792_DIFF_W2SHIFT").ok().and_then(|v|v.parse::<i64>().ok()).unwrap_or(0);
     let w1cmp=std::env::var("LOWQ_Q792_DIFF_W1").ok().as_deref()==Some("1");
-    for i in 0..n{
-        // work1 region may legitimately differ; work2 and control regs and
-        // passengers must agree exactly.
-        // w1 lanes that exist in BOTH geometries: 24..278 (w1[0..254]).
-        // w1[255] is real only in 3-hole (its bit-3 toggle has no 4-hole
-        // home by design) and 256..258 are markers in both.
-        if a.skip_w1&&b.skip_w1&&(24..283).contains(&i)&&!(w1cmp&&(24..278).contains(&i)){continue;}
-        let j=if a.skip_w1&&b.skip_w1&&(283..541).contains(&i){
-            let k=i as i64-283;let k2=if (3..=257).contains(&k){k+w2shift}else{k};283+k2.clamp(0,258)as usize
-        }else{i};
-        if j<n&&a.state[i]!=b.state[j]{if first.is_none(){first=Some(i);}}
+    // Actual layout: logical 0..24 = control (rank/a/c/sm/p1/p2/iter),
+    // then work1 (256 rails 3h / 255 rails 4h), then work2 (259 rails both),
+    // then 257 passengers.  work1 rails 0..254 exist at the same logical
+    // indices 24..278 in both geometries; work2 starts at 280 (3h) / 279 (4h).
+    let w1a=if a.skip_w1{a.state.len()-257-259-24}else{0};
+    let w1b=if b.skip_w1{b.state.len()-257-259-24}else{0};
+    let wa=24+w1a; // work2 start in a
+    let wb=24+w1b; // work2 start in b
+    // control registers
+    for i in 0..24{let j=i;if j<n&&a.state[i]!=b.state[j]{if first.is_none(){first=Some(i);}}}
+    // common work1 rails 0..254 (identical logical positions in both)
+    if w1cmp{for i in 0..255{if 24+i<wa&&24+i<wb&&a.state[24+i]!=b.state[24+i]{if first.is_none(){first=Some(24+i);}}}}
+    // work2 rails, mapped by rail index with the optional shift
+    for k in 0..259{let i=wa+k;let k2=if (3..=257).contains(&k){k as i64+w2shift}else{k as i64};let j=(wb as i64+k2).clamp(0,b.state.len()as i64)as usize;
+        if i<n&&j<n&&a.state[i]!=b.state[j]{if first.is_none(){first=Some(i);}}}
+    // passengers (257, appended in identical order)
+    for k in 0..257{let i=a.state.len()-257+k;let j=b.state.len()-257+k;
+        if i<n&&j<n&&a.state[i]!=b.state[j]{if first.is_none(){first=Some(i);}}}
     }
     let phase_diff=a.phase!=b.phase;
     let tail=if a.state.len()!=b.state.len(){Some((a.state.len(),b.state.len()))}else{None};
