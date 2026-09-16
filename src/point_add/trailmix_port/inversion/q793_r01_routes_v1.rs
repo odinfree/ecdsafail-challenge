@@ -19,7 +19,11 @@ pub(super) fn gather<'a>(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],w1:&
     assert!(offset<=2);assert_eq!(w1.len(),259);let start=circ.b.ops.len();
     let lo=circ.q797_a_support.map_or(0,|(lo,_)|lo.min(253));
     add(circ,a,c,Some(carry),false);
-    let top=253usize.saturating_sub(usize::from(super::q793_lifecycle_r03::four_hole()));
+    // The domain bound is A+C<=253 in both walks; the 4-hole's omitted rail
+    // is only the PHYSICAL w1[255], so the leaf w1[m+offset] exists iff
+    // m+offset<=254.  For offset=1 the m=253 leaf (w1[254]) is valid and must
+    // not be dropped; for offset=2 m=253 maps to the omitted p-bit-3 rail.
+    let top=if super::q793_lifecycle_r03::four_hole(){254usize.saturating_sub(offset)}else{253};
     let mut nodes:Vec<_>=(0..256).map(|m|if(lo..=top).contains(&m){Some(&w1[m+offset])}else{None}).collect();
     for level in 0..8{let mut next=Vec::new();for pair in nodes.chunks_exact(2){next.push(match(pair[0],pair[1]){
         (Some(left),Some(right))=>{if level<6{circ.cswap(&c[level],left,right);}else{high_swap(circ,rank,carry,g,level-6,left,right);}Some(left)},

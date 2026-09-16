@@ -655,7 +655,7 @@ pub fn run_template_bisect(){
 pub fn run_r01_diff(){
     use crate::sim::Simulator;
     let rows=64usize;
-    let mut out:Vec<(bool,Vec<Vec<u64>>)>=Vec::new();
+    let mut out:Vec<(bool,Vec<Vec<u64>>,Vec<(&'static str,usize)>,Vec<(&'static str,u64,u64,u64,u64)>,Vec<u64>)>=Vec::new();
     for four in [false,true]{
         std::env::set_var("LOWQ_Q792_EEA",if four{"1"}else{"0"});
         let mut circ=Circuit::new();
@@ -665,30 +665,136 @@ pub fn run_r01_diff(){
         let helpers=circ.alloc_qreg_bits("helpers",23);
         circ.q797_a_support=Some((0,5));
         let owned=circ.b.next_qubit as usize;
-        super::q793_r01_dynamic_timefix_r01::signless(&mut circ,&rank,&a,&c,&sm,&p1,&p2,&w1,&w2,&helpers,1,257);
+        super::super::q793_r01_normal_timefix_r01::clear_main_bounds();
+        super::super::q793_r01_dynamic_timefix_r01::clear_sub_bounds();
+        super::super::q793_r01_dynamic_timefix_r01::signless(&mut circ,&rank,&a,&c,&sm,&p1,&p2,&w1,&w2,&helpers,1,257);
+        let bounds=super::super::q793_r01_dynamic_timefix_r01::sub_bounds();
         let b=circ.into_builder();
-        let mut rng=Fixed(0x51ef46b9ac287d03u64);
-        let mut sim=Simulator::new(owned,0,&mut rng);
-        let mut states=Vec::new();
-        for lane in 0..rows{
+        let mkstate=|lane:usize,owned:usize|->Vec<u64>{
             let mut state=vec![0u64;owned];
             let mut seed=0x793_6015eedu64^((lane as u64)<<48);
-            for q in 0..owned{
-                state[q]=rnd(&mut seed);
-            }
-            // force A=1 (the A1 normalization domain) on even lanes
+            for q in 0..owned{state[q]=rnd(&mut seed);}
+            state[w1[255].id()as usize]=u64::MAX; // omitted p-bit-3: constant 1
+            // structured active-domain state, mirroring the numeric seed check:
+            // g=1, ha=decision=0, mask(p1)=1, p2=0, sm=0, a in the support.
+            let rk=(lane%32)as u64;let av=2u64;
+            for i in 0..5{state[rank[i].id()as usize]=(rk>>i&1)as u64*u64::MAX;}
+            for i in 0..6{state[a[i].id()as usize]=(av>>i&1)as u64*u64::MAX;}
+            for i in 0..4{state[sm[i].id()as usize]=0;}
+            state[helpers[0].id()as usize]=u64::MAX; // g=1
+            state[helpers[1].id()as usize]=0;         // ha=0
+            state[helpers[2].id()as usize]=0;         // decision=0
+            state[p1.id()as usize]=0;                 // mask starts 0 (flag/lower set it)
+            state[p2.id()as usize]=0;
+            // shared-domain chart on even lanes: zero the 4th rails
             if lane%2==0{
-                for i in 0..5{state[rank[i].id()as usize]=0;}
-                for i in 0..6{state[a[i].id()as usize]=if i==0{u64::MAX}else{0};}
+                state[w2[3].id()as usize]=0;
+                state[w2[255].id()as usize]=0;
+                state[w1[3].id()as usize]=0;
             }
-            sim.qubits.copy_from_slice(&state);
+            // reachability: (t|v)&1==1 -> if t0=0 then v0=1
+            for bit in 0..64{
+                let t0=(state[w1[0].id()as usize]>>bit)&1;
+                let v0=(state[w2[258].id()as usize]>>bit)&1;
+                if t0==0{state[w2[258].id()as usize]|=1<<bit;}
+            }
+            state
+        };
+        // lane-0 sub-stage trace of w2[1]
+        let mut rng=Fixed(0x51ef46b9ac287d03u64);
+        let mut sim=Simulator::new(owned,0,&mut rng);
+        sim.qubits=mkstate(0,owned);sim.phase=0;
+        let mut trace=Vec::new();
+        let mut prev=0;
+        // merge the r01_main internal marks into the boundary list
+        let mut merged:Vec<(&'static str,usize)>=bounds.clone();
+        let ms=bounds.iter().position(|&(n,_)|n=="r01_main").map(|p|(bounds[p-1].1,bounds[p].1)).unwrap_or((0,0));
+        for k in 1..10{
+            let pos=ms.0+(ms.1-ms.0)*k/10;
+            merged.push((Box::leak(format!("main_{k}0%").into_boxed_str()),pos));
+        }
+        merged.sort_by_key(|&(_,i)|i);merged.dedup_by_key(|&mut(_,i)|i);
+        for &(name,idx) in merged.iter().chain(std::iter::once(&("end",b.ops.len()))){
+            if idx>prev{sim.apply_iter(b.ops[prev..idx].iter());}
+            trace.push((name,sim.qubits[p1.id()as usize],sim.qubits[sm[0].id()as usize],sim.qubits[sm[1].id()as usize],sim.qubits[helpers[1].id()as usize]));
+            prev=idx;
+        }
+        // op-level w2[2] write sequence within r01_main (lane 0 bit)
+        if four{
+            let ms=bounds.iter().position(|&(n,_)|n=="r01_main").map(|p|(bounds[p-1].1,bounds[p].1)).unwrap_or((0,0));
+            let mut rng2=Fixed(0x51ef46b9ac287d03u64);
+            let mut sim2=Simulator::new(owned,0,&mut rng2);
+            sim2.qubits=mkstate(0,owned);sim2.phase=0;
+            sim2.apply_iter(b.ops[..ms.0].iter());
+            let mut seq=Vec::new();
+            let mut last=sim2.qubits[w2[2].id()as usize];
+            for (k,op) in b.ops[ms.0..ms.1].iter().enumerate(){
+                sim2.apply_iter(std::slice::from_ref(op).iter());
+                let cur=sim2.qubits[w2[2].id()as usize];
+                if cur!=last{seq.push((k,op.kind,op.q_target.0,op.q_control1.0,op.q_control2.0,cur&1));last=cur;}
+            }
+            eprintln!("Q792_R01_DIFF w2[2]_write_seq_4h lane0={:?}",seq.iter().map(|&(k,kind,t,q1,q2,b)|(k,format!("{kind:?}"),t,q1,q2,b)).collect::<Vec<_>>());
+            eprintln!("Q792_R01_DIFF 4h_main_first30={:?}",b.ops[ms.0..ms.0+30].iter().enumerate().map(|(k,o)|(k,format!("{:?}",o.kind),o.q_target.0,o.q_control1.0,o.q_control2.0)).collect::<Vec<_>>());
+            eprintln!("Q792_R01_DIFF 4h_around_first_w2[2]_write={:?}",b.ops[ms.0+4438..ms.0+4456].iter().enumerate().map(|(k,o)|(4438+k,format!("{:?}",o.kind),o.q_target.0,o.q_control1.0,o.q_control2.0)).collect::<Vec<_>>());
+            // ha write sequence (first ~40 toggles)
+            let mut rng3=Fixed(0x51ef46b9ac287d03u64);
+            let mut sim3=Simulator::new(owned,0,&mut rng3);
+            sim3.qubits=mkstate(0,owned);sim3.phase=0;
+            sim3.apply_iter(b.ops[..ms.0].iter());
+            let mut hseq=Vec::new();
+            let mut hlast=sim3.qubits[helpers[1].id()as usize];
+            for (k,op) in b.ops[ms.0..ms.1].iter().enumerate(){
+                sim3.apply_iter(std::slice::from_ref(op).iter());
+                let h=sim3.qubits[helpers[1].id()as usize];
+                if h!=hlast{hseq.push((k,op.kind,op.q_target.0,op.q_control1.0,op.q_control2.0,h&0xff));hlast=h;}
+            }
+            eprintln!("Q792_R01_DIFF ha_write_seq_4h={:?}",hseq.iter().map(|&(k,k2,t,q1,q2,b)|(k,format!("{k2:?}"),t,q1,q2,b)).collect::<Vec<_>>());
+        }else{
+            let ms=bounds.iter().position(|&(n,_)|n=="r01_main").map(|p|(bounds[p-1].1,bounds[p].1)).unwrap_or((0,0));
+            let mut rng2=Fixed(0x51ef46b9ac287d03u64);
+            let mut sim2=Simulator::new(owned,0,&mut rng2);
+            sim2.qubits=mkstate(0,owned);sim2.phase=0;
+            sim2.apply_iter(b.ops[..ms.0].iter());
+            let mut seq=Vec::new();
+            let mut last=sim2.qubits[w2[2].id()as usize];
+            for (k,op) in b.ops[ms.0..ms.1].iter().enumerate(){
+                sim2.apply_iter(std::slice::from_ref(op).iter());
+                let cur=sim2.qubits[w2[2].id()as usize];
+                if cur!=last{seq.push((k,op.kind,op.q_target.0,op.q_control1.0,op.q_control2.0,cur&1));last=cur;}
+            }
+            eprintln!("Q792_R01_DIFF w2[2]_write_seq_3h lane0={:?}",seq.iter().map(|&(k,kind,t,q1,q2,b)|(k,format!("{kind:?}"),t,q1,q2,b)).collect::<Vec<_>>());
+            let mut rng3=Fixed(0x51ef46b9ac287d03u64);
+            let mut sim3=Simulator::new(owned,0,&mut rng3);
+            sim3.qubits=mkstate(0,owned);sim3.phase=0;
+            sim3.apply_iter(b.ops[..ms.0].iter());
+            let mut hseq=Vec::new();
+            let mut hlast=sim3.qubits[helpers[1].id()as usize];
+            for (k,op) in b.ops[ms.0..ms.1].iter().enumerate(){
+                sim3.apply_iter(std::slice::from_ref(op).iter());
+                let h=sim3.qubits[helpers[1].id()as usize];
+                if h!=hlast{hseq.push((k,op.kind,op.q_target.0,op.q_control1.0,op.q_control2.0,h&0xff));hlast=h;}
+            }
+            eprintln!("Q792_R01_DIFF ha_write_seq_3h={:?}",hseq.iter().map(|&(k,k2,t,q1,q2,b)|(k,format!("{k2:?}"),t,q1,q2,b)).collect::<Vec<_>>());
+        }
+        let entry_snap={
+            // full-state diff at the endpoints entry (lane 0)
+            let ms=bounds.iter().position(|&(n,_)|n=="normal_guard_rev").map(|p|(bounds[p].1,bounds[p+1].1)).unwrap_or((0,0));
+            let mut rng2=Fixed(0x51ef46b9ac287d03u64);
+            let mut sim2=Simulator::new(owned,0,&mut rng2);
+            sim2.qubits=mkstate(0,owned);sim2.phase=0;
+            sim2.apply_iter(b.ops[..ms.1].iter());
+            sim2.qubits.clone()
+        };
+        let mut states=Vec::new();
+        for lane in 0..rows{
+            sim.qubits=mkstate(lane,owned);
             sim.phase=0;
             sim.apply_iter(b.ops.iter());
             let mut row:Vec<u64>=rank.iter().chain(&a).chain(&c).chain(&sm).chain([&p1,&p2,&iter]).chain(&w2).chain(&helpers).chain(&w1[..255]).map(|q|sim.qubits[q.id()as usize]).collect();
             row.push(sim.phase);
             states.push(row);
         }
-        out.push((four,states));
+        out.push((four,states,bounds,trace,entry_snap));
     }
     let (s3,s4)=(&out[0].1,&out[1].1);
     let mut first=None;
@@ -697,8 +803,18 @@ pub fn run_r01_diff(){
             if s3[lane][i]!=s4[lane][i]{first=Some((lane,i,s3[lane][i],s4[lane][i]));break 'outer;}
         }
     }
+    eprintln!("Q792_R01_DIFF bounds_3h={:?}",out[0].2.iter().map(|&(n,i)|(n,i)).collect::<Vec<_>>());
+    eprintln!("Q792_R01_DIFF bounds_4h={:?}",out[1].2.iter().map(|&(n,i)|(n,i)).collect::<Vec<_>>());
+    let fmt=|t:&Vec<(&'static str,u64,u64,u64,u64)>|t.iter().map(|&(n,mask,sm0,sm1,ha)|(n,format!("mask={mask:#018x} sm0={sm0:#018x} sm1={sm1:#018x} ha={ha:#018x}"))).collect::<Vec<_>>();
+    eprintln!("Q792_R01_DIFF lane0_trace_3h={:?}",fmt(&out[0].3));
+    eprintln!("Q792_R01_DIFF lane0_trace_4h={:?}",fmt(&out[1].3));
     match first{
         Some((lane,i,v3,v4))=>eprintln!("Q792_R01_DIFF first_divergence lane={lane} rail={i} (0..24 meta,24..283 w2,283..306 helpers,306.. w1[0..255],last phase) 3h={v3:#018x} 4h={v4:#018x}"),
         None=>eprintln!("Q792_R01_DIFF all rows identical"),
     }
+    let mut diffs=Vec::new();
+    for i in 0..out[0].4.len().min(out[1].4.len()){
+        if out[0].4[i]!=out[1].4[i]{diffs.push((i,out[0].4[i],out[1].4[i]));}
+    }
+    eprintln!("Q792_R01_DIFF endpoints_entry_diffs={:?}",diffs.iter().take(12).map(|&(i,a,b)|(i,format!("{a:#018x}"),format!("{b:#018x}"))).collect::<Vec<_>>());
 }

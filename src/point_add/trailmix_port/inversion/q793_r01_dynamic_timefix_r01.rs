@@ -107,8 +107,8 @@ fn normal_guard(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1
     // M=253, so the explicit 254 guard becomes 253 (aterm() already slides
     // the A-flag).  Without this the two identical 254 guards cancel and the
     // endpoint domain is lost.
-    endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,if super::q793_lifecycle_r03::four_hole(){253}else{254});
-    endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,aterm());
+    endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,254);
+    endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,255);
     terminal_guard(circ,rank,a,c,p1,p2,g,dirty);
 }
 fn borrow_ha(circ:&mut Circuit,rank:&[QReg],a:&[QReg],g:&QReg,ha:&QReg,w2:&[QReg],dirty:&[QReg]){
@@ -131,7 +131,7 @@ fn short_permutation(circ:&mut Circuit,b:[&QReg;3],base:&[(&QReg,bool)],x:usize,
         while next!=root{assert!(!visited[next]);visited[next]=true;transpose(circ,b,base,root,next,dirty);next=perm[next];}}
 }
 fn endpoints(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],p1:&QReg,p2:&QReg,g:&QReg,w1:&[QReg],w2:&[QReg],dirty:&[QReg],j:usize){
-    endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,if super::q793_lifecycle_r03::four_hole(){253}else{254});
+    endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,254);
     // Logical t=1 at A0: cancel its physical-head interpretation.
     for flag in aflags(rank,a,0){let mut cs=vec![(g,true)];cs.extend(flag);gate(circ,&cs,p1,dirty);}
     // p1 is a zero cache only under g. It marks the excluded A0 branch.
@@ -140,12 +140,11 @@ fn endpoints(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],p1:&QReg,p2:&QRe
     if shift==0{for x in 1..4{let mut cs=base.to_vec();cs.extend([(&w2[258],x&1!=0),(&w2[257],x&2!=0)]);short_permutation(circ,b,&cs,x,dirty);}}
     else{short_permutation(circ,b,&base,2,dirty);}
     for flag in aflags(rank,a,0){let mut cs=vec![(g,true)];cs.extend(flag);gate(circ,&cs,p1,dirty);}
-    endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,254);
-    endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,aterm());terminal_guard(circ,rank,a,c,p1,p2,g,dirty);
+    endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,255);terminal_guard(circ,rank,a,c,p1,p2,g,dirty);
     for flag in aflags(rank,a,0){let mut cs=vec![(g,true)];cs.extend(flag);gate(circ,&cs,p1,dirty);}
     circ.cx(&w2[1],&w2[0]);gate(circ,&[(g,true),(p1,false),(&w1[0],false),(&w2[0],true)],&w2[1],dirty);circ.cx(&w2[1],&w2[0]);
     for flag in aflags(rank,a,0){let mut cs=vec![(g,true)];cs.extend(flag);gate(circ,&cs,p1,dirty);}
-    terminal_guard(circ,rank,a,c,p1,p2,g,dirty);endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,aterm());
+    terminal_guard(circ,rank,a,c,p1,p2,g,dirty);endpoint_guard(circ,rank,a,c,p1,p2,g,dirty,255);
 }
 /// Three physical holes W1[256..258]. All helpers are borrowed dirty.
 /// The global gap is W1[A+1] for A<255 and terminal W2[258] for A255.
