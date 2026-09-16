@@ -206,17 +206,22 @@ fn emit16(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg
             let mut vars=Vec::new();vars.extend(tt.clone());
             if rwidth==1{
                 // rwidth==1 mirrors the 3-hole r slots: r=(v0,v1),
-                // v_eff=(v2,v3,bb1,hp), qs=0.  The 4-hole v_eff is four bits,
-                // so v3 stays between v2 and bb1; the update writes the TOP
-                // u bit (b3), extracted as bit 3 of the mod16 product.
-                vars.extend(vv.clone());vars.push(q0);vars.push(q1);
-                anf(circ,&vars,|x|{let t=x&15;let r=x>>4&3;let v=x>>6&15;let qs=x>>10&3;(v.wrapping_mul(15usize.wrapping_sub(t*r)).wrapping_sub((qs<<shift)*t))>>3&1!=0},&all_even,b3,dirty,g,scratch,&metadata);
+                // v_eff=(v2,bb1,hp) (THREE bits - v3 is the swapped h
+                // passenger on the 4th rail, not part of the divisor value),
+                // qs=0.  The divisor factor is INV16[v_eff], matching the
+                // first-closure rwidth==1 INV16[t] lift (the 3-hole literals
+                // were self-inverse mod 8).  The update writes the TOP u bit
+                // (b3), extracted as bit 3 of the mod16 product.
+                vars.push(vv[0].clone());vars.push(vv[1].clone());vars.push(vv[2].clone());vars.push(q0);vars.push(q1);
+                anf(circ,&vars,|x|{let t=x&15;let r=x>>4&3;let v=x>>6&7;let qs=x>>9&3;(super::q793_exit_low::INV16[v].wrapping_mul(15usize.wrapping_sub(t*r)).wrapping_sub((qs<<shift)*t))>>3&1!=0},&all_even,b3,dirty,g,scratch,&metadata);
             }else{
                 // lane_t10_port exact-shared-domain audit: r is 3-bit
                 // (bb0..bb2), decode t=x&15 r=x>>4&7 v=x>>7&15 qs=x>>11&3;
-                // output is the TOP u bit (b3, bit 3 of the mod16 product).
+                // output is the TOP u bit (b3) and the even-t divisor is
+                // INV16[v] (literal v differs by +-8 for v in {3,5,11,13},
+                // which is invisible at bit 2 but decisive at bit 3).
                 vars.push(bb[0].clone());vars.push(bb[1].clone());vars.push(bb[2].clone());vars.extend(vv.clone());vars.push(q0);vars.push(q1);
-                anf(circ,&vars,|x|{let t=x&15;let r=x>>4&7;let v=x>>7&15;let qs=x>>11&3;(v.wrapping_mul(15usize.wrapping_sub(t*r)).wrapping_sub((qs<<shift)*t))>>3&1!=0},&all_even,b3,dirty,g,scratch,&metadata);
+                anf(circ,&vars,|x|{let t=x&15;let r=x>>4&7;let v=x>>7&15;let qs=x>>11&3;(super::q793_exit_low::INV16[v].wrapping_mul(15usize.wrapping_sub(t*r)).wrapping_sub((qs<<shift)*t))>>3&1!=0},&all_even,b3,dirty,g,scratch,&metadata);
             }
         }
     }
