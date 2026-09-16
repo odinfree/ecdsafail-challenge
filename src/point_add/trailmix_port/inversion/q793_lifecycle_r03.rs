@@ -49,7 +49,15 @@ fn toggle_terminal_work1(circ: &mut Circuit, work1: &[QReg]) {
     use crate::point_add::trailmix_port::mod_arith::SECP256K1_P_LE;
 
     assert_eq!(work1.len(), WORK_WIDTH);
-    for bit in 0..VALUE_WIDTH-usize::from(four_hole()) {
+    // The terminal representation is UN SHIFTED: value bit b lives on physical
+    // lane b, p's bit 255 is set, and lane 255 is a real lane (WORK_WIDTH = 259).
+    // The four-hole geometry only adds a fourth OMITTED LOW RESIDUAL lane, so
+    // truncating the top of this range was an off-by-one that dropped p[255] and
+    // desynchronised the terminal rebuild. That single untoggled set bit is the
+    // w2 bit-2 divergence the step trace reported and the 64/64 gate failure:
+    // the initial toggle is shifted and already covers bit 255 (lane 4), so only
+    // the terminal side was wrong.
+    for bit in 0..VALUE_WIDTH {
         if (SECP256K1_P_LE[bit / 8] >> (bit % 8)) & 1 != 0 {
             circ.x(&work1[bit]);
         }

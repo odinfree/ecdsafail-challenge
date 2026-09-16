@@ -826,3 +826,67 @@ pub fn run_r01_diff(){
     }
     eprintln!("Q792_R01_DIFF endpoints_entry_diffs={:?}",diffs.iter().take(12).map(|&(i,a,b)|(i,format!("{a:#018x}"),format!("{b:#018x}"))).collect::<Vec<_>>());
 }
+
+/// Full-step differential: simulate template(block,j) (the whole step incl.
+/// T10/R00/cargo/entry/sign/exit) in both geometries on identical logical
+/// states and diff every rail except the geometry-dependent w1.
+pub fn run_step_diff(){
+    use crate::sim::Simulator;
+    let block:usize=std::env::var("Q792_STEPDIFF_BLOCK").ok().map(|v|v.parse().unwrap()).unwrap_or(0);
+    let j:usize=std::env::var("Q792_STEPDIFF_J").ok().map(|v|v.parse().unwrap()).unwrap_or(2);
+    let mut ops:Vec<(bool,Vec<crate::circuit::Op>)>=Vec::new();
+    for four in [false,true]{
+        std::env::set_var("LOWQ_Q792_EEA",if four{"1"}else{"0"});
+        ops.push((four,template(block,j)));
+    }
+    let owned=565+2; // template logical: 24 + 259 + 259 + 23
+    let mut first=None;
+    for lane in 0..512{
+        let mut state=vec![0u64;owned];
+        let mut seed=0x793_6015eedu64^((lane as u64)<<48);
+        for q in 0..owned{state[q]=rnd(&mut seed);}
+        state[24+255]=u64::MAX; // w1[255] = the omitted p-bit-3 constant
+        let mut outs=Vec::new();
+        for (four,o) in &ops{
+            let mut rng=Fixed(0x51ef46b9ac287d03u64);
+            let mut sim=Simulator::new(owned,0,&mut rng);
+            sim.qubits=state.clone();sim.phase=0;
+            sim.apply_iter(o.iter());
+            // meta(24) + w2(259) + helpers(23) + phase
+            let mut row:Vec<u64>=(0..24).map(|q|sim.qubits[q]).collect();
+            row.extend((283..542).map(|q|sim.qubits[q]));
+            row.extend((542..565).map(|q|sim.qubits[q]));
+            row.push(sim.phase);
+            let _=four;
+            outs.push(row);
+        }
+        for i in 0..outs[0].len(){
+            if outs[0][i]!=outs[1][i]{first=Some((lane,i,outs[0][i],outs[1][i]));break;}
+        }
+        if first.is_some(){break;}
+    }
+    match first{
+        Some((lane,i,v3,v4))=>eprintln!("Q792_STEP_DIFF block={block} j={j} first_divergence lane={lane} rail={i} (0..24 meta,24..283 w2,283..306 helpers,306 phase) 3h={v3:#018x} 4h={v4:#018x}"),
+        None=>eprintln!("Q792_STEP_DIFF block={block} j={j} all states identical"),
+    }
+    // full rail diff for lane 0
+    {
+        let mut state=vec![0u64;owned];
+        let mut seed=0x793_6015eedu64;
+        for q in 0..owned{state[q]=rnd(&mut seed);}
+        state[24+255]=u64::MAX;
+        let mut outs=Vec::new();
+        for (_four,o) in &ops{
+            let mut rng=Fixed(0x51ef46b9ac287d03u64);
+            let mut sim=Simulator::new(owned,0,&mut rng);
+            sim.qubits=state.clone();sim.phase=0;
+            sim.apply_iter(o.iter());
+            outs.push(sim.qubits.clone());
+        }
+        let mut diffs=Vec::new();
+        for q in 0..owned{
+            if outs[0][q]!=outs[1][q]{diffs.push((q,outs[0][q],outs[1][q]));}
+        }
+        eprintln!("Q792_STEP_DIFF lane0_diffs={:?}",diffs.iter().map(|&(q,a,b)|(q,format!("{a:#018x}"),format!("{b:#018x}"))).collect::<Vec<_>>());
+    }
+}
