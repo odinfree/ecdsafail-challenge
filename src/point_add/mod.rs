@@ -2671,6 +2671,7 @@ pub fn build() -> Vec<Op> {
             "fourhole-bisect" => trailmix_port::inversion::q793_lifecycle_r03::diff::run_template_bisect(),
             "fourhole-r01diff" => trailmix_port::inversion::q793_lifecycle_r03::diff::run_r01_diff(),
             "fourhole-stepdiff" => trailmix_port::inversion::q793_lifecycle_r03::diff::run_step_diff(),
+            "fourhole-stepbisect" => trailmix_port::inversion::q793_lifecycle_r03::diff::run_step_bisect(),
             "r00" | "r00-all" => trailmix_port::inversion::q793_r00_check::run(),
             "dual-exit" | "dual-exit-offguard" => trailmix_port::inversion::q793_exit_check::run(),
             _ => panic!("unknown own Q793 native mode: {mode}"),

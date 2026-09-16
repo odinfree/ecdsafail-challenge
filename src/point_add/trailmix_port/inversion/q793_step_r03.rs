@@ -128,7 +128,7 @@ fn newborn(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p2:&QRe
         });}nodes=next;}
         let right=nodes[0].unwrap();let route=circ.b.ops[start..].to_vec();
         if endpoint {
-            super::q793_cargo_r02::newborn_253(circ,rank,a,sign,&w2[254],right,dirty);
+            super::q793_cargo_r02::newborn_253(circ,rank,a,sign,&w2[254-usize::from(super::q793_lifecycle_r03::four_hole())],right,dirty);
         }else{
             let(left,gather)=super::q794_handoffs::gather_a(circ,rank,a,&w1[..256],3,dirty);
             super::q793_cargo_r02::newborn_regular(circ,rank,a,sign,left,right,dirty);
@@ -179,11 +179,14 @@ pub(super) fn step(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg]
     super::q793_cargo_r02::before_entry(circ,rank,a,c,sm,p1,p2,w2,dirty);
     rchk(circ,"before_entry");
     super::metadata_entry_boundary5::entry_with_support(circ,rank,a,c,sm,p1,p2,sign,w1,w2,dirty,post_j,lo,hi);
+    mark(circ,"entry_transfer");
     let entrychk=|circ:&Circuit,label:&str|{if std::env::var("Q792_ENTRY_TRACE").ok().as_deref()==Some("1"){let hole=w1[255].id()as u64;if let Some(op)=circ.b.ops[start..].iter().find(|o|o.q_target.0==hole||o.q_control1.0==hole||o.q_control2.0==hole){eprintln!("Q792_ENTRY_TOUCH label={label} kind={:?} q2={} q1={} t={}",op.kind,op.q_control2.0,op.q_control1.0,op.q_target.0);}}};
     entrychk(circ,"entry_with_support");
     newborn(circ,rank,a,c,sm,p2,sign,w1,w2,dirty,post_j);
+    mark(circ,"newborn");
     entrychk(circ,"newborn");
     super::q793_cargo_r02::after_entry(circ,rank,a,sign,w2,dirty);
+    mark(circ,"after_entry");
     entrychk(circ,"after_entry");
     mark(circ,"entry");
     // Sign is zero on both R phases. Cache a routing predicate there while

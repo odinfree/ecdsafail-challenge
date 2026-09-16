@@ -602,7 +602,8 @@ pub fn run_template_bisect(){
             if let Some(check)=&mut circ.b.sprint_sim{check.apply(&ops);}
         }
         // stage-apply the step-5 template (no-cancel keeps marks aligned)
-        let ops=remap(template(block,tj),&mapping,&dy,false);
+        let logical=template(block,tj);
+        let ops=remap(logical.clone(),&mapping,&dy,false);
         let marks=super::super::q793_step_r03::marks();
         let boundaries:Vec<usize>=marks.iter().map(|&(_,i)|i).filter(|&i|i>0&&i<ops.len()).collect();
         let mut seq=Vec::new();
@@ -888,5 +889,92 @@ pub fn run_step_diff(){
             if outs[0][q]!=outs[1][q]{diffs.push((q,outs[0][q],outs[1][q]));}
         }
         eprintln!("Q792_STEP_DIFF lane0_diffs={:?}",diffs.iter().map(|&(q,a,b)|(q,format!("{a:#018x}"),format!("{b:#018x}"))).collect::<Vec<_>>());
+    }
+}
+
+/// Production-state stage bisect: run the real forward walk to step 4, then
+/// apply the step-5 template stage by stage (no-cancel emission keeps the
+/// stage marks aligned) in both geometries and report the first stage whose
+/// work2 output diverges.
+pub fn run_step_bisect(){
+    std::env::set_var("POINT_ADD_COUNT_ONLY","1");
+    std::env::set_var("Q792_NO_CANCEL","1");
+    std::env::set_var("Q793_FRAME","0");
+    std::env::set_var("Q794_TFACTOR","0");
+    std::env::set_var("Q795_STAGE_CENSUS","1");
+    use alloy_primitives::U256;
+    let p=U256::from_le_bytes(crate::point_add::trailmix_port::mod_arith::SECP256K1_P_LE);
+    let inv=|a:U256|->U256{a.pow_mod(p.wrapping_sub(U256::from(2)),p)};
+    let mut rows:Vec<(Vec<u8>,Vec<u8>,Vec<u8>)>=Vec::new();
+    let mut s0=0x51ef46b9ac287d03u64;
+    for _ in 0..4{
+        let mut x=[0u8;32];for b in x.iter_mut(){*b=rnd(&mut s0)as u8;}x[31]&=0x7f;
+        let mut y=[0u8;32];for b in y.iter_mut(){*b=rnd(&mut s0)as u8;}y[31]&=0x7f;
+        let xu=U256::from_le_bytes(x);let yu=U256::from_le_bytes(y);
+        let l=inv(xu).mul_mod(yu,p);let lo:[u8;32]=l.to_le_bytes();
+        rows.push((x.to_vec(),y.to_vec(),lo.to_vec()));
+    }
+    let block=0usize;let step=5;let tj=(step+1)%4;
+    let mut out:Vec<(bool,Vec<(&'static str,U256,u64,u64,u64,u64,u64,u64,u64)>,Vec<(&'static str,usize)>)>=Vec::new();
+    for four in [false,true]{
+        std::env::set_var("LOWQ_Q792_EEA",if four{"1"}else{"0"});
+        std::env::set_var("Q792_QUOTIENT_TOP_BORROW","0");
+        let mut circ=Circuit::new();
+        let dx=circ.alloc_qreg_bits("input",257);
+        let mut dy=circ.alloc_qreg_bits("passenger",257);
+        let initial_ops=circ.b.counted_ops;
+        circ.b.sprint_sim=Some(crate::point_add::sprint_stream_check::Check::new_divide(&dx,&dy,initial_ops,&rows));
+        let released=loan_canonical_top(&mut circ,&mut dy,"step-bisect dy");
+        let core=initialize(&mut circ,dx,&dy[0],&dy[1]);
+        let mapping=ids(&core);
+        for st in 0..step{
+            let ops=remap(template(block,(st+1)%4),&mapping,&dy,false);
+            if let Some(check)=&mut circ.b.sprint_sim{check.apply(&ops);}
+        }
+        let logical=template(block,tj);
+        let ops=remap(logical.clone(),&mapping,&dy,false);
+        let marks=super::super::q793_step_r03::marks();
+        {
+            // dump the entry_transfer span ops (between entry_transfer and newborn marks)
+            let p1=marks.iter().position(|&(n,_)|n=="counter");
+            let p2=marks.iter().position(|&(n,_)|n=="entry_transfer");
+            if let (Some(a),Some(b))=(p1,p2){
+                let span=&logical[marks[a].1..marks[b].1];
+                eprintln!("Q792_STEP_BISECT four={four} entry_transfer_span ops={} first10={:?}",span.len(),span.iter().take(10).map(|o|(format!("{:?}",o.kind),o.q_target.0,o.q_control1.0,o.q_control2.0)).collect::<Vec<_>>());
+                eprintln!("Q792_STEP_BISECT four={four} transfer_span_full={:?}",span.iter().enumerate().map(|(k,o)|(k,o.kind as u8,o.q_target.0,o.q_control1.0,o.q_control2.0)).collect::<Vec<_>>());
+            }
+        }
+        let mut boundaries:Vec<(&'static str,usize)>=marks.iter().filter(|&&(n,_)|n!="start").map(|&(n,i)|(n,i)).collect();
+        boundaries.push(("end",ops.len()));
+        let mut prev=0;let mut trace=Vec::new();
+        for &(name,idx) in &boundaries{
+            if idx>prev{if let Some(check)=&mut circ.b.sprint_sim{check.apply(&ops[prev..idx]);}}
+            if let Some(check)=&circ.b.sprint_sim{
+                let mut meta=0u64;
+                let mut sm=0u64;
+                for i in 0..6{if check.read_qubit(&core.c[i],2){meta|=1<<i;}}
+                for i in 0..4{if check.read_qubit(&core.sm[i],2){sm|=1<<i;}}
+                let mut rk=0u64;let mut av=0u64;
+                for i in 0..5{if check.read_qubit(&core.rank[i],2){rk|=1<<i;}}
+                for i in 0..6{if check.read_qubit(&core.a[i],2){av|=1<<i;}}
+                let mut pp=0u64;
+                if check.read_qubit(&core.phase1,2){pp|=1;}
+                if check.read_qubit(&core.phase2,2){pp|=2;}
+                let w12=if check.read_qubit(&core.work1[2],2){1}else{0};
+                let sign=if check.read_qubit(&dy[2],2){1}else{0};
+                trace.push((name,check.read_w2(&core.work2[..257],2),meta,sm,rk,av,pp,w12,sign));
+            }
+            prev=idx;
+        }
+        restore_canonical_top(&mut circ,&mut dy,released);
+        out.push((four,trace,boundaries));
+    }
+    let (t3,t4)=(&out[0].1,&out[1].1);
+    eprintln!("Q792_STEP_BISECT marks_3h={:?} marks_4h={:?}",out[0].2,out[1].2);
+    for ((n3,v3,m3,s3,r3,a3,p3,w3,g3),(n4,v4,m4,s4,r4,a4,p4,w4,g4)) in t3.iter().zip(t4.iter()){
+        eprintln!("Q792_STEP_BISECT stage_{n3} lane2 match={} c3h={m3:#x} c4h={m4:#x} p3h={p3:#x} p4h={p4:#x} w12_3h={w3:#x} w12_4h={w4:#x} sign3h={g3:#x} sign4h={g4:#x}",v3==v4&&m3==m4&&s3==s4&&r3==r4&&a3==a4&&p3==p4&&w3==w4&&g3==g4);
+    }
+    if let Some(((n,_,_,_,_,_,_,_,_),(&_,v4,_,_,_,_,_,_,_)))=t3.iter().zip(t4.iter()).find(|((n3,v3,_,_,_,_,_,_,_),(n4,v4,_,_,_,_,_,_,_))|n3==n4&&v3!=v4){
+        eprintln!("Q792_STEP_BISECT first_divergent_stage={n} 4h={v4}");
     }
 }

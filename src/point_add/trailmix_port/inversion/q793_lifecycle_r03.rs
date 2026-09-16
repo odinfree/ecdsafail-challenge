@@ -58,8 +58,24 @@ fn toggle_terminal_work1(circ: &mut Circuit, work1: &[QReg]) {
     // the initial toggle is shifted and already covers bit 255 (lane 4), so only
     // the terminal side was wrong.
     for bit in 0..VALUE_WIDTH {
+        // The omitted LOW RESIDUAL lanes are the tail entries of `work1`
+        // (`omitted_lane_marker()`), and they are zero for every reachable input
+        // by construction, so they are never toggled. Toggling a marker is what
+        // the Q792_MARKER_OP trap catches.
+        if work1[bit].id() == u32::MAX { continue; }
+        // In the four-hole geometry the value↔lane correspondence is shifted by
+        // one at the top: value bit 255 lives on the last physical lane
+        // (the same `WORK_WIDTH - 1 - bit` mapping `toggle_initial_work1` uses),
+        // because lane 255 was given up to the residual. Bits below the shift
+        // boundary keep their 1:1 lane.
+        let lane = if four_hole() && bit + 1 == VALUE_WIDTH {
+            WORK_WIDTH - 1 - bit
+        } else {
+            bit
+        };
+        if lane >= work1.len() || work1[lane].id() == u32::MAX { continue; }
         if (SECP256K1_P_LE[bit / 8] >> (bit % 8)) & 1 != 0 {
-            circ.x(&work1[bit]);
+            circ.x(&work1[lane]);
         }
     }
     // Terminal r=1: all three omitted low residual rails require no physical toggle.
