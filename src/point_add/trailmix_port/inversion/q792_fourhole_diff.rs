@@ -953,6 +953,10 @@ pub fn run_step_bisect(){
                     if cur!=last{seq.push((k,op.kind as u8,op.q_target.0,op.q_control1.0,op.q_control2.0,(cur>>2)&1));last=cur;}
                 }
                 eprintln!("Q792_STEP_BISECT four={four} c1_write_seq={:?}",seq.iter().map(|&(k,k2,t,q1,q2,b)|(k,k2,t,q1,q2,b)).collect::<Vec<_>>());
+                if seq.len()>=19{
+                    let (fi,_,_,_,_,_)=seq[18];
+                    eprintln!("Q792_STEP_BISECT four={four} flip18_idx={fi} context={:?}",span[fi.saturating_sub(5)..(fi+4).min(span.len())].iter().enumerate().map(|(k,o)|(fi+k-5,o.kind as u8,o.q_target.0,o.q_control1.0,o.q_control2.0)).collect::<Vec<_>>());
+                }
             }
         }
         let mut boundaries:Vec<(&'static str,usize)>=marks.iter().filter(|&&(n,_)|n!="start").map(|&(n,i)|(n,i)).collect();
