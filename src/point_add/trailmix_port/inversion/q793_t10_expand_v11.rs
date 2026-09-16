@@ -175,7 +175,7 @@ fn emit16(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg
     for shift in 0..=2{
         if j&1!=shift&1{continue;}
         let c0=((j>>1)^(j&1))^(shift>>1);let sb=vec![vec![(g,true),(&c[0],c0!=0)]];
-        let bb:[Poly<'_>;4]=std::array::from_fn(|k|wire(&w2[(259+k-shift)%259]));let b2=&w2[(261-shift)%259];
+        let bb:[Poly<'_>;4]=std::array::from_fn(|k|wire(&w2[(259+k-shift)%259]));let b3=&w2[(262-shift)%259];
         let vv:[Poly<'_>;4]=std::array::from_fn(|k|{
             let index=258-shift-k;let mut v=wire(&w2[index]);
             if index>=4&&index-4<=253{let cond=mul(&aeq_supported(circ,rank,a,index-4),&xor(one(),cc[1].clone()));v=replace(v,cond,false);}
@@ -199,23 +199,24 @@ fn emit16(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg
                 else{((15usize.wrapping_sub(u)).wrapping_mul(super::q793_exit_low::INV16[t]))>>1&1!=0}
             },&odd,h,dirty,g,scratch,&metadata);
             let hp=replace(wire(h),spec.clone(),known);let all_even=mul(&base,&vec![vec![(&w1[0],false)]]);
-            gates(circ,mul(&all_even,&hp),b2,dirty,g,scratch,&metadata);
+            // The 4-hole u digit has four rails, so its top bit is b3 and the
+            // even-t old-value cancel must land on b3 (the 3-hole top was b2).
+            gates(circ,mul(&all_even,&hp),b3,dirty,g,scratch,&metadata);
             let q0=if rwidth==3{qq[0].clone()}else if rwidth==2{hp.clone()}else{bb[1].clone()};let q1=if rwidth==1{hp}else{qq[1].clone()};
             let mut vars=Vec::new();vars.extend(tt.clone());
             if rwidth==1{
-                // rwidth==1 mirrors the 3-hole empty r slots: r=0 on the
-                // active domain, so the closure reads only t/v/qs.  Mirror the
-                // 3-hole rail layout exactly: r=(v0,v1), v_eff=(v2,bb1,hp),
-                // qs=0.  The 3-hole v has no fourth rail, so v3 must NOT be
-                // spliced between v2 and bb1 (that shifts q0/q1 and diverges
-                // from the 3-hole oracle on the shared domain: 64/128 states).
-                vars.push(vv[0].clone());vars.push(vv[1].clone());vars.push(vv[2].clone());vars.push(q0);vars.push(q1);
-                anf(circ,&vars,|x|{let t=x&15;let r=x>>4&3;let v=x>>6&7;let qs=x>>9&3;(v.wrapping_mul(15usize.wrapping_sub(t*r)).wrapping_sub((qs<<shift)*t))>>2&1!=0},&all_even,b2,dirty,g,scratch,&metadata);
+                // rwidth==1 mirrors the 3-hole r slots: r=(v0,v1),
+                // v_eff=(v2,v3,bb1,hp), qs=0.  The 4-hole v_eff is four bits,
+                // so v3 stays between v2 and bb1; the update writes the TOP
+                // u bit (b3), extracted as bit 3 of the mod16 product.
+                vars.extend(vv.clone());vars.push(q0);vars.push(q1);
+                anf(circ,&vars,|x|{let t=x&15;let r=x>>4&3;let v=x>>6&15;let qs=x>>10&3;(v.wrapping_mul(15usize.wrapping_sub(t*r)).wrapping_sub((qs<<shift)*t))>>3&1!=0},&all_even,b3,dirty,g,scratch,&metadata);
             }else{
                 // lane_t10_port exact-shared-domain audit: r is 3-bit
-                // (bb0..bb2), decode t=x&15 r=x>>4&7 v=x>>7&15 qs=x>>11&3.
+                // (bb0..bb2), decode t=x&15 r=x>>4&7 v=x>>7&15 qs=x>>11&3;
+                // output is the TOP u bit (b3, bit 3 of the mod16 product).
                 vars.push(bb[0].clone());vars.push(bb[1].clone());vars.push(bb[2].clone());vars.extend(vv.clone());vars.push(q0);vars.push(q1);
-                anf(circ,&vars,|x|{let t=x&15;let r=x>>4&7;let v=x>>7&15;let qs=x>>11&3;(v.wrapping_mul(15usize.wrapping_sub(t*r)).wrapping_sub((qs<<shift)*t))>>2&1!=0},&all_even,b2,dirty,g,scratch,&metadata);
+                anf(circ,&vars,|x|{let t=x&15;let r=x>>4&7;let v=x>>7&15;let qs=x>>11&3;(v.wrapping_mul(15usize.wrapping_sub(t*r)).wrapping_sub((qs<<shift)*t))>>3&1!=0},&all_even,b3,dirty,g,scratch,&metadata);
             }
         }
     }
