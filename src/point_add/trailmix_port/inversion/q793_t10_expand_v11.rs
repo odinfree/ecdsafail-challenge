@@ -190,7 +190,11 @@ fn emit16(circ:&mut Circuit,rank:&[QReg],a:&[QReg],c:&[QReg],sm:&[QReg],p1:&QReg
             gates(circ,mul(&even,&bb[3]),h,dirty,g,scratch,&metadata);
             let mut vars=Vec::new();vars.extend(tt.clone());vars.extend(bb.clone());vars.extend(vv.clone());vars.extend(qq.clone());
             anf(circ,&vars,|x|{let t=x&15;let u=x>>4&15;let v=x>>8&15;let qs=x>>12&7;
-                if rwidth==3{(super::q793_exit_low::INV16[t].wrapping_mul(15usize.wrapping_sub(u*v)).wrapping_sub((qs<<shift)*v))>>2&1!=0}
+                // h carries the TOP bit of the 4-bit r digit: even t writes
+                // bb[3] (= r'=b's top bit), so odd t must extract bit 3 of
+                // r' = (15-u*v)*INV16[t] - (qs<<shift)*v mod 16.  The 3-hole
+                // extraction was bit 2 (top of the 3-bit digit).
+                if rwidth==3{(super::q793_exit_low::INV16[t].wrapping_mul(15usize.wrapping_sub(u*v)).wrapping_sub((qs<<shift)*v))>>3&1!=0}
                 else if rwidth==2{if t&1==0||v==0||(v<<shift)>=16{return false;}let d=(super::q793_exit_low::INV16[t].wrapping_mul(15usize.wrapping_sub(u*v)).wrapping_sub(((qs&6)<<shift)*v))&15;d>=v<<shift}
                 else{((15usize.wrapping_sub(u)).wrapping_mul(super::q793_exit_low::INV16[t]))>>1&1!=0}
             },&odd,h,dirty,g,scratch,&metadata);
